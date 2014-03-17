@@ -30,6 +30,10 @@ filtering on dates, and it is a little confusing when you read data
 directly from the database (like when troubleshooting) because storing
 date strings as "UTC-TIME+OFFSET" is not normal.
 
+All changes made that are not part of standard EF are annotated with a
+comment containing the string `<<HELM OPS>>` so the custom parts are\
+easy to find.
+
 ### License
 
 This project retains Entity Framework's Apache 2.0 license:
