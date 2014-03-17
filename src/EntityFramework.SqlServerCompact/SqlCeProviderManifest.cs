@@ -421,6 +421,10 @@ namespace System.Data.Entity.SqlServerCompact
                 case PrimitiveTypeKind.DateTime:
                     return TypeUsage.CreateDefaultTypeUsage(StoreTypeNameToStorePrimitiveType["datetime"]);
 
+                // <<HELM OPS>> Map DateTimeOffset .NET type to NVARCHAR(40) in SQL CE b/c DATETIMEOFFSET is not supported
+                case PrimitiveTypeKind.DateTimeOffset:
+                    return TypeUsage.CreateStringTypeUsage(StoreTypeNameToStorePrimitiveType["nvarchar"], true, false, 40);
+
                 default:
                     throw ADP1.NotSupported(
                         EntityRes.GetString(

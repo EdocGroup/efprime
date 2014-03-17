@@ -925,6 +925,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             {
             }
 
+            [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA1806:DoNotIgnoreMethodResults", MessageId = "System.DateTimeOffset.TryParse(System.String,System.DateTimeOffset@)"), System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Globalization", "CA1305:SpecifyIFormatProvider", MessageId = "System.DateTimeOffset.Parse(System.String)")]
             private static T GetTypedValueDefault(DbDataReader reader, int ordinal)
             {
                 var underlyingType = Nullable.GetUnderlyingType(typeof(T));
@@ -943,8 +944,28 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                 // use the specific reader.GetXXX method
                 bool isNullable;
                 var readerMethod = CodeGenEmitter.GetReaderMethod(typeof(T), out isNullable);
-                var result = (T)readerMethod.Invoke(reader, new object[] { ordinal });
-                return result;
+                var resultObj = readerMethod.Invoke(reader, new object[] { ordinal });
+                
+                // <<HELM OPS>> If this is a string acting as a DateTimeOffset, then parse it AND undo
+                // the offset because it was stored as the UTC date, but with the offset (so that we
+                // still know the original time zone, but also can do direct string comparisons).
+                var effectiveType = underlyingType ?? typeof(T);
+                if (effectiveType == typeof(DateTimeOffset) && resultObj.GetType() == typeof(string))
+                {
+                    if (resultObj == null)
+                        return (T)(object)null;
+
+                    var dto = default(DateTimeOffset);
+                    DateTimeOffset.TryParse((string)resultObj, out dto);
+
+                    var dateTime = dto.DateTime - dto.Offset;
+                    var offset = dto.Offset;
+
+                    var result = new DateTimeOffset(dateTime, offset);
+                    return (T)(object)result;
+                }
+                else
+                    return (T)resultObj;
             }
 
             private static object GetUntypedValueDefault(DbDataReader reader, int ordinal)

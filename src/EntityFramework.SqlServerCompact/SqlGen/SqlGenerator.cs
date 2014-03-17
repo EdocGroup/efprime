@@ -821,8 +821,13 @@ namespace System.Data.Entity.SqlServerCompact.SqlGen
                     case PrimitiveTypeKind.Time:
                         throw ADP1.NotSupported(EntityRes.GetString(EntityRes.ProviderDoesNotSupportType, "Time"));
 
+                    // <<HELM OPS>> DATETIMEOFFSET is not supported in SQL CE, so conver the .NET DateTimeOffset object
+                    // to a string in UTC time zone so that we can use string compare on dates.
                     case PrimitiveTypeKind.DateTimeOffset:
-                        throw ADP1.NotSupported(EntityRes.GetString(EntityRes.ProviderDoesNotSupportType, "DateTimeOffset"));
+                        result.Append(
+                            EscapeSingleQuote(
+                                ((DateTimeOffset)e.Value).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture), false /* IsUnicode */));
+                        break;
 
                     default:
                         // all known scalar types should been handled already.

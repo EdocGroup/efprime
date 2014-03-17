@@ -411,12 +411,33 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
         /// Method that the generated expression calls when the types are not
         /// assignable
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA1806:DoNotIgnoreMethodResults", MessageId = "System.DateTimeOffset.TryParse(System.String,System.DateTimeOffset@)"), System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Globalization", "CA1305:SpecifyIFormatProvider", MessageId = "System.DateTimeOffset.Parse(System.String)")]
         internal static TTarget CheckedConvert<TSource, TTarget>(TSource value)
         {
             checked
             {
                 try
                 {
+                    // <<HELM OPS>> If this is a string acting as a DateTimeOffset, then parse it AND undo
+                    // the offset because it was stored as the UTC date, but with the offset (so that we
+                    // still know the original time zone, but also can do direct string comparisons).
+                    var underlyingType = Nullable.GetUnderlyingType(typeof(TTarget));
+                    var effectiveType = underlyingType ?? typeof(TTarget);
+                    if (effectiveType == typeof(DateTimeOffset) && value.GetType() == typeof(string))
+                    {
+                        if (value == null)
+                            return (TTarget)(object)null;
+
+                        var dto = default(DateTimeOffset);
+                        DateTimeOffset.TryParse((string)(object)value, out dto);
+
+                        var dateTime = dto.DateTime - dto.Offset;
+                        var offset = dto.Offset;
+
+                        var result = new DateTimeOffset(dateTime, offset);
+
+                        return (TTarget)(object)result;
+                    }
                     return (TTarget)(object)value;
                 }
                 catch (InvalidCastException)

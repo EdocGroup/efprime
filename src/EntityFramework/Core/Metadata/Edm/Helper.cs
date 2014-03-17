@@ -401,6 +401,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 return true;
             }
 
+            // <<HELM OPS>> DateTimeOffset can be treated as a string
+            if (firstType.ClrType == typeof(DateTimeOffset) && secondType.ClrType == typeof(string))
+            {
+                return true;
+            }
+
             return false;
         }
 
