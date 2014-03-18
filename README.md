@@ -31,7 +31,7 @@ directly from the database (like when troubleshooting) because storing
 date strings as "UTC-TIME+OFFSET" is not normal.
 
 All changes made that are not part of standard EF are annotated with a
-comment containing the string `<<HELM OPS>>` so the custom parts are\
+comment containing the string `<<HELM OPS>>` so the custom parts are
 easy to find.
 
 ### License
@@ -42,3 +42,19 @@ http://www.apache.org/licenses/LICENSE-2.0.html
 
 As stated in the license, Helm Operations provides the software as is
 with no guarantees.
+
+### Known Issues
+
+Helper properties on DateTimeOffset are not supported right now. For
+example, this will not work:
+
+    data.Things.Where(thing => thing.CreatedDate.Month == 3);
+
+Hopefully this will be fixed soon. You can, however, compare to other
+DateTimeOffset objects:
+
+    data.Things.Where(thing => thing.CreatedDate < SomeDate);
+
+or
+
+    data.Things.Where(thing => thing.CreatedDate == SomeDate);
