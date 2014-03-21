@@ -958,7 +958,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                     var dto = default(DateTimeOffset);
                     DateTimeOffset.TryParse((string)resultObj, out dto);
 
-                    var dateTime = dto.DateTime - dto.Offset;
+                    var dateTime = dto.DateTime + dto.Offset;
                     var offset = dto.Offset;
 
                     var result = new DateTimeOffset(dateTime, offset);
