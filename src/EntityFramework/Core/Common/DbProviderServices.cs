@@ -17,6 +17,7 @@ namespace System.Data.Entity.Core.Common
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
+    using System.Globalization;
     using System.Reflection;
     using System.Transactions;
     using System.Xml;
@@ -472,7 +473,19 @@ namespace System.Data.Entity.Core.Common
             Check.NotNull(parameter, "parameter");
             Check.NotNull(parameterType, "parameterType");
 
-            parameter.Value = value;
+            // <<HELM OPS>> This code used to just say:
+            //
+            //    parameter.Value = value;
+            //
+            // An extra condition was added to specify that if the database field is a string, but the value supplied is
+            // a DateTimeOffset, then simply convert the DateTimeOffset to a UTC string. This is a hack specifically to
+            // support the treatment of DateTimeOffset as NVarChar(40) in SQL Compact Edition. It should have no affect
+            // when using SQL Server. Remember that it is safe to compare as a UTC string because we save all
+            // DateTimeOffset values as strings in UTC form (but with the offset remaining).
+            if (parameter.DbType == DbType.String && value != null && value.GetType() == typeof(DateTimeOffset))
+                parameter.Value = ((DateTimeOffset)value).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fff", CultureInfo.InvariantCulture);
+            else
+                parameter.Value = value;
         }
 
         /// <summary>Returns providers given a connection.</summary>
