@@ -616,7 +616,14 @@ namespace System.Data.Entity.SqlServerCompact
                     throw ADP1.NotSupported(EntityRes.GetString(EntityRes.ProviderDoesNotSupportType, "Time"));
 
                 case PrimitiveTypeKind.DateTimeOffset:
-                    throw ADP1.NotSupported(EntityRes.GetString(EntityRes.ProviderDoesNotSupportType, "DateTimeOffset"));
+                    // <<HELM OPS>> The old code just threw an exception here like this:
+                    //
+                    //     throw ADP1.NotSupported(EntityRes.GetString(EntityRes.ProviderDoesNotSupportType, "DateTimeOffset"));
+                    //
+                    // Now it is simply declaring that DateTimeOffset should be treated as NVarChar(40). There are code changes
+                    // elsewhere (also with <<HELM OPS>> annotation) that provide the conversions to and from DateTimeOffset.
+                    size = 40;
+                    return SqlDbType.NVarChar;
 
                 case PrimitiveTypeKind.DateTime:
                     return SqlDbType.DateTime;
