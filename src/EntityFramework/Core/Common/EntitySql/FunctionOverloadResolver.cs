@@ -9,6 +9,7 @@ namespace System.Data.Entity.Core.Common.EntitySql
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
+    using Helm;
 
     /// <summary>
     /// Represents function overload resolution mechanism, used by L2E and eSQL frontends.
@@ -268,6 +269,12 @@ namespace System.Data.Entity.Core.Common.EntitySql
                 if (!isPromotableTo(argumentType, parameterType))
                 {
                     return false;
+                }
+
+                if (HelmGlobals.ConnectionType == HelmConnectionType.SQLCE)
+                {
+                    if (argumentType.EdmType.ClrType == typeof(DateTimeOffset) && parameterType.EdmType.ClrType == typeof(DateTimeOffset))
+                        return false;
                 }
 
                 //

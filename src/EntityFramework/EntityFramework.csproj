@@ -221,6 +221,7 @@
     <Compile Include="Core\Metadata\Edm\DbModelExtensions.cs" />
     <Compile Include="Core\Metadata\Edm\IEdmModelAdapter.cs" />
     <Compile Include="Core\Metadata\Edm\RelationshipMultiplicityConverter.cs" />
+    <Compile Include="Helm\HelmGlobals.cs" />
     <Compile Include="Infrastructure\CommitFailedException.cs" />
     <Compile Include="Infrastructure\DependencyResolution\AppConfigDependencyResolver.cs" />
     <Compile Include="Infrastructure\DependencyResolution\CachingDependencyResolver.cs" />

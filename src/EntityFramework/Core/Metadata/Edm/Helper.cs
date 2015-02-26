@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
+using System.Data.Entity.Helm;
+
 namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections;
@@ -402,7 +404,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
 
             // <<HELM OPS>> DateTimeOffset can be treated as a string
-            if (firstType.ClrType == typeof(DateTimeOffset) && secondType.ClrType == typeof(string))
+            if (firstType.ClrType == typeof(DateTimeOffset) && secondType.ClrType == typeof(string) && HelmGlobals.ConnectionType == HelmConnectionType.SQLCE)
             {
                 return true;
             }
