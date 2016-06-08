@@ -15,7 +15,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(associationType);
 
-            associationType.Annotations.SetAnnotation(IsIndependentAnnotation, true);
+            associationType.GetMetadataProperties().SetAnnotation(IsIndependentAnnotation, true);
         }
 
         public static bool IsIndependent(this AssociationType associationType)
@@ -32,7 +32,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(associationType);
 
-            associationType.Annotations.SetAnnotation(IsPrincipalConfiguredAnnotation, true);
+            associationType.GetMetadataProperties().SetAnnotation(IsPrincipalConfiguredAnnotation, true);
         }
 
         public static bool IsPrincipalConfigured(this AssociationType associationType)
@@ -67,7 +67,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(associationType);
 
-            associationType.Annotations.SetConfiguration(configuration);
+            associationType.GetMetadataProperties().SetConfiguration(configuration);
         }
 
         public static bool IsRequiredToMany(this AssociationType associationType)
@@ -145,21 +145,21 @@ namespace System.Data.Entity.ModelConfiguration.Edm
                    || (associationType.TargetEnd.IsRequired() && !associationType.SourceEnd.IsRequired());
         }
 
-        /// <summary>
-        /// Attempt to determine the principal and dependent ends of this association.
-        /// The following table illustrates the solution space.
-        /// Source | Target || Prin  | Dep   |
-        /// -------|--------||-------|-------|
-        /// 1      | 1      || -     | -     |
-        /// 1      | 0..1   || Sr    | Ta    |
-        /// 1      | *      || Sr    | Ta    |
-        /// 0..1   | 1      || Ta    | Sr    |
-        /// 0..1   | 0..1   || -     | -     |
-        /// 0..1   | *      || Sr    | Ta    |
-        /// *      | 1      || Ta    | Sr    |
-        /// *      | 0..1   || Ta    | Sr    |
-        /// *      | *      || -     | -     |
-        /// </summary>
+        // <summary>
+        // Attempt to determine the principal and dependent ends of this association.
+        // The following table illustrates the solution space.
+        // Source | Target || Prin  | Dep   |
+        // -------|--------||-------|-------|
+        // 1      | 1      || -     | -     |
+        // 1      | 0..1   || Sr    | Ta    |
+        // 1      | *      || Sr    | Ta    |
+        // 0..1   | 1      || Ta    | Sr    |
+        // 0..1   | 0..1   || -     | -     |
+        // 0..1   | *      || Sr    | Ta    |
+        // *      | 1      || Ta    | Sr    |
+        // *      | 0..1   || Ta    | Sr    |
+        // *      | *      || -     | -     |
+        // </summary>
         public static bool TryGuessPrincipalAndDependentEnds(
             this AssociationType associationType,
             out AssociationEndMember principalEnd,

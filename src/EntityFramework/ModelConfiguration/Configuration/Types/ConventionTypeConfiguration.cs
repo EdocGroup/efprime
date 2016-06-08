@@ -5,10 +5,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
     using System.Collections.Generic;
     using System.ComponentModel;
     using System.Data.Entity.Core;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
-    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
-    using System.Data.Entity.ModelConfiguration.Mappers;
     using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -104,6 +103,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// <summary>
         /// Excludes this entity type from the model so that it will not be mapped to the database.
         /// </summary>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration" /> instance so that multiple calls can be chained.
+        /// </returns>
         public ConventionTypeConfiguration Ignore()
         {
             ValidateConfiguration(ConfigurationAspect.IgnoreType);
@@ -120,6 +122,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// <summary>
         /// Changes this entity type to a complex type.
         /// </summary>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration" /> instance so that multiple calls can be chained.
+        /// </returns>
         public ConventionTypeConfiguration IsComplexType()
         {
             ValidateConfiguration(ConfigurationAspect.IsComplexType);
@@ -137,6 +142,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// Excludes a property from the model so that it will not be mapped to the database.
         /// </summary>
         /// <param name="propertyName"> The name of the property to be configured. </param>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration" /> instance so that multiple calls can be chained.
+        /// </returns>
         /// <remarks>
         /// Calling this will have no effect if the property does not exist.
         /// </remarks>
@@ -144,7 +152,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         {
             Check.NotEmpty(propertyName, "propertyName");
 
-            var propertyInfo = _type.GetProperty(propertyName, PropertyFilter.DefaultBindingFlags);
+            var propertyInfo = _type.GetInstanceProperty(propertyName);
             if (propertyInfo == null)
             {
                 throw new InvalidOperationException(Strings.NoSuchProperty(propertyName, _type.Name));
@@ -159,6 +167,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// Excludes a property from the model so that it will not be mapped to the database.
         /// </summary>
         /// <param name="propertyInfo"> The property to be configured. </param>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration" /> instance so that multiple calls can be chained.
+        /// </returns>
         /// <remarks>
         /// Calling this will have no effect if the property does not exist.
         /// </remarks>
@@ -191,7 +202,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         {
             Check.NotEmpty(propertyName, "propertyName");
 
-            var propertyInfo = _type.GetProperty(propertyName, PropertyFilter.DefaultBindingFlags);
+            var propertyInfo = _type.GetInstanceProperty(propertyName);
 
             if (propertyInfo == null)
             {
@@ -235,16 +246,16 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             return new ConventionPrimitivePropertyConfiguration(propertyInfo, () => propertyConfiguration);
         }
 
-        /// <summary>
-        /// Configures a property that is defined on this type as a navigation property.
-        /// </summary>
-        /// <param name="propertyName"> The name of the property being configured. </param>
-        /// <returns> A configuration object that can be used to configure the property. </returns>
+        // <summary>
+        // Configures a property that is defined on this type as a navigation property.
+        // </summary>
+        // <param name="propertyName"> The name of the property being configured. </param>
+        // <returns> A configuration object that can be used to configure the property. </returns>
         internal ConventionNavigationPropertyConfiguration NavigationProperty(string propertyName)
         {
             Check.NotEmpty(propertyName, "propertyName");
 
-            var propertyInfo = _type.GetProperty(propertyName, PropertyFilter.DefaultBindingFlags);
+            var propertyInfo = _type.GetInstanceProperty(propertyName);
             if (propertyInfo == null)
             {
                 throw new InvalidOperationException(Strings.NoSuchProperty(propertyName, _type.Name));
@@ -253,11 +264,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             return NavigationProperty(propertyInfo);
         }
 
-        /// <summary>
-        /// Configures a property that is defined on this type as a navigation property.
-        /// </summary>
-        /// <param name="propertyInfo"> The property being configured. </param>
-        /// <returns> A configuration object that can be used to configure the property. </returns>
+        // <summary>
+        // Configures a property that is defined on this type as a navigation property.
+        // </summary>
+        // <param name="propertyInfo"> The property being configured. </param>
+        // <returns> A configuration object that can be used to configure the property. </returns>
         internal ConventionNavigationPropertyConfiguration NavigationProperty(PropertyInfo propertyInfo)
         {
             Check.NotNull(propertyInfo, "propertyInfo");
@@ -296,13 +307,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         {
             Check.NotEmpty(propertyName, "propertyName");
 
-            var propertyInfo = _type.GetProperty(propertyName, PropertyFilter.DefaultBindingFlags);
+            var propertyInfo = _type.GetInstanceProperty(propertyName);
             if (propertyInfo == null)
             {
                 throw new InvalidOperationException(Strings.NoSuchProperty(propertyName, _type.Name));
             }
 
-            return HasKey(_type.GetProperty(propertyName));
+            return HasKey(propertyInfo);
         }
 
         /// <summary>
@@ -342,7 +353,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 .Select(
                     n =>
                     {
-                        var propertyInfo = _type.GetProperty(n, PropertyFilter.DefaultBindingFlags);
+                        var propertyInfo = _type.GetInstanceProperty(n);
                         if (propertyInfo == null)
                         {
                             throw new InvalidOperationException(Strings.NoSuchProperty(n, _type.Name));
@@ -388,6 +399,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// Configures the table name that this entity type is mapped to.
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration" /> instance so that multiple calls can be chained.
+        /// </returns>
         /// <remarks>
         /// Calling this will have no effect once it has been configured.
         /// </remarks>
@@ -412,6 +426,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
         /// <param name="schemaName"> The database schema of the table. </param>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration" /> instance so that multiple calls can be chained.
+        /// </returns>
         /// <remarks>
         /// Calling this will have no effect once it has been configured.
         /// </remarks>
@@ -424,6 +441,33 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 && !_entityTypeConfiguration().IsTableNameConfigured)
             {
                 _entityTypeConfiguration().ToTable(tableName, schemaName);
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        /// Sets an annotation in the model for the table to which this entity is mapped. The annotation
+        /// value can later be used when processing the table such as when creating migrations.
+        /// </summary>
+        /// <remarks>
+        /// It will likely be necessary to register a <see cref="IMetadataAnnotationSerializer"/> if the type of
+        /// the annotation value is anything other than a string. Calling this method will have no effect if the 
+        /// annotation with the given name has already been configured.
+        /// </remarks>
+        /// <param name="name">The annotation name, which must be a valid C#/EDM identifier.</param>
+        /// <param name="value">The annotation value, which may be a string or some other type that
+        /// can be serialized with an <see cref="IMetadataAnnotationSerializer"/></param>.
+        /// <returns>The same configuration instance so that multiple calls can be chained.</returns>
+        public ConventionTypeConfiguration HasTableAnnotation(string name, object value)
+        {
+            Check.NotEmpty(name, "name");
+            ValidateConfiguration(ConfigurationAspect.HasTableAnnotation);
+
+            if (_entityTypeConfiguration != null
+                && !_entityTypeConfiguration().Annotations.ContainsKey(name))
+            {
+                _entityTypeConfiguration().SetAnnotation(name, value);
             }
 
             return this;
@@ -487,7 +531,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 ConfigurationAspect.MapToStoredProcedures,
                 ConfigurationAspect.NavigationProperty,
                 ConfigurationAspect.Property,
-                ConfigurationAspect.ToTable
+                ConfigurationAspect.ToTable,
+                ConfigurationAspect.HasTableAnnotation
             };
 
         private static readonly List<ConfigurationAspect> ConfigurationAspectsConflictingWithComplexType = new List<ConfigurationAspect>
@@ -496,7 +541,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 ConfigurationAspect.HasKey,
                 ConfigurationAspect.MapToStoredProcedures,
                 ConfigurationAspect.NavigationProperty,
-                ConfigurationAspect.ToTable
+                ConfigurationAspect.ToTable,
+                ConfigurationAspect.HasTableAnnotation
             };
 
         private void ValidateConfiguration(ConfigurationAspect aspect)
@@ -567,7 +613,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             MapToStoredProcedures = 1 << 5,
             Property = 1 << 6,
             NavigationProperty = 1 << 7,
-            ToTable = 1 << 8
+            ToTable = 1 << 8,
+            HasTableAnnotation = 1 << 9
         }
     }
 }

@@ -181,7 +181,7 @@ using System.Data.Entity.Infrastructure;
 
             Assert.Null(storageMappingItemCollection);
             Assert.Equal(1, errors.Count);
-            Assert.Contains("'Non-existing-property'", errors[0].Message);
+            Assert.Contains("Non-existing-property", errors[0].Message);
         }
 
         [Fact]
@@ -275,7 +275,9 @@ using System.Data.Entity.Infrastructure;
             var mappingCollection =
                 CreateStorageMappingItemCollection(new[] { Ssdl, SchoolSsdl }, new[] { Csdl, SchoolCsdl }, new[] { Msl, SchoolMsl });
 
-            Assert.Throws<InvalidOperationException>(() => mappingCollection.ComputeMappingHashValue());
+            Assert.Equal(
+                Strings.HashCalcMultipleContainers,
+                Assert.Throws<InvalidOperationException>(() => mappingCollection.ComputeMappingHashValue()).Message);
         }
 
         [Fact]
@@ -284,7 +286,9 @@ using System.Data.Entity.Infrastructure;
             var mappingCollection =
                 CreateStorageMappingItemCollection(new[] { Ssdl, SchoolSsdl }, new[] { Csdl, SchoolCsdl }, new[] { Msl, SchoolMsl });
 
-            Assert.Throws<InvalidOperationException>(() => mappingCollection.ComputeMappingHashValue("C", "S"));
+            Assert.Equal(
+                Strings.HashCalcContainersNotFound("C", "S"),
+                Assert.Throws<InvalidOperationException>(() => mappingCollection.ComputeMappingHashValue("C", "S")).Message);
         }
 
         [Fact]
@@ -327,7 +331,9 @@ using System.Data.Entity.Infrastructure;
 
             var errors = new List<EdmSchemaError>();
 
-            Assert.Throws<InvalidOperationException>(() => mappingCollection.GenerateViews(errors));
+            Assert.Equal(
+                Strings.ViewGenMultipleContainers,
+                Assert.Throws<InvalidOperationException>(() => mappingCollection.GenerateViews(errors)).Message);
         }
 
         [Fact]
@@ -338,7 +344,9 @@ using System.Data.Entity.Infrastructure;
 
             var errors = new List<EdmSchemaError>();
 
-            Assert.Throws<InvalidOperationException>(() => mappingCollection.GenerateViews("C", "S", errors));
+            Assert.Equal(
+                Strings.ViewGenContainersNotFound("C", "S"),
+                Assert.Throws<InvalidOperationException>(() => mappingCollection.GenerateViews("C", "S", errors)).Message);
         }
 
         [Fact]
@@ -362,13 +370,21 @@ using System.Data.Entity.Infrastructure;
         public void GenerateViews_generates_views_for_all_containers_that_contain_mappings()
         {
             var storageMappingItemCollection = 
-                CreateStorageMappingItemCollection(new[] { Ssdl, SchoolSsdl }, new[] { Csdl, SchoolCsdl }, new[] { SchoolMsl, Msl});
+                CreateStorageMappingItemCollection(new[] { Ssdl, SchoolSsdl }, new[] { Csdl, SchoolCsdl }, new[] { Msl});
 
-            var containerMapping = storageMappingItemCollection.GetItems<StorageEntityContainerMapping>().First();
-            foreach (var entityTypeMapping in containerMapping.EntitySetMappings.SelectMany(m => m.EntityTypeMappings).ToList())
-            {
-                entityTypeMapping.SetMapping.RemoveTypeMapping(entityTypeMapping);
-            }
+            // Add second container mapping without type mappings.
+            var conceptualEntityContainer = storageMappingItemCollection.EdmItemCollection.GetItems<EntityContainer>()[1];
+            var storeEntityContainer = storageMappingItemCollection.StoreItemCollection.GetItems<EntityContainer>()[1];
+            var storeEntitySet = storeEntityContainer.EntitySets.First();
+
+            var containerMapping = new EntityContainerMapping(
+                conceptualEntityContainer, storeEntityContainer, storageMappingItemCollection, false);
+
+            var entitySetMapping = new EntitySetMapping(storeEntitySet, containerMapping);
+            containerMapping.AddSetMapping(entitySetMapping);
+
+            containerMapping.SetReadOnly();
+            storageMappingItemCollection.AddInternal(containerMapping);
 
             var errors = new List<EdmSchemaError>();
             var views = storageMappingItemCollection.GenerateViews("AdventureWorksEntities3", "AdventureWorksModelStoreContainer", errors);

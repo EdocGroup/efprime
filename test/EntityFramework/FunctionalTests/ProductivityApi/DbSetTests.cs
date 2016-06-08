@@ -7,14 +7,20 @@ namespace ProductivityApiTests
     using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity;
+    using System.Data.Entity.Functionals.Utilities;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.TestHelpers;
     using System.Linq;
     using System.Reflection;
     using System.Threading;
+    using System.Transactions;
     using AdvancedPatternsModel;
     using ConcurrencyModel;
     using SimpleModel;
     using Xunit;
+    using Xunit.Extensions;
+    using Building = AdvancedPatternsModel.Building;
+    using FantasyModel = System.Data.Entity.TestModels.FantasyModel;
 
     public class DbSetTests : FunctionalTestBase
     {
@@ -2060,7 +2066,7 @@ namespace ProductivityApiTests
                 category.Products.Add(product);
 
                 Assert.Throws<InvalidOperationException>(() => context.Categories.Attach(category)).ValidateMessage(
-                    "RelationshipManager_InconsistentReferentialConstraintProperties");
+                    "RelationshipManager_InconsistentReferentialConstraintProperties", "Category.Id", "Product.CategoryId");
 
                 Assert.Null(context.Categories.Find("Spreads"));
                 Assert.Null(context.Products.Find(0));
@@ -3368,9 +3374,8 @@ namespace ProductivityApiTests
                 Assert.NotSame(typeof(Driver), driverProxy.GetType());
 
                 var setMethod = typeof(DbContext)
-                    .GetMethods()
-                    .Where(m => m.Name == "Set" && m.IsGenericMethodDefinition)
-                    .Single()
+                    .GetDeclaredMethods()
+                    .Single(m => m.Name == "Set" && m.IsGenericMethodDefinition)
                     .MakeGenericMethod(driverProxy.GetType());
 
                 // This throws because Set always returns the same Set instance every time
@@ -3415,9 +3420,8 @@ namespace ProductivityApiTests
                 Assert.NotSame(typeof(TestDriver), testDriverProxy1.GetType());
 
                 var createMethod = typeof(DbSet<Driver>)
-                    .GetMethods()
-                    .Where(m => m.Name == "Create" && m.IsGenericMethodDefinition)
-                    .Single()
+                    .GetDeclaredMethods()
+                    .Single(m => m.Name == "Create" && m.IsGenericMethodDefinition)
                     .MakeGenericMethod(testDriverProxy1.GetType());
 
                 var testDriverProxy2 = createMethod.Invoke(context.Drivers, null);
@@ -3449,14 +3453,13 @@ namespace ProductivityApiTests
                 Assert.NotSame(typeof(Driver), driverProxy.GetType());
 
                 var entryMethod = typeof(DbContext)
-                    .GetMethods()
-                    .Where(m => m.Name == "Entry" && m.IsGenericMethodDefinition)
-                    .Single()
+                    .GetDeclaredMethods()
+                    .Single(m => m.Name == "Entry" && m.IsGenericMethodDefinition)
                     .MakeGenericMethod(driverProxy.GetType());
 
                 var entry = entryMethod.Invoke(context, new object[] { driverProxy });
 
-                Assert.Same(driverProxy, entry.GetType().GetProperty("Entity").GetValue(entry, null));
+                Assert.Same(driverProxy, entry.GetType().GetDeclaredProperty("Entity").GetValue(entry, null));
             }
         }
 
@@ -3469,9 +3472,8 @@ namespace ProductivityApiTests
                 Assert.NotSame(typeof(Driver), driverProxy.GetType());
 
                 var entriesMethod = typeof(DbChangeTracker)
-                    .GetMethods()
-                    .Where(m => m.Name == "Entries" && m.IsGenericMethodDefinition)
-                    .Single()
+                    .GetDeclaredMethods()
+                    .Single(m => m.Name == "Entries" && m.IsGenericMethodDefinition)
                     .MakeGenericMethod(driverProxy.GetType());
 
                 var entries = entriesMethod.Invoke(context.ChangeTracker, null);
@@ -3586,5 +3588,65 @@ namespace ProductivityApiTests
         }
 
         #endregion
+
+        public class CodePlex1796 : FunctionalTestBase
+        {
+            static CodePlex1796()
+            {
+                // force database initialization, we don't want this to happen inside transaction
+                using (var context = new FantasyModel.FantasyContext())
+                {
+                    context.Provinces.Count();
+                }
+            }
+
+            [Fact]
+            [UseDefaultExecutionStrategy]
+            public void RemoveRange_honours_cascade_delete()
+            {
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        using (var context = new FantasyModel.FantasyContext())
+                        {
+                            using (new TransactionScope())
+                            {
+                                var provinceCount = context.Provinces.Count();
+                                var cityCount = context.Cities.Count();
+
+                                for (var i = 0; i < 5; i++)
+                                {
+                                    context.Provinces.Add(
+                                        new FantasyModel.Province
+                                        {
+                                            Name = "CodePlex1796_" + i,
+                                            Cities = new List<FantasyModel.City>
+                                            {
+                                                new FantasyModel.City(),
+                                                new FantasyModel.City()
+                                            }
+                                        });
+                                }
+
+                                context.SaveChanges();
+
+                                Assert.Equal(provinceCount + 5, context.Provinces.Count());
+                                Assert.Equal(cityCount + 10, context.Cities.Count());
+
+                                var provinces = context.Provinces
+                                    .Where(c => c.Name.StartsWith("CodePlex1796_"))
+                                    .Include(c => c.Cities);
+
+                                context.Provinces.RemoveRange(provinces);
+
+                                Assert.DoesNotThrow(() => context.SaveChanges());
+
+                                Assert.Equal(provinceCount, context.Provinces.Count());
+                                Assert.Equal(cityCount, context.Cities.Count());
+                            }
+                        }
+                    });
+            }
+        }
     }
 }

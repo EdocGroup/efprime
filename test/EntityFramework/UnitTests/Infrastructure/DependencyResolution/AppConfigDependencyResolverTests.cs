@@ -8,6 +8,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Configuration;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Internal.ConfigFile;
     using System.Data.Entity.ModelConfiguration.Internal.UnitTests;
@@ -177,7 +178,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var providerTypeName = string.Format(
                     CultureInfo.InvariantCulture,
                     "System.Data.Entity.SqlServer.SqlProviderServices, EntityFramework.SqlServer, Version={0}, Culture=neutral, PublicKeyToken=b77a5c561934e089",
-                    new AssemblyName(typeof(DbContext).Assembly.FullName).Version);
+                    new AssemblyName(typeof(DbContext).Assembly().FullName).Version);
 
                 var mockSqlProvider = new Mock<DbProviderServices>();
                 mockSqlProvider.Setup(m => m.GetService(typeof(string), null)).Returns("System.Data.SqlClient");
@@ -191,22 +192,20 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
                 var mockConfiguration = new Mock<InternalConfiguration>(null, null, null, null, null);
 
-                var someRandomThing = new Random();
-                mockSqlProvider.Setup(m => m.GetService(typeof(Random), null)).Returns(someRandomThing);
-
                 var resolvers = new ResolverChain();
                 mockConfiguration.Setup(m => m.AddDefaultResolver(It.IsAny<IDbDependencyResolver>()))
                     .Callback<IDbDependencyResolver>(resolvers.Add);
 
                 new AppConfigDependencyResolver(appConfig, mockConfiguration.Object, mockFactory.Object).GetService<IPilkington>();
 
-                mockConfiguration.Verify(m => m.AddDefaultResolver(It.IsAny<DbProviderServices>()), Times.Exactly(4));
+                mockConfiguration.Verify(m => m.AddDefaultResolver(It.IsAny<DbProviderServices>()), Times.Exactly(3));
                 mockConfiguration.Verify(
-                    m => m.AddDefaultResolver(It.IsAny<SingletonDependencyResolver<DbProviderServices>>()), Times.Once());
+                    m => m.AddDefaultResolver(It.IsAny<SingletonDependencyResolver<DbProviderServices>>()), Times.Never());
+                mockConfiguration.Verify(
+                    m => m.SetDefaultProviderServices(mockSqlProvider.Object, SqlProviderServices.ProviderInvariantName), Times.Once());
 
                 Assert.Equal("Robot.Rock", resolvers.GetService<string>());
-                Assert.Same(someRandomThing, resolvers.GetService<Random>());
-                Assert.Same(mockSqlProvider.Object, resolvers.GetService<DbProviderServices>("System.Data.SqlClient"));
+                Assert.Null(resolvers.GetService<DbProviderServices>("System.Data.SqlClient"));
             }
 
             [Fact]
@@ -385,6 +384,14 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             {
                 Assert.Empty(
                     new AppConfigDependencyResolver(CreateAppConfig(), new Mock<InternalConfiguration>(null, null, null, null, null).Object)
+                        .GetServices(typeof(IPilkington), "Karl"));
+            }
+
+            [Fact]
+            public void GetServices_returns_empty_list_for_unknown_contract_type_when_using_extension_method()
+            {
+                Assert.Empty(
+                    new AppConfigDependencyResolver(CreateAppConfig(), new Mock<InternalConfiguration>(null, null, null, null, null).Object)
                         .GetServices<IPilkington>("Karl"));
             }
 
@@ -521,7 +528,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var providerTypeName = string.Format(
                     CultureInfo.InvariantCulture,
                     "System.Data.Entity.SqlServer.SqlProviderServices, EntityFramework.SqlServer, Version={0}, Culture=neutral, PublicKeyToken=b77a5c561934e089",
-                    new AssemblyName(typeof(DbContext).Assembly.FullName).Version);
+                    new AssemblyName(typeof(DbContext).Assembly().FullName).Version);
 
                 var mockSqlProvider = new Mock<DbProviderServices>();
                 mockSqlProvider.Setup(m => m.GetService(typeof(string), null)).Returns("System.Data.SqlClient");
@@ -535,22 +542,20 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
                 var mockConfiguration = new Mock<InternalConfiguration>(null, null, null, null, null);
 
-                var someRandomThing = new Random();
-                mockSqlProvider.Setup(m => m.GetService(typeof(Random), null)).Returns(someRandomThing);
-
                 var resolvers = new ResolverChain();
                 mockConfiguration.Setup(m => m.AddDefaultResolver(It.IsAny<IDbDependencyResolver>()))
                     .Callback<IDbDependencyResolver>(resolvers.Add);
 
                 new AppConfigDependencyResolver(appConfig, mockConfiguration.Object, mockFactory.Object).GetServices<IPilkington>();
 
-                mockConfiguration.Verify(m => m.AddDefaultResolver(It.IsAny<DbProviderServices>()), Times.Exactly(4));
+                mockConfiguration.Verify(m => m.AddDefaultResolver(It.IsAny<DbProviderServices>()), Times.Exactly(3));
                 mockConfiguration.Verify(
-                    m => m.AddDefaultResolver(It.IsAny<SingletonDependencyResolver<DbProviderServices>>()), Times.Once());
+                    m => m.AddDefaultResolver(It.IsAny<SingletonDependencyResolver<DbProviderServices>>()), Times.Never());
+                mockConfiguration.Verify(
+                    m => m.SetDefaultProviderServices(mockSqlProvider.Object, SqlProviderServices.ProviderInvariantName), Times.Once());
 
                 Assert.Equal("Robot.Rock", resolvers.GetService<string>());
-                Assert.Same(someRandomThing, resolvers.GetService<Random>());
-                Assert.Same(mockSqlProvider.Object, resolvers.GetService<DbProviderServices>("System.Data.SqlClient"));
+                Assert.Null(resolvers.GetService<DbProviderServices>("System.Data.SqlClient"));
             }
 
             [Fact]
@@ -685,6 +690,55 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 mockConfig.Verify(m => m.Initializers, Times.Once());
                 Assert.Empty(resolver.GetServices<IDatabaseInitializer<DbContext>>());
                 mockConfig.Verify(m => m.Initializers, Times.Once());
+            }
+
+            [Fact]
+            public void GetServices_returns_registered_interceptors()
+            {
+                var interceptor1 = new Mock<IDbInterceptor>().Object;
+                var interceptor2 = new Mock<IDbCommandInterceptor>().Object;
+                var interceptor3 = new Mock<IDbConfigurationInterceptor>().Object;
+
+                var mockConfig = new Mock<AppConfig>(new ConnectionStringSettingsCollection());
+                mockConfig.Setup(m => m.Interceptors)
+                    .Returns(new List<IDbInterceptor> { interceptor1, interceptor2, interceptor2, interceptor3 });
+
+                var interceptors =
+                    new AppConfigDependencyResolver(mockConfig.Object, new Mock<InternalConfiguration>(null, null, null, null, null).Object)
+                        .GetServices<IDbInterceptor>().ToList();
+
+                Assert.Equal(4, interceptors.Count);
+                Assert.Same(interceptor1, interceptors[0]);
+                Assert.Same(interceptor2, interceptors[1]);
+                Assert.Same(interceptor2, interceptors[2]);
+                Assert.Same(interceptor3, interceptors[3]);
+            }
+
+            [Fact]
+            public void GetServices_returns_empty_list_if_no_registered_interceptors()
+            {
+                var mockConfig = new Mock<AppConfig>(new ConnectionStringSettingsCollection());
+                mockConfig.Setup(m => m.Interceptors).Returns(Enumerable.Empty<IDbInterceptor>);
+
+                Assert.Empty(
+                    new AppConfigDependencyResolver(mockConfig.Object, new Mock<InternalConfiguration>(null, null, null, null, null).Object)
+                        .GetServices<IDbInterceptor>());
+            }
+
+            [Fact]
+            public void GetServices_caches_registered_interceptors()
+            {
+                var mockConfig = new Mock<AppConfig>(new ConnectionStringSettingsCollection());
+                mockConfig.Setup(m => m.Interceptors).Returns(new List<IDbInterceptor> { new Mock<IDbInterceptor>().Object });
+
+                var resolver = new AppConfigDependencyResolver(
+                    mockConfig.Object, new Mock<InternalConfiguration>(null, null, null, null, null).Object);
+
+                Assert.Equal(1, resolver.GetServices<IDbInterceptor>().Count());
+                mockConfig.Verify(m => m.Interceptors, Times.Once());
+
+                Assert.Equal(1, resolver.GetServices<IDbInterceptor>().Count());
+                mockConfig.Verify(m => m.Interceptors, Times.Once());
             }
 
             /// <summary>

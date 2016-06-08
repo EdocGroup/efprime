@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Metadata.Edm
 {
@@ -12,11 +12,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Linq;
     using System.Reflection;
 
-    /// <summary>
-    /// Class for representing a collection of items for the object layer.
-    /// Most of the implementation for actual maintenance of the collection is
-    /// done by ItemCollection
-    /// </summary>
+    // <summary>
+    // Class for representing a collection of items for the object layer.
+    // Most of the implementation for actual maintenance of the collection is
+    // done by ItemCollection
+    // </summary>
     internal sealed class ObjectItemAttributeAssemblyLoader : ObjectItemAssemblyLoader
     {
         // list of unresolved navigation properties
@@ -51,10 +51,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Loads the given assembly and all the other referencd assemblies in the cache. If the assembly was already present
-        /// then it loads from the cache
-        /// </summary>
+        // <summary>
+        // Loads the given assembly and all the other referencd assemblies in the cache. If the assembly was already present
+        // then it loads from the cache
+        // </summary>
         internal override void Load()
         {
             Debug.Assert(
@@ -72,10 +72,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
             SessionData.AssembliesLoaded.Add(SourceAssembly, CacheEntry);
         }
 
-        /// <summary>
-        /// Check to see if the type is already loaded - either in the typesInLoading, or ObjectItemCollection or
-        /// in the global cache
-        /// </summary>
+        // <summary>
+        // Check to see if the type is already loaded - either in the typesInLoading, or ObjectItemCollection or
+        // in the global cache
+        // </summary>
         private bool TryGetLoadedType(Type clrType, out EdmType edmType)
         {
             if (SessionData.TypesInLoading.TryGetValue(clrType.FullName, out edmType)
@@ -97,7 +97,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             // Let's check to see if this type is a ref type, a nullable type, or a collection type, these are the types that
             // we need to take special care of them
-            if (clrType.IsGenericType)
+            if (clrType.IsGenericType())
             {
                 var genericType = clrType.GetGenericTypeDefinition();
 
@@ -136,15 +136,15 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 !SessionData.TypesInLoading.ContainsKey(clrType.FullName), "This should be called only after looking in typesInLoading");
             Debug.Assert(
                 SessionData.EdmItemErrors.Count > 0 || // had an error during loading
-                clrType.GetCustomAttributes(typeof(EdmTypeAttribute), false /*inherit*/).Length == 0 || // not a type we track
-                SourceAssembly != clrType.Assembly, // not from this assembly
+                !clrType.GetCustomAttributes<EdmTypeAttribute>(inherit: false).Any() || // not a type we track
+                SourceAssembly != clrType.Assembly(), // not from this assembly
                 "Given that we don't have any error, if the type is part of this assembly, it should not be loaded from the cache");
 
             ImmutableAssemblyCacheEntry immutableCacheEntry;
-            if (SessionData.LockedAssemblyCache.TryGetValue(clrType.Assembly, out immutableCacheEntry))
+            if (SessionData.LockedAssemblyCache.TryGetValue(clrType.Assembly(), out immutableCacheEntry))
             {
                 Debug.Assert(
-                    SessionData.KnownAssemblies.Contains(clrType.Assembly, SessionData.LoaderCookie, SessionData.EdmItemCollection),
+                    SessionData.KnownAssemblies.Contains(clrType.Assembly(), SessionData.LoaderCookie, SessionData.EdmItemCollection),
                     "We should only be loading things directly from the cache if they are already in the collection");
                 return immutableCacheEntry.TryGetEdmType(clrType.FullName, out edmType);
             }
@@ -153,9 +153,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return false;
         }
 
-        /// <summary>
-        /// Loads the set of types from the given assembly and adds it to the given list of types
-        /// </summary>
+        // <summary>
+        // Loads the set of types from the given assembly and adds it to the given list of types
+        // </summary>
         protected override void LoadTypesFromAssembly()
         {
             Debug.Assert(CacheEntry.TypesInAssembly.Count == 0);
@@ -167,7 +167,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 // If the type doesn't have the same EdmTypeAttribute defined, then it's not a special type
                 // that we care about, skip it.
-                if (!type.IsDefined(typeof(EdmTypeAttribute), false))
+                if (!type.GetCustomAttributes<EdmTypeAttribute>(inherit: false).Any())
                 {
                     continue;
                 }
@@ -175,7 +175,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 // Generic type is not supported, if the user attributed this generic type using EdmTypeAttribute,
                 // then the exception message can help them better understand what is going on instead of just
                 // failing at a much later point of OC type mapping lookup with a super generic error message
-                if (type.IsGenericType)
+                if (type.IsGenericType())
                 {
                     SessionData.EdmItemErrors.Add(new EdmItemError(Strings.GenericTypeNotSupported(type.FullName)));
                     continue;
@@ -196,14 +196,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// This method loads all the relationship type that this entity takes part in
-        /// </summary>
+        // <summary>
+        // This method loads all the relationship type that this entity takes part in
+        // </summary>
         private void LoadRelationshipTypes()
         {
-            foreach (
-                EdmRelationshipAttribute roleAttribute in
-                    SourceAssembly.GetCustomAttributes(typeof(EdmRelationshipAttribute), false /*inherit*/))
+            foreach (var roleAttribute in SourceAssembly.GetCustomAttributes<EdmRelationshipAttribute>())
             {
                 // Check if there is an entry already with this name
                 if (TryFindNullParametersInRelationshipAttribute(roleAttribute))
@@ -270,31 +268,31 @@ namespace System.Data.Entity.Core.Metadata.Edm
             associationType.AddKeyMember(new AssociationEndMember(roleName, entityType.GetReferenceType(), multiplicity));
         }
 
-        /// <summary>
-        /// Load metadata of the given type - when you call this method, you should check and make sure that the type has
-        /// edm attribute. If it doesn't,we won't load the type and it will be returned as null
-        /// </summary>
+        // <summary>
+        // Load metadata of the given type - when you call this method, you should check and make sure that the type has
+        // edm attribute. If it doesn't,we won't load the type and it will be returned as null
+        // </summary>
         private void LoadType(Type clrType)
         {
-            Debug.Assert(clrType.Assembly == SourceAssembly, "Why are we loading a type that is not in our assembly?");
+            Debug.Assert(clrType.Assembly() == SourceAssembly, "Why are we loading a type that is not in our assembly?");
             Debug.Assert(!SessionData.TypesInLoading.ContainsKey(clrType.FullName), "Trying to load a type that is already loaded???");
-            Debug.Assert(!clrType.IsGenericType, "Generic type is not supported");
+            Debug.Assert(!clrType.IsGenericType(), "Generic type is not supported");
 
             EdmType edmType = null;
 
-            var typeAttributes = (EdmTypeAttribute[])clrType.GetCustomAttributes(typeof(EdmTypeAttribute), false /*inherit*/);
+            var typeAttributes = clrType.GetCustomAttributes<EdmTypeAttribute>(inherit: false);
 
             // the CLR doesn't allow types to have duplicate/multiple attribute declarations
 
-            if (typeAttributes.Length != 0)
+            if (typeAttributes.Any())
             {
                 if (clrType.IsNested)
                 {
                     SessionData.EdmItemErrors.Add(
-                        new EdmItemError(Strings.NestedClassNotSupported(clrType.FullName, clrType.Assembly.FullName)));
+                        new EdmItemError(Strings.NestedClassNotSupported(clrType.FullName, clrType.Assembly().FullName)));
                     return;
                 }
-                var typeAttribute = typeAttributes[0];
+                var typeAttribute = typeAttributes.First();
                 var cspaceTypeName = String.IsNullOrEmpty(typeAttribute.Name) ? clrType.Name : typeAttribute.Name;
                 if (String.IsNullOrEmpty(typeAttribute.NamespaceName)
                     && clrType.Namespace == null)
@@ -307,13 +305,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
                                               ? clrType.Namespace
                                               : typeAttribute.NamespaceName;
 
-                if (typeAttribute.GetType()
-                    == typeof(EdmEntityTypeAttribute))
+                if (typeAttribute.GetType() == typeof(EdmEntityTypeAttribute))
                 {
                     edmType = new ClrEntityType(clrType, cspaceNamespaceName, cspaceTypeName);
                 }
-                else if (typeAttribute.GetType()
-                         == typeof(EdmComplexTypeAttribute))
+                else if (typeAttribute.GetType() == typeof(EdmComplexTypeAttribute))
                 {
                     edmType = new ClrComplexType(clrType, cspaceNamespaceName, cspaceTypeName);
                 }
@@ -357,9 +353,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 //Load base type only for entity type - not sure if we will allow complex type inheritance
                 if (Helper.IsEntityType(edmType))
                 {
-                    TrackClosure(clrType.BaseType);
+                    TrackClosure(clrType.BaseType());
                     AddTypeResolver(
-                        () => edmType.BaseType = ResolveBaseType(clrType.BaseType));
+                        () => edmType.BaseType = ResolveBaseType(clrType.BaseType()));
                 }
 
                 // Load the properties for this type
@@ -377,7 +373,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private EdmType ResolveBaseType(Type type)
         {
             EdmType edmType;
-            if (type.GetCustomAttributes(typeof(EdmEntityTypeAttribute), false).Length > 0
+            if (type.GetCustomAttributes<EdmEntityTypeAttribute>(inherit: false).Any()
                 && TryGetLoadedType(type, out edmType))
             {
                 return edmType;
@@ -463,15 +459,15 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return true;
         }
 
-        /// <summary>
-        /// Load all the property metadata of the given type
-        /// </summary>
-        /// <param name="structuralType"> The type where properties are loaded </param>
+        // <summary>
+        // Load all the property metadata of the given type
+        // </summary>
+        // <param name="structuralType"> The type where properties are loaded </param>
         private void LoadPropertiesFromType(StructuralType structuralType)
         {
             // Look at both public, internal, and private instanced properties declared at this type, inherited members
             // are not looked at.  Internal and private properties are also looked at because they are also schematized fields
-            var properties = structuralType.ClrType.GetProperties(PropertyReflectionBindingFlags);
+            var properties = structuralType.ClrType.GetDeclaredProperties().Where(p => !p.IsStatic());
 
             foreach (var property in properties)
             {
@@ -481,7 +477,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 // EdmScalarPropertyAttribute, EdmComplexPropertyAttribute and EdmRelationshipNavigationPropertyAttribute
                 // are all EdmPropertyAttributes that we need to process. If the current property is not an EdmPropertyAttribute
                 // we will just ignore it and skip to the next property.
-                if (property.IsDefined(typeof(EdmRelationshipNavigationPropertyAttribute), false))
+                if (property.GetCustomAttributes<EdmRelationshipNavigationPropertyAttribute>(inherit: false).Any())
                 {
                     // keep the loop var from being lifted
                     var pi = property;
@@ -489,9 +485,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
                         () =>
                         ResolveNavigationProperty(structuralType, pi));
                 }
-                else if (property.IsDefined(typeof(EdmScalarPropertyAttribute), false))
+                else if (property.GetCustomAttributes<EdmScalarPropertyAttribute>(inherit: false).Any()) 
                 {
-                    if ((Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType).IsEnum)
+                    if ((Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType).IsEnum())
                     {
                         TrackClosure(property.PropertyType);
                         var local = property;
@@ -502,7 +498,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                         newMember = LoadScalarProperty(structuralType.ClrType, property, out isEntityKeyProperty);
                     }
                 }
-                else if (property.IsDefined(typeof(EdmComplexPropertyAttribute), false))
+                else if (property.GetCustomAttributes<EdmComplexPropertyAttribute>(inherit: false).Any()) 
                 {
                     TrackClosure(property.PropertyType);
                     // keep loop var from being lifted
@@ -534,16 +530,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         internal void ResolveNavigationProperty(StructuralType declaringType, PropertyInfo propertyInfo)
         {
-            Debug.Assert(
-                propertyInfo.IsDefined(typeof(EdmRelationshipNavigationPropertyAttribute), false),
-                "The property must have navigation property defined");
-
             // EdmScalarPropertyAttribute, EdmComplexPropertyAttribute and EdmRelationshipNavigationPropertyAttribute
             // are all EdmPropertyAttributes that we need to process. If the current property is not an EdmPropertyAttribute
             // we will just ignore it and skip to the next property.
-            var relationshipPropertyAttributes = propertyInfo.GetCustomAttributes(typeof(EdmRelationshipNavigationPropertyAttribute), false);
+            var relationshipPropertyAttributes = propertyInfo.GetCustomAttributes<EdmRelationshipNavigationPropertyAttribute>(inherit: false);
 
-            Debug.Assert(relationshipPropertyAttributes.Length == 1, "There should be exactly one property for every navigation property");
+            Debug.Assert(relationshipPropertyAttributes.Count() == 1, "There should be exactly one property for every navigation property");
 
             // The only valid return types from navigation properties are:
             //     (1) EntityType
@@ -573,7 +565,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             // Expecting EdmRelationshipNavigationPropertyAttribute to have AllowMultiple=False, so only look at first element in the attribute array
 
-            var attribute = (EdmRelationshipNavigationPropertyAttribute)relationshipPropertyAttributes[0];
+            var attribute = (EdmRelationshipNavigationPropertyAttribute)relationshipPropertyAttributes.First();
 
             EdmMember member = null;
             EdmType type;
@@ -641,17 +633,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Load the property with scalar property attribute.
-        /// Note that we pass the CLR type in because in the case where the property is declared on a generic
-        /// base class the DeclaringType of propert won't work for us and we need the real entity type instead.
-        /// </summary>
-        /// <param name="clrType"> The CLR type of the entity </param>
-        /// <param name="property"> Metadata representing the property </param>
-        /// <param name="isEntityKeyProperty"> True if the property forms part of the entity's key </param>
+        // <summary>
+        // Load the property with scalar property attribute.
+        // Note that we pass the CLR type in because in the case where the property is declared on a generic
+        // base class the DeclaringType of propert won't work for us and we need the real entity type instead.
+        // </summary>
+        // <param name="clrType"> The CLR type of the entity </param>
+        // <param name="property"> Metadata representing the property </param>
+        // <param name="isEntityKeyProperty"> True if the property forms part of the entity's key </param>
         private EdmMember LoadScalarProperty(Type clrType, PropertyInfo property, out bool isEntityKeyProperty)
         {
-            Debug.Assert(property.IsDefined(typeof(EdmScalarPropertyAttribute), false), "The property must have a scalar attribute");
             EdmMember member = null;
             isEntityKeyProperty = false;
 
@@ -671,12 +662,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
             else
             {
-                var attrs = property.GetCustomAttributes(typeof(EdmScalarPropertyAttribute), false);
+                var attrs = property.GetCustomAttributes<EdmScalarPropertyAttribute>(inherit: false);
 
-                Debug.Assert(attrs.Length == 1, "Every property can exactly have one ScalarProperty Attribute");
+                Debug.Assert(attrs.Count() == 1, "Every property can exactly have one ScalarProperty Attribute");
                 // Expecting EdmScalarPropertyAttribute to have AllowMultiple=False, so only look at first element in the attribute array
-                isEntityKeyProperty = ((EdmScalarPropertyAttribute)attrs[0]).EntityKeyProperty;
-                var isNullable = ((EdmScalarPropertyAttribute)attrs[0]).IsNullable;
+                isEntityKeyProperty = attrs.First().EntityKeyProperty;
+                var isNullable = attrs.First().IsNullable;
 
                 member = new EdmProperty(
                     property.Name,
@@ -690,17 +681,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return member;
         }
 
-        /// <summary>
-        /// Resolves enum type property.
-        /// </summary>
-        /// <param name="declaringType"> The type to add the declared property to. </param>
-        /// <param name="clrProperty"> Property to resolve. </param>
+        // <summary>
+        // Resolves enum type property.
+        // </summary>
+        // <param name="declaringType"> The type to add the declared property to. </param>
+        // <param name="clrProperty"> Property to resolve. </param>
         private void ResolveEnumTypeProperty(StructuralType declaringType, PropertyInfo clrProperty)
         {
             DebugCheck.NotNull(declaringType);
             DebugCheck.NotNull(clrProperty);
             Debug.Assert(
-                (Nullable.GetUnderlyingType(clrProperty.PropertyType) ?? clrProperty.PropertyType).IsEnum,
+                (Nullable.GetUnderlyingType(clrProperty.PropertyType) ?? clrProperty.PropertyType).IsEnum(),
                 "This method should be called for enums only");
 
             EdmType propertyType;
@@ -717,8 +708,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
             else
             {
-                var edmScalarPropertyAttribute =
-                    (EdmScalarPropertyAttribute)clrProperty.GetCustomAttributes(typeof(EdmScalarPropertyAttribute), false).Single();
+                var edmScalarPropertyAttribute = clrProperty.GetCustomAttributes<EdmScalarPropertyAttribute>(inherit: false).Single();
 
                 var enumProperty = new EdmProperty(
                     clrProperty.Name,
@@ -773,13 +763,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         private void TrackClosure(Type type)
         {
-            if (SourceAssembly != type.Assembly
-                &&
-                !CacheEntry.ClosureAssemblies.Contains(type.Assembly)
-                &&
-                IsSchemaAttributePresent(type.Assembly)
-                &&
-                !(type.IsGenericType &&
+            if (SourceAssembly != type.Assembly()
+                && !CacheEntry.ClosureAssemblies.Contains(type.Assembly())
+                && IsSchemaAttributePresent(type.Assembly())
+                && !(type.IsGenericType() &&
                   (
                       EntityUtil.IsAnICollection(type) || // EntityCollection<>, List<>, ICollection<>
                       type.GetGenericTypeDefinition() == typeof(EntityReference<>) ||
@@ -788,10 +775,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
                  )
                 )
             {
-                CacheEntry.ClosureAssemblies.Add(type.Assembly);
+                CacheEntry.ClosureAssemblies.Add(type.Assembly());
             }
 
-            if (type.IsGenericType)
+            if (type.IsGenericType())
             {
                 foreach (var genericArgument in type.GetGenericArguments())
                 {
@@ -802,19 +789,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         internal static bool IsSchemaAttributePresent(Assembly assembly)
         {
-            return assembly.IsDefined(typeof(EdmSchemaAttribute), false /*inherit*/);
+            return assembly.GetCustomAttributes<EdmSchemaAttribute>().Any();
         }
 
         internal static ObjectItemAssemblyLoader Create(Assembly assembly, ObjectItemLoadingSessionData sessionData)
         {
-            if (IsSchemaAttributePresent(assembly))
-            {
-                return new ObjectItemAttributeAssemblyLoader(assembly, sessionData);
-            }
-            else
-            {
-                return new ObjectItemNoOpAssemblyLoader(assembly, sessionData);
-            }
+            return IsSchemaAttributePresent(assembly)
+                       ? (ObjectItemAssemblyLoader)new ObjectItemAttributeAssemblyLoader(assembly, sessionData)
+                       : new ObjectItemNoOpAssemblyLoader(assembly, sessionData);
         }
     }
 }

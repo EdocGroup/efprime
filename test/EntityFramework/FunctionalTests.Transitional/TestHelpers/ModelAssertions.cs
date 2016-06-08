@@ -20,14 +20,14 @@ namespace System.Data.Entity
                     .OfType<StructuralType>()
                     .Single(
                         i => i.Annotations.Any(
-                            a => a.Name == "ClrType"
+                            a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                                  && (Type)a.Value == typeof(TStructuralType)));
 
             var property
                 = databaseMapping.Model.NamespaceItems.OfType<StructuralType>()
                     .Where(
                         i => i.Annotations.Any(
-                            a => a.Name == "ClrType"
+                            a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                                  && ((Type)a.Value).IsAssignableFrom(typeof(TStructuralType))))
                     .SelectMany(th => th.Members.OfType<EdmProperty>()).Distinct().Single(
                         i => i.Annotations.Any(
@@ -51,7 +51,7 @@ namespace System.Data.Entity
             var structuralType
                 = databaseMapping.Model.NamespaceItems.OfType<StructuralType>().Single(
                     i => i.Annotations.Any(
-                        a => a.Name == "ClrType"
+                        a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                              && (Type)a.Value == typeof(TStructuralType)));
 
             var table
@@ -72,7 +72,7 @@ namespace System.Data.Entity
                 = databaseMapping.Model.NamespaceItems.OfType<StructuralType>()
                     .Single(
                         i => i.Annotations.Any(
-                            a => a.Name == "ClrType"
+                            a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                                  && (Type)a.Value == typeof(TStructuralType)));
 
             var table
@@ -106,7 +106,7 @@ namespace System.Data.Entity
             var structuralType
                 = databaseMapping.Model.NamespaceItems.OfType<StructuralType>().Single(
                     i => i.Annotations.Any(
-                        a => a.Name == "ClrType"
+                        a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                              && (Type)a.Value == typeof(TStructuralType)));
 
             var fragments
@@ -131,7 +131,7 @@ namespace System.Data.Entity
             var structuralType
                 = databaseMapping.Model.NamespaceItems.OfType<StructuralType>().Single(
                     i => i.Annotations.Any(
-                        a => a.Name == "ClrType"
+                        a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                              && (Type)a.Value == typeof(TStructuralType)));
 
             var fragment
@@ -149,7 +149,7 @@ namespace System.Data.Entity
             var entityType
                 = databaseMapping.Model.EntityTypes.Single(
                     i => i.Annotations.Any(
-                        a => a.Name == "ClrType"
+                        a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                              && (Type)a.Value == typeof(TStructuralType)));
 
             databaseMapping
@@ -168,7 +168,7 @@ namespace System.Data.Entity
                 = databaseMapping.Model.NamespaceItems.OfType<StructuralType>()
                                  .Where(
                                      i => i.Annotations.Any(
-                                         a => a.Name == "ClrType"
+                                         a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                                               && ((Type)a.Value).IsAssignableFrom(typeof(TStructuralType))))
                                  .SelectMany(th => th.Members.OfType<EdmProperty>()).Distinct().Single(
                                      i => i.Annotations.Any(
@@ -193,9 +193,9 @@ namespace System.Data.Entity
 
         internal class CompositeParameterAssertions
         {
-            private readonly IList<StorageModificationFunctionParameterBinding> _parameterBindings;
+            private readonly IList<ModificationFunctionParameterBinding> _parameterBindings;
 
-            public CompositeParameterAssertions(IList<StorageModificationFunctionParameterBinding> parameterBindings)
+            public CompositeParameterAssertions(IList<ModificationFunctionParameterBinding> parameterBindings)
             {
                 Xunit.Assert.NotEmpty(parameterBindings);
 
@@ -218,7 +218,7 @@ namespace System.Data.Entity
             var structuralType
                 = databaseMapping.Model.NamespaceItems.OfType<StructuralType>().Single(
                     i => i.Annotations.Any(
-                        a => a.Name == "ClrType"
+                        a => a.Name == XmlConstants.ClrTypeAnnotationWithPrefix
                              && (Type)a.Value == typeof(TStructuralType)));
 
             var fragments
@@ -254,6 +254,34 @@ namespace System.Data.Entity
             public ColumnAssertions DbIsFalse(Func<EdmProperty, bool?> column)
             {
                 Xunit.Assert.Equal(false, column(_column));
+
+                return this;
+            }
+
+            public ColumnAssertions HasAnnotation(string name, object value, IEqualityComparer<object> comparer = null)
+            {
+                var qualifiedName = XmlConstants.CustomAnnotationPrefix + name;
+
+                Xunit.Assert.Equal(1, _column.Annotations.Count(a => a.Name == qualifiedName));
+                
+                var actual = _column.Annotations.Single(a => a.Name == qualifiedName).Value;
+                if (comparer == null)
+                {
+                    Xunit.Assert.Equal(value, actual);
+                }
+                else
+                {
+                    Xunit.Assert.Equal(value, actual, comparer);
+                }
+
+                return this;
+            }
+
+            public ColumnAssertions HasNoAnnotation(string name)
+            {
+                var qualifiedName = XmlConstants.CustomAnnotationPrefix + name;
+
+                Xunit.Assert.Equal(0, _column.Annotations.Count(a => a.Name == qualifiedName));
 
                 return this;
             }
@@ -381,7 +409,10 @@ namespace System.Data.Entity
 
             public TypeAssertions HasColumns(params string[] columns)
             {
-                Xunit.Assert.True(_table.Properties.Select(c => c.Name).SequenceEqual(columns));
+                Xunit.Assert.True(_table.Properties.Select(c => c.Name).SequenceEqual(columns),
+                    string.Format(
+                    @"Expected: {0}
+Actual: {1}", string.Join(", ", columns), string.Join(", ", _table.Properties.Select(c => c.Name))));
 
                 return this;
             }
@@ -458,13 +489,32 @@ namespace System.Data.Entity
                     new ColumnAssertions(
                         _table.ForeignKeyBuilders.SelectMany(f => f.DependentColumns).Single(c => c.Name == column));
             }
+
+            public TypeAssertions HasAnnotation(string name, object value)
+            {
+                var qualifiedName = XmlConstants.CustomAnnotationPrefix + name;
+
+                Xunit.Assert.Equal(1, _table.Annotations.Count(a => a.Name == qualifiedName));
+                Xunit.Assert.Equal(value, _table.Annotations.Single(a => a.Name == qualifiedName).Value);
+
+                return this;
+            }
+
+            public TypeAssertions HasNoAnnotation(string name)
+            {
+                var qualifiedName = XmlConstants.CustomAnnotationPrefix + name;
+
+                Xunit.Assert.Equal(0, _table.Annotations.Count(a => a.Name == qualifiedName));
+
+                return this;
+            }
         }
 
         internal class MappingFragmentAssertions
         {
-            private readonly StorageMappingFragment _fragment;
+            private readonly MappingFragment _fragment;
 
-            public MappingFragmentAssertions(StorageMappingFragment fragment)
+            public MappingFragmentAssertions(MappingFragment fragment)
             {
                 _fragment = fragment;
             }
@@ -473,7 +523,7 @@ namespace System.Data.Entity
             {
                 var con =
                     _fragment.ColumnConditions.Single(
-                        cc => String.Equals(cc.ColumnProperty.Name, column, StringComparison.Ordinal));
+                        cc => String.Equals(cc.Column.Name, column, StringComparison.Ordinal));
 
                 Xunit.Assert.True(Equals(con.Value, value) && con.IsNull == null);
 
@@ -485,7 +535,7 @@ namespace System.Data.Entity
                 Xunit.Assert.True(
                     _fragment.ColumnConditions.Any(
                         cc =>
-                        String.Equals(cc.ColumnProperty.Name, column, StringComparison.Ordinal) && cc.Value == null &&
+                        String.Equals(cc.Column.Name, column, StringComparison.Ordinal) && cc.Value == null &&
                         cc.IsNull == isNull));
 
                 return this;
@@ -502,7 +552,7 @@ namespace System.Data.Entity
             {
                 Xunit.Assert.True(
                     !_fragment.ColumnConditions.Any(
-                        cc => String.Equals(cc.ColumnProperty.Name, column, StringComparison.Ordinal)));
+                        cc => String.Equals(cc.Column.Name, column, StringComparison.Ordinal)));
 
                 return this;
             }

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Objects
 {
@@ -28,9 +28,9 @@ namespace System.Data.Entity.Core.Objects
 
         #region Constructor
 
-        /// <summary>
-        /// For testing.
-        /// </summary>
+        // <summary>
+        // For testing.
+        // </summary>
         internal ObjectStateEntry()
         {
         }
@@ -113,9 +113,9 @@ namespace System.Data.Entity.Core.Objects
         /// </returns>
         public abstract bool IsRelationship { get; }
 
-        /// <summary>
-        /// Gets bit array indicating which properties are modified.
-        /// </summary>
+        // <summary>
+        // Gets bit array indicating which properties are modified.
+        // </summary>
         internal abstract BitArray ModifiedProperties { get; }
 
         BitArray IEntityStateEntry.ModifiedProperties
@@ -184,6 +184,12 @@ namespace System.Data.Entity.Core.Objects
         public abstract void RejectPropertyChanges(string propertyName);
 
         /// <summary>Uses DetectChanges to determine whether or not the current value of the property with the given name is different from its original value. Note that this may be different from the property being marked as modified since a property which has not changed can still be marked as modified.</summary>
+        /// <remarks>
+        /// Note that this property always returns the same result as the modified state of the property for change tracking 
+        /// proxies and entities that derive from the EntityObject base class. This is because original values are not tracked 
+        /// for these entity types and hence there is no way to know if the current value is really different from the 
+        /// original value.
+        /// </remarks>
         /// <returns>true if the property has changed; otherwise, false.</returns>
         /// <param name="propertyName">The name of the property.</param>
         public abstract bool IsPropertyChanged(string propertyName);
@@ -318,9 +324,9 @@ namespace System.Data.Entity.Core.Objects
         internal abstract void EntityComplexMemberChanging(string entityMemberName, object complexObject, string complexObjectMemberName);
         internal abstract void EntityComplexMemberChanged(string entityMemberName, object complexObject, string complexObjectMemberName);
 
-        /// <summary>
-        /// Reuse or create a new (Entity)DataRecordInfo.
-        /// </summary>
+        // <summary>
+        // Reuse or create a new (Entity)DataRecordInfo.
+        // </summary>
         internal abstract DataRecordInfo GetDataRecordInfo(StateManagerTypeMetadata metadata, object userObject);
 
         internal virtual void Reset()

@@ -32,19 +32,44 @@ namespace System.Data.Entity.TestModels.GearsOfWarModel
             modelBuilder.Entity<Gear>().HasMany(g => g.Weapons).WithMany();
             modelBuilder.Entity<Gear>().HasOptional(g => g.CityOfBirth).WithMany();
             modelBuilder.Entity<Gear>().HasRequired(g => g.Squad).WithMany(g => g.Members);
-            modelBuilder.Entity<Gear>().Property(g => g.Rank).IsConcurrencyToken();
+            modelBuilder.Entity<Gear>().HasTableAnnotation("Annotation_Gear", "Step to West 17");
+            
+            modelBuilder.Entity<Gear>()
+                .Property(g => g.Rank)
+                .HasColumnAnnotation("Annotation_Rank", "Love not war!")
+                .IsConcurrencyToken();
 
-            modelBuilder.Entity<City>().HasKey(c => c.Name);
+            modelBuilder.Entity<City>()
+                .HasTableAnnotation("Annotation_City1", "The Short Earth")
+                .HasTableAnnotation("Annotation_City2", "It's a Joker!")
+                .HasTableAnnotation("Annotation_City1", "The Long Earth")
+                .HasTableAnnotation("Annotation_City3", "Natural Stepper")
+                .HasTableAnnotation("Annotation_City2", null)
+                .HasKey(c => c.Name);
 
-            modelBuilder.Entity<Squad>().Property(s => s.Id)
+            modelBuilder.Entity<Squad>()
+                .HasTableAnnotation("Annotation_Squad1", "Happy Place")
+                .Property(s => s.Id)
+                .HasColumnAnnotation("Annotation_Id", "All you need is love...")
                 .HasDatabaseGeneratedOption(DatabaseGeneratedOption.None);
 
-            modelBuilder.Entity<Squad>().Property(s => s.InternalNumber)
+            modelBuilder.Entity<Squad>()
+                .HasTableAnnotation("Annotation_Squad2", "Happy Planet")
+                .Property(s => s.InternalNumber)
+                .HasColumnAnnotation("Annotation_InternalNumber", "She loves me, yeah, yeah, yeah.")
                 .HasDatabaseGeneratedOption(DatabaseGeneratedOption.Identity);
 
             modelBuilder.Entity<Weapon>().HasOptional(w => w.SynergyWith).WithOptionalPrincipal();
 
-            modelBuilder.Entity<CogTag>().Property(t => t.Note).HasMaxLength(40);
+            modelBuilder.Entity<CogTag>()
+                .HasTableAnnotation("Annotation_CogTag", "It's an elf!")
+                .Property(t => t.Note)
+                .HasColumnAnnotation("Annotation_Note", "...living life in peace.")
+                .HasMaxLength(40);
+
+            modelBuilder.ComplexType<WeaponSpecification>()
+                .Property(c => c.AmmoPerClip)
+                .HasColumnAnnotation("Annotation_AmmoPerClip", "Let It Be");
         }
     }
 }

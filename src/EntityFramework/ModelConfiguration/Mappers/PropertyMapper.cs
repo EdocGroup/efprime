@@ -92,7 +92,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                 {
                     var isNullable = propertyType.TryUnwrapNullableType(out propertyType);
 
-                    if (propertyType.IsEnum)
+                    if (propertyType.IsEnum())
                     {
                         var enumType = _typeMapper.MapEnumType(propertyType);
 
@@ -110,7 +110,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                 property.SetClrPropertyInfo(propertyInfo);
 
                 new AttributeMapper(_typeMapper.MappingContext.AttributeProvider)
-                    .Map(propertyInfo, property.Annotations);
+                    .Map(propertyInfo, property.GetMetadataProperties());
 
                 if (!property.IsComplexType)
                 {

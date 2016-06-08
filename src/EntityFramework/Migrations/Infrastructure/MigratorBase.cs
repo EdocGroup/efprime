@@ -5,6 +5,7 @@ namespace System.Data.Entity.Migrations.Infrastructure
     using System.Collections.Generic;
     using System.Data.Common;
     using System.Data.Entity.Core.Common.CommandTrees;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Migrations.Model;
     using System.Data.Entity.Migrations.Sql;
     using System.Data.Entity.Resources;
@@ -111,9 +112,9 @@ namespace System.Data.Entity.Migrations.Infrastructure
         }
 
         internal virtual void AutoMigrate(
-            string migrationId, XDocument sourceModel, XDocument targetModel, bool downgrading)
+            string migrationId, VersionedModel sourceModel, VersionedModel targetModel, bool downgrading)
         {
-            Check.NotNull(targetModel, "targetModel");
+            DebugCheck.NotNull(targetModel);
 
             _this.AutoMigrate(migrationId, sourceModel, targetModel, downgrading);
         }
@@ -165,12 +166,14 @@ namespace System.Data.Entity.Migrations.Infrastructure
             return _this.CreateDiscoveryQueryTrees();
         }
 
-        internal virtual void ExecuteSql(DbTransaction transaction, MigrationStatement migrationStatement)
+        internal virtual void ExecuteSql(
+            MigrationStatement migrationStatement, DbConnection connection, DbTransaction transaction,
+            DbInterceptionContext interceptionContext)
         {
-            DebugCheck.NotNull(transaction);
             DebugCheck.NotNull(migrationStatement);
+            DebugCheck.NotNull(connection);
 
-            _this.ExecuteSql(transaction, migrationStatement);
+            _this.ExecuteSql(migrationStatement, connection, transaction, interceptionContext);
         }
 
         internal virtual void Upgrade(

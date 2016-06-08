@@ -16,19 +16,19 @@ namespace System.Data.Entity.Migrations.Infrastructure
     [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling")]
     internal class DynamicToFunctionModificationCommandConverter : DefaultExpressionVisitor
     {
-        private readonly StorageEntityTypeModificationFunctionMapping _entityTypeModificationFunctionMapping;
-        private readonly StorageAssociationSetModificationFunctionMapping _associationSetModificationFunctionMapping;
-        private readonly StorageEntityContainerMapping _entityContainerMapping;
+        private readonly EntityTypeModificationFunctionMapping _entityTypeModificationFunctionMapping;
+        private readonly AssociationSetModificationFunctionMapping _associationSetModificationFunctionMapping;
+        private readonly EntityContainerMapping _entityContainerMapping;
 
-        private StorageModificationFunctionMapping _currentFunctionMapping;
+        private ModificationFunctionMapping _currentFunctionMapping;
         private EdmProperty _currentProperty;
         private List<EdmProperty> _storeGeneratedKeys;
         private int _nextStoreGeneratedKey;
         private bool _useOriginalValues;
 
         public DynamicToFunctionModificationCommandConverter(
-            StorageEntityTypeModificationFunctionMapping entityTypeModificationFunctionMapping,
-            StorageEntityContainerMapping entityContainerMapping)
+            EntityTypeModificationFunctionMapping entityTypeModificationFunctionMapping,
+            EntityContainerMapping entityContainerMapping)
         {
             DebugCheck.NotNull(entityTypeModificationFunctionMapping);
             DebugCheck.NotNull(entityContainerMapping);
@@ -38,8 +38,8 @@ namespace System.Data.Entity.Migrations.Infrastructure
         }
 
         public DynamicToFunctionModificationCommandConverter(
-            StorageAssociationSetModificationFunctionMapping associationSetModificationFunctionMapping,
-            StorageEntityContainerMapping entityContainerMapping)
+            AssociationSetModificationFunctionMapping associationSetModificationFunctionMapping,
+            EntityContainerMapping entityContainerMapping)
         {
             DebugCheck.NotNull(associationSetModificationFunctionMapping);
             DebugCheck.NotNull(entityContainerMapping);
@@ -279,11 +279,11 @@ namespace System.Data.Entity.Migrations.Infrastructure
                                 rb => (from esm in _entityContainerMapping.EntitySetMappings
                                     from etm in esm.EntityTypeMappings
                                     from mf in etm.MappingFragments
-                                    from pm in mf.Properties.OfType<StorageScalarPropertyMapping>()
+                                       from pm in mf.PropertyMappings.OfType<ScalarPropertyMapping>()
                                     where
-                                        pm.ColumnProperty.EdmEquals(propertyExpression.Property)
-                                        && pm.ColumnProperty.DeclaringType.EdmEquals(propertyExpression.Property.DeclaringType)
-                                    select pm.EdmProperty)
+                                        pm.Column.EdmEquals(propertyExpression.Property)
+                                        && pm.Column.DeclaringType.EdmEquals(propertyExpression.Property.DeclaringType)
+                                       select pm.Property)
                                     .Contains(rb.Property))
                     select new KeyValuePair<string, DbExpression>(resultBinding.ColumnName, propertyExpression))
                     .ToList();
@@ -321,14 +321,14 @@ namespace System.Data.Entity.Migrations.Infrastructure
                     = (from asm in _entityContainerMapping.AssociationSetMappings
                         from tm in asm.TypeMappings
                         from mf in tm.MappingFragments
-                        from epm in mf.Properties.OfType<StorageEndPropertyMapping>()
-                        from pm in epm.PropertyMappings
-                        where pm.ColumnProperty.EdmEquals(column)
-                              && pm.ColumnProperty.DeclaringType.EdmEquals(column.DeclaringType)
+                       from epm in mf.PropertyMappings.OfType<EndPropertyMapping>()
+                       from pm in epm.PropertyMappings
+                       where pm.Column.EdmEquals(column)
+                              && pm.Column.DeclaringType.EdmEquals(column.DeclaringType)
                         select new EdmMember[]
                                {
-                                   pm.EdmProperty,
-                                   epm.EndMember
+                                   pm.Property,
+                                   epm.AssociationEnd
                                })
                         .ToList();
 

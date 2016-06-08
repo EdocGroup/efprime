@@ -14,22 +14,22 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration.Structures
     using System.Text;
     using AttributeSet = System.Data.Entity.Core.Common.Utils.Set<MemberPath>;
 
-    /// <summary>
-    /// This class stores the C or S query. For example,
-    /// (C) SELECT (p type Person) AS D1, p.pid, p.name FROM p in P WHERE D1
-    /// (S) SELECT True AS D1, pid, name FROM SPerson WHERE D1
-    /// The cell query is stored in a "factored" manner for ease of
-    /// cell-merging and cell manipulation. It contains:
-    /// * Projection: A sequence of slots and a sequence of boolean slots (one
-    /// for each cell in the extent)
-    /// * A From part represented as a Join tree
-    /// * A where clause
-    /// </summary>
+    // <summary>
+    // This class stores the C or S query. For example,
+    // (C) SELECT (p type Person) AS D1, p.pid, p.name FROM p in P WHERE D1
+    // (S) SELECT True AS D1, pid, name FROM SPerson WHERE D1
+    // The cell query is stored in a "factored" manner for ease of
+    // cell-merging and cell manipulation. It contains:
+    // * Projection: A sequence of slots and a sequence of boolean slots (one
+    // for each cell in the extent)
+    // * A From part represented as a Join tree
+    // * A where clause
+    // </summary>
     internal class CellQuery : InternalBase
     {
-        /// <summary>
-        /// Whether query has a 'SELECT DISTINCT' on top.
-        /// </summary>
+        // <summary>
+        // Whether query has a 'SELECT DISTINCT' on top.
+        // </summary>
         internal enum SelectDistinct
         {
             Yes,
@@ -75,9 +75,9 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration.Structures
             m_extentMemberPath = rootMember;
         }
 
-        /// <summary>
-        /// Copy Constructor
-        /// </summary>
+        // <summary>
+        // Copy Constructor
+        // </summary>
         internal CellQuery(CellQuery source)
         {
             m_basicCellRelation = source.m_basicCellRelation;
@@ -158,13 +158,13 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration.Structures
             }
         }
 
-        /// <summary>
-        /// [WARNING}
-        /// After cell merging boolean expression can (most likely) have disjunctions (OR node)
-        /// to represent the condition that a tuple came from either of the merged cells.
-        /// In this case original where clause IS MERGED CLAUSE with OR.
-        /// So don't call this after merging. It'll throw or debug assert from within GetConjunctsFromWC()
-        /// </summary>
+        // <summary>
+        // [WARNING}
+        // After cell merging boolean expression can (most likely) have disjunctions (OR node)
+        // to represent the condition that a tuple came from either of the merged cells.
+        // In this case original where clause IS MERGED CLAUSE with OR.
+        // So don't call this after merging. It'll throw or debug assert from within GetConjunctsFromWC()
+        // </summary>
         internal IEnumerable<MemberRestriction> Conditions
         {
             get { return GetConjunctsFromOriginalWhereClause(); }
@@ -317,7 +317,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration.Structures
                             var rightExtent = rightCellQuery.Extent as EntitySet;
                             if (rightExtent != null)
                             {
-                                var associations = MetadataHelper.GetAssociationsForEntitySet(rightCellQuery.Extent as EntitySet);
+                                var associations = (rightCellQuery.Extent as EntitySet).AssociationSets;
                                 foreach (
                                     var association in
                                         associations.Where(
@@ -740,7 +740,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration.Structures
             return GetConjunctsFromWhereClause(m_originalWhereClause);
         }
 
-        private IEnumerable<MemberRestriction> GetConjunctsFromWhereClause(BoolExpression whereClause)
+        private static IEnumerable<MemberRestriction> GetConjunctsFromWhereClause(BoolExpression whereClause)
         {
             foreach (var boolExpr in whereClause.Atoms)
             {

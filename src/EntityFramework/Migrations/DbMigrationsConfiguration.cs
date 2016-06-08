@@ -60,14 +60,14 @@ namespace System.Data.Entity.Migrations
         }
 
         /// <summary>
-        /// Gets or sets a value indicating if automatic migrations can be used when migration the database.
+        /// Gets or sets a value indicating if automatic migrations can be used when migrating the database.
         /// </summary>
         public bool AutomaticMigrationsEnabled { get; set; }
 
         /// <summary>
         /// Gets or sets the string used to distinguish migrations belonging to this configuration
         /// from migrations belonging to other configurations using the same database.
-        /// This property enables migrations from multiple different models to be applied to applied to a single database.
+        /// This property enables migrations from multiple different models to be applied to a single database.
         /// </summary>
         public string ContextKey
         {

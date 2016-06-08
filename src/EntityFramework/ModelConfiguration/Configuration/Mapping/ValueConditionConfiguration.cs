@@ -2,6 +2,7 @@
 
 namespace System.Data.Entity.ModelConfiguration.Configuration
 {
+    using System.Collections.Generic;
     using System.ComponentModel;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Mapping;
@@ -144,6 +145,17 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             }
         }
 
+        internal static IEnumerable<MappingFragment> GetMappingFragmentsWithColumnAsDefaultDiscriminator(
+            DbDatabaseMapping databaseMapping, EntityType table, EdmProperty column)
+        {
+            return databaseMapping.EntityContainerMappings
+                .SelectMany(ecm => ecm.EntitySetMappings)
+                .SelectMany(esm => esm.EntityTypeMappings)
+                .SelectMany(etm => etm.MappingFragments)
+                .Where(tmf => tmf.Table == table
+                           && tmf.GetDefaultDiscriminator() == column);
+        }
+
         internal static bool AnyBaseTypeToTableWithoutColumnCondition(
             DbDatabaseMapping databaseMapping, EntityType entityType, EntityType table,
             EdmProperty column)
@@ -163,7 +175,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                     if (baseTypeTableFragments.Any()
                         && baseTypeTableFragments
                                .SelectMany(etmf => etmf.ColumnConditions)
-                               .All(cc => cc.ColumnProperty != column))
+                               .All(cc => cc.Column != column))
                     {
                         return true;
                     }
@@ -177,7 +189,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
         internal void Configure(
             DbDatabaseMapping databaseMapping,
-            StorageMappingFragment fragment,
+            MappingFragment fragment,
             EntityType entityType,
             DbProviderManifest providerManifest)
         {
@@ -187,6 +199,17 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var discriminatorColumn
                 = fragment.Table.Properties
                           .SingleOrDefault(c => string.Equals(c.Name, Discriminator, StringComparison.Ordinal));
+
+            if (discriminatorColumn != null)
+            {
+                if (GetMappingFragmentsWithColumnAsDefaultDiscriminator(databaseMapping, fragment.Table, discriminatorColumn).Any())
+                {
+                    // There is at least one fragment that uses this column as the default discriminator
+                    // so to avoid conflict with the new discriminator column it needs to be renamed
+                    discriminatorColumn.Name = fragment.Table.Properties.Select(p => p.Name).Uniquify(discriminatorColumn.Name);
+                    discriminatorColumn = null;
+                }
+            }
 
             if (discriminatorColumn == null)
             {

@@ -20,14 +20,14 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping
                                     Name = "ES"
                                 };
             var entitySetMapping = databaseMapping.AddEntitySetMapping(entitySet);
-            var entityTypeMapping = new StorageEntityTypeMapping(null);
+            var entityTypeMapping = new EntityTypeMapping(null);
             entitySetMapping.AddTypeMapping(entityTypeMapping);
-            var entityTypeMappingFragment = new StorageMappingFragment(entitySet, entityTypeMapping, false);
+            var entityTypeMappingFragment = new MappingFragment(entitySet, entityTypeMapping, false);
             entityTypeMapping.AddFragment(entityTypeMappingFragment);
             var complexType = new ComplexType("C");
             var propertyMapping1
                 = new ColumnMappingBuilder(
-                    new EdmProperty("C"),
+                    new EdmProperty("C", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace })),
                     new[]
                         {
                             EdmProperty.CreateComplex("P1", complexType),
@@ -35,13 +35,13 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping
                         });
             var type = typeof(object);
 
-            complexType.Annotations.SetClrType(type);
+            complexType.GetMetadataProperties().SetClrType(type);
 
             entityTypeMappingFragment.AddColumnMapping(propertyMapping1);
 
             var propertyMapping2
                 = new ColumnMappingBuilder(
-                    new EdmProperty("C"),
+                    new EdmProperty("C", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace })),
                     new List<EdmProperty>
                         {
                             EdmProperty.CreateComplex("P3", complexType),
@@ -67,21 +67,21 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping
             var entitySetMapping = databaseMapping.AddEntitySetMapping(entitySet);
 
             var complexType1 = new ComplexType();
-            complexType1.Annotations.SetClrType(typeof(string));
+            complexType1.GetMetadataProperties().SetClrType(typeof(string));
 
             var complexType2 = new ComplexType();
-            complexType2.Annotations.SetClrType(typeof(object));
+            complexType2.GetMetadataProperties().SetClrType(typeof(object));
 
             var storageModificationFunctionMapping
-                = new StorageModificationFunctionMapping(
+                = new ModificationFunctionMapping(
                     entitySet,
                     entityType,
                     new EdmFunction("F", "N", DataSpace.SSpace),
                     new[]
                         {
-                            new StorageModificationFunctionParameterBinding(
+                            new ModificationFunctionParameterBinding(
                                 new FunctionParameter(),
-                                new StorageModificationFunctionMemberPath(
+                                new ModificationFunctionMemberPath(
                                 new EdmMember[]
                                     {
                                         EdmProperty.CreateComplex("C1", complexType1),
@@ -96,7 +96,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping
                     null);
 
             entitySetMapping.AddModificationFunctionMapping(
-                new StorageEntityTypeModificationFunctionMapping(
+                new EntityTypeModificationFunctionMapping(
                     entityType,
                     storageModificationFunctionMapping,
                     storageModificationFunctionMapping,
@@ -164,7 +164,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping
             var databaseMapping = new DbDatabaseMapping()
                 .Initialize(new EdmModel(DataSpace.CSpace), new EdmModel(DataSpace.SSpace));
             var entityType = new EntityType("E", "N", DataSpace.CSpace);
-            var entityTypeMapping = new StorageEntityTypeMapping(null);
+            var entityTypeMapping = new EntityTypeMapping(null);
             entityTypeMapping.AddType(entityType);
             databaseMapping.AddEntitySetMapping(
                 new EntitySet
@@ -183,8 +183,8 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Db.Mapping
             var entityType = new EntityType("Foo", "N", DataSpace.CSpace);
             var type = typeof(object);
 
-            entityType.Annotations.SetClrType(type);
-            var entityTypeMapping = new StorageEntityTypeMapping(null);
+            entityType.GetMetadataProperties().SetClrType(type);
+            var entityTypeMapping = new EntityTypeMapping(null);
             entityTypeMapping.AddType(entityType);
             entityTypeMapping.SetClrType(typeof(object));
             databaseMapping.AddEntitySetMapping(

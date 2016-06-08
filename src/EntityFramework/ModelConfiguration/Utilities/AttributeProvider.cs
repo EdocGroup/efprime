@@ -33,10 +33,10 @@ namespace System.Data.Entity.ModelConfiguration.Utilities
         {
             DebugCheck.NotNull(type);
 
-            var attrs = new HashSet<Attribute>(GetTypeDescriptor(type).GetAttributes().Cast<Attribute>());
+            var attrs = new List<Attribute>(GetTypeDescriptor(type).GetAttributes().Cast<Attribute>());
 
             // Data Services workaround
-            foreach (var attribute in type.GetCustomAttributes(true).Cast<Attribute>()
+            foreach (var attribute in type.GetCustomAttributes<Attribute>(inherit: true)
                                           .Where(
                                               a =>
                                               a.GetType().FullName.Equals(
@@ -54,21 +54,26 @@ namespace System.Data.Entity.ModelConfiguration.Utilities
             DebugCheck.NotNull(propertyInfo);
 
             return _discoveredAttributes.GetOrAdd(
-                propertyInfo, (pi) =>
+                propertyInfo, pi =>
                    {
-                       var typeDescriptor = GetTypeDescriptor(propertyInfo.DeclaringType);
+                       // PERF: this code is part of a critical section, consider its performance when refactoring
+                       var typeDescriptor = GetTypeDescriptor(pi.DeclaringType);
                        var propertyCollection = typeDescriptor.GetProperties();
-                       var propertyDescriptor = propertyCollection[propertyInfo.Name];
+                       var propertyDescriptor = propertyCollection[pi.Name];
 
                        var propertyAttributes
                            = (propertyDescriptor != null)
                                    ? propertyDescriptor.Attributes.Cast<Attribute>()
                            // Fallback to standard reflection (non-public properties)
-                                   : propertyInfo.GetCustomAttributes(true).Cast<Attribute>();
+                                   : pi.GetCustomAttributes<Attribute>(inherit: true);
 
                        // Get the attributes for the property's type and exclude them
-                       var propertyTypeAttributes = GetAttributes(propertyInfo.PropertyType);
-                       return propertyAttributes.Except(propertyTypeAttributes);
+                       var propertyTypeAttributes = (ICollection<Attribute>)GetAttributes(pi.PropertyType);
+                       if (propertyTypeAttributes.Count > 0)
+                       {
+                           propertyAttributes = propertyAttributes.Except(propertyTypeAttributes);
+                       }
+                       return propertyAttributes.ToList();
                    });
         }
 

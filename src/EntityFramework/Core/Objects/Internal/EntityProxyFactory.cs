@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Objects.Internal
 {
@@ -18,48 +18,48 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Threading;
     using System.Xml.Serialization;
 
-    /// <summary>
-    /// Factory for creating proxy classes that can intercept calls to a class' members.
-    /// </summary>
+    // <summary>
+    // Factory for creating proxy classes that can intercept calls to a class' members.
+    // </summary>
     internal class EntityProxyFactory
     {
-        private const string ProxyTypeNameFormat = "System.Data.Entity.DynamicProxies.{0}_{1}";
-        private const string SystemWebExtensionsAssemblyName = @"System.Web.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35";
-        private const string ScriptIgnoreAttributeTypeName = @"System.Web.Script.Serialization.ScriptIgnoreAttribute";
         internal const string ResetFKSetterFlagFieldName = "_resetFKSetterFlag";
         internal const string CompareByteArraysFieldName = "_compareByteArrays";
 
-        /// <summary>
-        /// A hook such that test code can change the AssemblyBuilderAccess of the
-        /// proxy assembly through reflection into the EntityProxyFactory.
-        /// </summary>
+        // <summary>
+        // A hook such that test code can change the AssemblyBuilderAccess of the
+        // proxy assembly through reflection into the EntityProxyFactory.
+        // </summary>
         private static AssemblyBuilderAccess s_ProxyAssemblyBuilderAccess = AssemblyBuilderAccess.Run;
 
-        /// <summary>
-        /// Dictionary of proxy class type information, keyed by the pair of the CLR type and EntityType CSpaceName of the type being proxied.
-        /// A null value for a particular EntityType name key records the fact that
-        /// no proxy Type could be created for the specified type.
-        /// </summary>
+        // <summary>
+        // Dictionary of proxy class type information, keyed by the pair of the CLR type and EntityType CSpaceName of the type being proxied.
+        // A null value for a particular EntityType name key records the fact that
+        // no proxy Type could be created for the specified type.
+        // </summary>
         private static readonly Dictionary<Tuple<Type, string>, EntityProxyTypeInfo> _proxyNameMap =
             new Dictionary<Tuple<Type, string>, EntityProxyTypeInfo>();
 
-        /// <summary>
-        /// Dictionary of proxy class type information, keyed by the proxy type
-        /// </summary>
+        // <summary>
+        // Dictionary of proxy class type information, keyed by the proxy type
+        // </summary>
         private static readonly Dictionary<Type, EntityProxyTypeInfo> _proxyTypeMap = new Dictionary<Type, EntityProxyTypeInfo>();
 
         private static readonly Dictionary<Assembly, ModuleBuilder> _moduleBuilders = new Dictionary<Assembly, ModuleBuilder>();
         private static readonly ReaderWriterLockSlim _typeMapLock = new ReaderWriterLockSlim();
 
-        /// <summary>
-        /// The runtime assembly of the proxy types.
-        /// This is not the same as the AssemblyBuilder used to create proxy types.
-        /// </summary>
+        // <summary>
+        // The runtime assembly of the proxy types.
+        // This is not the same as the AssemblyBuilder used to create proxy types.
+        // </summary>
         private static readonly HashSet<Assembly> _proxyRuntimeAssemblies = new HashSet<Assembly>();
+
+        internal static readonly MethodInfo GetInterceptorDelegateMethod 
+            = typeof(LazyLoadBehavior).GetOnlyDeclaredMethod("GetInterceptorDelegate");
 
         private static ModuleBuilder GetDynamicModule(EntityType ospaceEntityType)
         {
-            var assembly = ospaceEntityType.ClrType.Assembly;
+            var assembly = ospaceEntityType.ClrType.Assembly();
             ModuleBuilder moduleBuilder;
             if (!_moduleBuilders.TryGetValue(assembly, out moduleBuilder))
             {
@@ -83,6 +83,11 @@ namespace System.Data.Entity.Core.Objects.Internal
                 _moduleBuilders.Add(assembly, moduleBuilder);
             }
             return moduleBuilder;
+        }
+
+        private static void DiscardDynamicModule(EntityType ospaceEntityType)
+        {
+            _moduleBuilders.Remove(ospaceEntityType.ClrType.Assembly());
         }
 
         internal static bool TryGetProxyType(Type clrType, string entityTypeName, out EntityProxyTypeInfo proxyTypeInfo)
@@ -125,11 +130,11 @@ namespace System.Data.Entity.Core.Objects.Internal
             return wrapper != null;
         }
 
-        /// <summary>
-        /// Return proxy type information for the specified O-Space EntityType.
-        /// </summary>
-        /// <param name="ospaceEntityType"> EntityType in O-Space that represents the CLR type to be proxied. Must not be null. </param>
-        /// <returns> A non-null EntityProxyTypeInfo instance that contains information about the type of proxy for the specified O-Space EntityType; or null if no proxy can be created for the specified type. </returns>
+        // <summary>
+        // Return proxy type information for the specified O-Space EntityType.
+        // </summary>
+        // <param name="ospaceEntityType"> EntityType in O-Space that represents the CLR type to be proxied. Must not be null. </param>
+        // <returns> A non-null EntityProxyTypeInfo instance that contains information about the type of proxy for the specified O-Space EntityType; or null if no proxy can be created for the specified type. </returns>
         internal static EntityProxyTypeInfo GetProxyType(ClrEntityType ospaceEntityType, MetadataWorkspace workspace)
         {
             DebugCheck.NotNull(ospaceEntityType);
@@ -164,13 +169,13 @@ namespace System.Data.Entity.Core.Objects.Internal
             }
         }
 
-        /// <summary>
-        /// A mechanism to lookup AssociationType metadata for proxies for a given entity and association information
-        /// </summary>
-        /// <param name="wrappedEntity"> The entity instance used to lookup the proxy type </param>
-        /// <param name="relationshipName"> The name of the relationship (FullName or Name) </param>
-        /// <param name="associationType"> The AssociationType for that property </param>
-        /// <returns> True if an AssociationType is found in proxy metadata, false otherwise </returns>
+        // <summary>
+        // A mechanism to lookup AssociationType metadata for proxies for a given entity and association information
+        // </summary>
+        // <param name="wrappedEntity"> The entity instance used to lookup the proxy type </param>
+        // <param name="relationshipName"> The name of the relationship (FullName or Name) </param>
+        // <param name="associationType"> The AssociationType for that property </param>
+        // <returns> True if an AssociationType is found in proxy metadata, false otherwise </returns>
         internal static bool TryGetAssociationTypeFromProxyInfo(
             IEntityWrapper wrappedEntity, string relationshipName, out AssociationType associationType)
         {
@@ -193,13 +198,11 @@ namespace System.Data.Entity.Core.Objects.Internal
                        : null;
         }
 
-        /// <summary>
-        /// Enumerate list of supplied O-Space EntityTypes,
-        /// and generate a proxy type for each EntityType (if possible for the particular type).
-        /// </summary>
-        /// <param name="ospaceEntityTypes"> Enumeration of O-Space EntityType objects. Must not be null. In addition, the elements of the enumeration must not be null. </param>
-        /// <param name="workspace"> </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Enumerate list of supplied O-Space EntityTypes,
+        // and generate a proxy type for each EntityType (if possible for the particular type).
+        // </summary>
+        // <param name="ospaceEntityTypes"> Enumeration of O-Space EntityType objects. Must not be null. In addition, the elements of the enumeration must not be null. </param>
         internal static void TryCreateProxyTypes(IEnumerable<EntityType> ospaceEntityTypes, MetadataWorkspace workspace)
         {
             DebugCheck.NotNull(ospaceEntityTypes);
@@ -233,51 +236,64 @@ namespace System.Data.Entity.Core.Objects.Internal
             EntityProxyTypeInfo proxyTypeInfo;
             var clrEntityType = (ClrEntityType)ospaceEntityType;
 
-            var proxyIdentiy = new Tuple<Type, string>(clrEntityType.ClrType, clrEntityType.HashedDescription);
+            var proxyIdentity = new Tuple<Type, string>(clrEntityType.ClrType, clrEntityType.HashedDescription);
 
-            if (!_proxyNameMap.TryGetValue(proxyIdentiy, out proxyTypeInfo)
+            if (!_proxyNameMap.TryGetValue(proxyIdentity, out proxyTypeInfo)
                 && CanProxyType(ospaceEntityType))
             {
-                var moduleBuilder = GetDynamicModule(ospaceEntityType);
-                proxyTypeInfo = BuildType(moduleBuilder, clrEntityType, workspace);
-
-                _typeMapLock.EnterWriteLock();
                 try
                 {
-                    _proxyNameMap[proxyIdentiy] = proxyTypeInfo;
-                    if (proxyTypeInfo != null)
+                    var moduleBuilder = GetDynamicModule(ospaceEntityType);
+                    proxyTypeInfo = BuildType(moduleBuilder, clrEntityType, workspace);
+
+                    _typeMapLock.EnterWriteLock();
+                    try
                     {
-                        // If there is a proxy type, create the reverse lookup
-                        _proxyTypeMap[proxyTypeInfo.ProxyType] = proxyTypeInfo;
+                        _proxyNameMap[proxyIdentity] = proxyTypeInfo;
+                        if (proxyTypeInfo != null)
+                        {
+                            // If there is a proxy type, create the reverse lookup
+                            _proxyTypeMap[proxyTypeInfo.ProxyType] = proxyTypeInfo;
+                        }
+                    }
+                    finally
+                    {
+                        _typeMapLock.ExitWriteLock();
                     }
                 }
-                finally
+                catch
                 {
-                    _typeMapLock.ExitWriteLock();
+                    // See CodePlex 2228
+                    // If something went wrong creating the dynamic type, then the module builder is likely in
+                    // a corrupt state, which means it needs to be discarded such that a new, non-corrupt builder
+                    // can be created when proxy creation is tried again.
+                    DiscardDynamicModule(ospaceEntityType);
+
+                    throw;
                 }
             }
 
             return proxyTypeInfo;
         }
 
-        /// <summary>
-        /// Determine if the specified type represents a known proxy type.
-        /// </summary>
-        /// <param name="type"> The Type to be examined. </param>
-        /// <returns> True if the type is a known proxy type; otherwise false. </returns>
+        // <summary>
+        // Determine if the specified type represents a known proxy type.
+        // </summary>
+        // <param name="type"> The Type to be examined. </param>
+        // <returns> True if the type is a known proxy type; otherwise false. </returns>
         internal static bool IsProxyType(Type type)
         {
             DebugCheck.NotNull(type);
-            return type != null && _proxyRuntimeAssemblies.Contains(type.Assembly);
+            return type != null && _proxyRuntimeAssemblies.Contains(type.Assembly());
         }
 
-        /// <summary>
-        /// Return an enumerable of the current set of CLR proxy types.
-        /// </summary>
-        /// <returns> Enumerable of the current set of CLR proxy types. This value will never be null. </returns>
-        /// <remarks>
-        /// The enumerable is based on a shapshot of the current list of types.
-        /// </remarks>
+        // <summary>
+        // Return an enumerable of the current set of CLR proxy types.
+        // </summary>
+        // <returns> Enumerable of the current set of CLR proxy types. This value will never be null. </returns>
+        // <remarks>
+        // The enumerable is based on a shapshot of the current list of types.
+        // </remarks>
         internal static IEnumerable<Type> GetKnownProxyTypes()
         {
             _typeMapLock.EnterReadLock();
@@ -300,9 +316,9 @@ namespace System.Data.Entity.Core.Objects.Internal
 
             var objectParameter = Expression.Parameter(typeof(object), "instance");
             var nonProxyGetter = Expression.Lambda<Func<object, object>>(
-                Expression.PropertyOrField(
+                Expression.Property(
                     Expression.Convert(objectParameter, declaringType),
-                    propertyInfo.Name),
+                    propertyInfo),
                 objectParameter).Compile();
 
             var propertyName = propertyInfo.Name;
@@ -367,14 +383,11 @@ namespace System.Data.Entity.Core.Objects.Internal
             return false;
         }
 
-        /// <summary>
-        /// Build a CLR proxy type for the supplied EntityType.
-        /// </summary>
-        /// <param name="moduleBuilder"> </param>
-        /// <param name="ospaceEntityType"> EntityType in O-Space that represents the CLR type to be proxied. </param>
-        /// <param name="workspace"> </param>
-        /// <returns> EntityProxyTypeInfo object that contains the constructed proxy type, along with any behaviors associated with that type; or null if a proxy type cannot be constructed for the specified EntityType. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Build a CLR proxy type for the supplied EntityType.
+        // </summary>
+        // <param name="ospaceEntityType"> EntityType in O-Space that represents the CLR type to be proxied. </param>
+        // <returns> EntityProxyTypeInfo object that contains the constructed proxy type, along with any behaviors associated with that type; or null if a proxy type cannot be constructed for the specified EntityType. </returns>
         private static EntityProxyTypeInfo BuildType(
             ModuleBuilder moduleBuilder,
             ClrEntityType ospaceEntityType,
@@ -393,7 +406,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             {
                 // Set the runtime assembly of the proxy types if it hasn't already been set.
                 // This is used by the IsProxyType method.
-                var typeAssembly = proxyType.Assembly;
+                var typeAssembly = proxyType.Assembly();
                 if (!_proxyRuntimeAssemblies.Contains(typeAssembly))
                 {
                     _proxyRuntimeAssemblies.Add(typeAssembly);
@@ -424,12 +437,12 @@ namespace System.Data.Entity.Core.Objects.Internal
             return proxyTypeInfo;
         }
 
-        /// <summary>
-        /// In order for deserialization of proxy objects to succeed in this AppDomain,
-        /// an assembly resolve handler must be added to the AppDomain to resolve the dynamic assembly,
-        /// since it is not present in a location discoverable by fusion.
-        /// </summary>
-        /// <param name="assembly"> Proxy assembly to be resolved. </param>
+        // <summary>
+        // In order for deserialization of proxy objects to succeed in this AppDomain,
+        // an assembly resolve handler must be added to the AppDomain to resolve the dynamic assembly,
+        // since it is not present in a location discoverable by fusion.
+        // </summary>
+        // <param name="assembly"> Proxy assembly to be resolved. </param>
         private static void AddAssemblyToResolveList(Assembly assembly)
         {
             Debug.Assert(_proxyRuntimeAssemblies.Contains(assembly));
@@ -444,16 +457,14 @@ namespace System.Data.Entity.Core.Objects.Internal
             }
         }
 
-        /// <summary>
-        /// Construct an interception delegate for the specified proxy member.
-        /// </summary>
-        /// <param name="member"> EdmMember that specifies the member to be intercepted. </param>
-        /// <param name="proxyType"> Type of the proxy. </param>
-        /// <param name="proxyTypeInfo"> </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Construct an interception delegate for the specified proxy member.
+        // </summary>
+        // <param name="member"> EdmMember that specifies the member to be intercepted. </param>
+        // <param name="proxyType"> Type of the proxy. </param>
         private static void InterceptMember(EdmMember member, Type proxyType, EntityProxyTypeInfo proxyTypeInfo)
         {
-            var property = EntityUtil.GetTopProperty(proxyType, member.Name);
+            var property = proxyType.GetTopProperty(member.Name);
             Debug.Assert(
                 property != null,
                 String.Format(
@@ -468,10 +479,9 @@ namespace System.Data.Entity.Core.Objects.Internal
                     CultureInfo.CurrentCulture, "Expected interceptor field for property {0} to be defined on proxy type {1}", member.Name,
                     proxyType.FullName));
 
-            var interceptorDelegate =
-                typeof(LazyLoadBehavior).GetMethod("GetInterceptorDelegate", BindingFlags.NonPublic | BindingFlags.Static).
-                                         MakeGenericMethod(proxyType, property.PropertyType).
-                                         Invoke(null, new object[] { member, proxyTypeInfo.EntityWrapperDelegate }) as Delegate;
+            var interceptorDelegate = GetInterceptorDelegateMethod.
+                                          MakeGenericMethod(proxyType, property.PropertyType).
+                                          Invoke(null, new object[] { member, proxyTypeInfo.EntityWrapperDelegate }) as Delegate;
 
             AssignInterceptionDelegate(interceptorDelegate, interceptorField);
         }
@@ -481,10 +491,10 @@ namespace System.Data.Entity.Core.Objects.Internal
             interceptorField.SetValue(null, interceptorDelegate);
         }
 
-        /// <summary>
-        /// Sets a delegate onto the _resetFKSetterFlag field such that it can be executed to make
-        /// a call into the state manager to reset the InFKSetter flag.
-        /// </summary>
+        // <summary>
+        // Sets a delegate onto the _resetFKSetterFlag field such that it can be executed to make
+        // a call into the state manager to reset the InFKSetter flag.
+        // </summary>
         private static void SetResetFKSetterFlagDelegate(Type proxyType, EntityProxyTypeInfo proxyTypeInfo)
         {
             var resetFKSetterFlagField = proxyType.GetField(
@@ -496,10 +506,10 @@ namespace System.Data.Entity.Core.Objects.Internal
             AssignInterceptionDelegate(resetFKSetterFlagDelegate, resetFKSetterFlagField);
         }
 
-        /// <summary>
-        /// Returns the delegate that takes a proxy instance and uses it to reset the InFKSetter flag maintained
-        /// by the state manager of the context associated with the proxy instance.
-        /// </summary>
+        // <summary>
+        // Returns the delegate that takes a proxy instance and uses it to reset the InFKSetter flag maintained
+        // by the state manager of the context associated with the proxy instance.
+        // </summary>
         private static Action<object> GetResetFKSetterFlagDelegate(Func<object, object> getEntityWrapperDelegate)
         {
             return (proxy) =>
@@ -510,12 +520,12 @@ namespace System.Data.Entity.Core.Objects.Internal
                 };
         }
 
-        /// <summary>
-        /// Called in the finally clause of each overridden property setter to ensure that the flag
-        /// indicating that we are in an FK setter is cleared.  Note that the wrapped entity is passed as
-        /// an obejct becayse IEntityWrapper is an internal type and is therefore not accessable to
-        /// the proxy type.  Once we're in the framework it is cast back to an IEntityWrapper.
-        /// </summary>
+        // <summary>
+        // Called in the finally clause of each overridden property setter to ensure that the flag
+        // indicating that we are in an FK setter is cleared.  Note that the wrapped entity is passed as
+        // an obejct becayse IEntityWrapper is an internal type and is therefore not accessable to
+        // the proxy type.  Once we're in the framework it is cast back to an IEntityWrapper.
+        // </summary>
         private static void ResetFKSetterFlag(object wrappedEntityAsObject)
         {
             Debug.Assert(
@@ -528,10 +538,10 @@ namespace System.Data.Entity.Core.Objects.Internal
             }
         }
 
-        /// <summary>
-        /// Sets a delegate onto the _compareByteArrays field such that it can be executed to check
-        /// whether two byte arrays are the same by value comparison.
-        /// </summary>
+        // <summary>
+        // Sets a delegate onto the _compareByteArrays field such that it can be executed to check
+        // whether two byte arrays are the same by value comparison.
+        // </summary>
         private static void SetCompareByteArraysDelegate(Type proxyType)
         {
             var compareByteArraysField = proxyType.GetField(
@@ -541,35 +551,32 @@ namespace System.Data.Entity.Core.Objects.Internal
             AssignInterceptionDelegate(new Func<object, object, bool>(ByValueEqualityComparer.Default.Equals), compareByteArraysField);
         }
 
-        /// <summary>
-        /// Return boolean that specifies if the specified type can be proxied.
-        /// </summary>
-        /// <param name="ospaceEntityType"> O-space EntityType </param>
-        /// <returns> True if the class is not abstract or sealed, does not implement IEntityWithRelationships, and has a public or protected default constructor; otherwise false. </returns>
-        /// <remarks>
-        /// While it is technically possible to derive from an abstract type
-        /// in order to create a proxy, we avoid this so that the proxy type
-        /// has the same "concreteness" of the type being proxied.
-        /// The check for IEntityWithRelationships ensures that codegen'ed
-        /// entities that derive from EntityObject as well as properly
-        /// constructed IPOCO entities will not be proxied.
-        /// </remarks>
+        // <summary>
+        // Return boolean that specifies if the specified type can be proxied.
+        // </summary>
+        // <param name="ospaceEntityType"> O-space EntityType </param>
+        // <returns> True if the class is not abstract or sealed, does not implement IEntityWithRelationships, and has a public or protected default constructor; otherwise false. </returns>
+        // <remarks>
+        // While it is technically possible to derive from an abstract type
+        // in order to create a proxy, we avoid this so that the proxy type
+        // has the same "concreteness" of the type being proxied.
+        // The check for IEntityWithRelationships ensures that codegen'ed
+        // entities that derive from EntityObject as well as properly
+        // constructed IPOCO entities will not be proxied.
+        // </remarks>
         private static bool CanProxyType(EntityType ospaceEntityType)
         {
             var clrType = ospaceEntityType.ClrType;
 
             if (!clrType.IsPublic()
-                || clrType.IsSealed
+                || clrType.IsSealed()
                 || typeof(IEntityWithRelationships).IsAssignableFrom(clrType)
                 || ospaceEntityType.Abstract)
             {
                 return false;
             }
 
-            var ctor =
-                clrType.GetConstructor(
-                    BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.CreateInstance, null,
-                    Type.EmptyTypes, null);
+            var ctor = clrType.GetDeclaredConstructor();
 
             return ctor != null && (((ctor.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public) ||
                                     ((ctor.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Family) ||
@@ -596,20 +603,20 @@ namespace System.Data.Entity.Core.Objects.Internal
         internal static bool CanProxyGetter(PropertyInfo clrProperty)
         {
             DebugCheck.NotNull(clrProperty);
-            return CanProxyMethod(clrProperty.GetGetMethod(true));
+            return CanProxyMethod(clrProperty.Getter());
         }
 
         internal static bool CanProxySetter(PropertyInfo clrProperty)
         {
             DebugCheck.NotNull(clrProperty);
-            return CanProxyMethod(clrProperty.GetSetMethod(true));
+            return CanProxyMethod(clrProperty.Setter());
         }
 
-        private class ProxyTypeBuilder
+        internal class ProxyTypeBuilder
         {
             private TypeBuilder _typeBuilder;
             private readonly BaseProxyImplementor _baseImplementor;
-            private readonly IPOCOImplementor _ipocoImplementor;
+            private readonly IPocoImplementor _ipocoImplementor;
             private readonly LazyLoadImplementor _lazyLoadImplementor;
             private readonly DataContractImplementor _dataContractImplementor;
             private readonly SerializableImplementor _iserializableImplementor;
@@ -621,7 +628,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             {
                 _ospaceEntityType = ospaceEntityType;
                 _baseImplementor = new BaseProxyImplementor();
-                _ipocoImplementor = new IPOCOImplementor(ospaceEntityType);
+                _ipocoImplementor = new IPocoImplementor(ospaceEntityType);
                 _lazyLoadImplementor = new LazyLoadImplementor(ospaceEntityType);
                 _dataContractImplementor = new DataContractImplementor(ospaceEntityType);
                 _iserializableImplementor = new SerializableImplementor(ospaceEntityType);
@@ -665,7 +672,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                             ||
                             _lazyLoadImplementor.CanProxyMember(member))
                         {
-                            var baseProperty = EntityUtil.GetTopProperty(BaseType, member.Name);
+                            var baseProperty = BaseType.GetTopProperty(member.Name);
                             var propertyBuilder = TypeBuilder.DefineProperty(
                                 member.Name, PropertyAttributes.None, baseProperty.PropertyType, Type.EmptyTypes);
 
@@ -699,8 +706,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                     if (_typeBuilder == null)
                     {
                         var proxyTypeAttributes = TypeAttributes.Class | TypeAttributes.Public | TypeAttributes.Sealed;
-                        if ((BaseType.Attributes & TypeAttributes.Serializable)
-                            == TypeAttributes.Serializable)
+                        if ((BaseType.Attributes() & TypeAttributes.Serializable) == TypeAttributes.Serializable)
                         {
                             proxyTypeAttributes |= TypeAttributes.Serializable;
                         }
@@ -709,7 +715,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                         // name will be too long.  Note that the full name always gets used to compute the hash.
                         var baseName = BaseType.Name.Length <= 20 ? BaseType.Name : BaseType.Name.Substring(0, 20);
                         var proxyTypeName = String.Format(
-                            CultureInfo.InvariantCulture, ProxyTypeNameFormat, baseName, _ospaceEntityType.HashedDescription);
+                            CultureInfo.InvariantCulture, "System.Data.Entity.DynamicProxies.{0}_{1}", baseName, _ospaceEntityType.HashedDescription);
 
                         _typeBuilder = _moduleBuilder.DefineType(proxyTypeName, proxyTypeAttributes, BaseType, _ipocoImplementor.Interfaces);
                         _typeBuilder.DefineDefaultConstructor(
@@ -734,7 +740,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             {
                 if (CanProxyGetter(baseProperty))
                 {
-                    var baseGetter = baseProperty.GetGetMethod(true);
+                    var baseGetter = baseProperty.Getter();
                     const MethodAttributes getterAttributes =
                         MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
                     var getterAccess = baseGetter.Attributes & MethodAttributes.MemberAccessMask;
@@ -756,7 +762,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             {
                 if (CanProxySetter(baseProperty))
                 {
-                    var baseSetter = baseProperty.GetSetMethod(true);
+                    var baseSetter = baseProperty.Setter();
 
                     const MethodAttributes methodAttributes =
                         MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
@@ -786,37 +792,43 @@ namespace System.Data.Entity.Core.Objects.Internal
             }
 
             private static readonly ConstructorInfo _nonSerializedAttributeConstructor =
-                typeof(NonSerializedAttribute).GetConstructor(Type.EmptyTypes);
+                typeof(NonSerializedAttribute).GetDeclaredConstructor();
 
             private static readonly ConstructorInfo _ignoreDataMemberAttributeConstructor =
-                typeof(IgnoreDataMemberAttribute).GetConstructor(Type.EmptyTypes);
+                typeof(IgnoreDataMemberAttribute).GetDeclaredConstructor();
 
             private static readonly ConstructorInfo _xmlIgnoreAttributeConstructor =
-                typeof(XmlIgnoreAttribute).GetConstructor(Type.EmptyTypes);
+                typeof(XmlIgnoreAttribute).GetDeclaredConstructor();
 
-            private static readonly ConstructorInfo _scriptIgnoreAttributeConstructor =
-                TryGetScriptIgnoreAttributeConstructor();
+            private static readonly Lazy<ConstructorInfo> _scriptIgnoreAttributeConstructor =
+                new Lazy<ConstructorInfo>(TryGetScriptIgnoreAttributeConstructor);
 
             [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
             private static ConstructorInfo TryGetScriptIgnoreAttributeConstructor()
             {
                 try
                 {
-                    var scriptIgnoreAttributeAssembly = Assembly.Load(SystemWebExtensionsAssemblyName);
-                    var scriptIgnoreAttributeType = scriptIgnoreAttributeAssembly.GetType(ScriptIgnoreAttributeTypeName);
-                    if (scriptIgnoreAttributeType != null)
+                    if (AspProxy.IsSystemWebLoaded())
                     {
-                        return scriptIgnoreAttributeType.GetConstructor(Type.EmptyTypes);
+                        var scriptIgnoreAttributeAssembly
+                            = Assembly.Load("System.Web.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35");
+                        var scriptIgnoreAttributeType
+                            = scriptIgnoreAttributeAssembly.GetType("System.Web.Script.Serialization.ScriptIgnoreAttribute");
+
+                        if (scriptIgnoreAttributeType != null)
+                        {
+                            return scriptIgnoreAttributeType.GetDeclaredConstructor();
+                        }
                     }
                 }
-                catch (Exception)
+                catch
                 {
                     // Intentionally ignore any failure to find the attribute
                 }
                 return null;
             }
 
-            private static void MarkAsNotSerializable(FieldBuilder field)
+            public static void MarkAsNotSerializable(FieldBuilder field)
             {
                 var emptyArray = new object[0];
 
@@ -827,9 +839,9 @@ namespace System.Data.Entity.Core.Objects.Internal
                     field.SetCustomAttribute(new CustomAttributeBuilder(_ignoreDataMemberAttributeConstructor, emptyArray));
                     field.SetCustomAttribute(new CustomAttributeBuilder(_xmlIgnoreAttributeConstructor, emptyArray));
 
-                    if (_scriptIgnoreAttributeConstructor != null)
+                    if (_scriptIgnoreAttributeConstructor.Value != null)
                     {
-                        field.SetCustomAttribute(new CustomAttributeBuilder(_scriptIgnoreAttributeConstructor, emptyArray));
+                        field.SetCustomAttribute(new CustomAttributeBuilder(_scriptIgnoreAttributeConstructor.Value, emptyArray));
                     }
                 }
             }

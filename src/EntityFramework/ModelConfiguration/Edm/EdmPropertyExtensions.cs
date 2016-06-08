@@ -13,7 +13,6 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         private const string OrderAnnotation = "Order";
         private const string PreferredNameAnnotation = "PreferredName";
         private const string UnpreferredUniqueNameAnnotation = "UnpreferredUniqueName";
-        private const string AllowOverrideAnnotation = "AllowOverride";
 
         public static void CopyFrom(this EdmProperty column, EdmProperty other)
         {
@@ -45,7 +44,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
                         Scale = tableColumn.Scale
                     };
 
-            tableColumn.Annotations.Each(a => columnMetadata.Annotations.Add(a));
+            tableColumn.Annotations.Each(a => columnMetadata.GetMetadataProperties().Add(a));
 
             return columnMetadata;
         }
@@ -61,7 +60,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(tableColumn);
 
-            tableColumn.Annotations.SetAnnotation(OrderAnnotation, order);
+            tableColumn.GetMetadataProperties().SetAnnotation(OrderAnnotation, order);
         }
 
         public static string GetPreferredName(this EdmProperty tableColumn)
@@ -75,7 +74,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(tableColumn);
 
-            tableColumn.Annotations.SetAnnotation(PreferredNameAnnotation, name);
+            tableColumn.GetMetadataProperties().SetAnnotation(PreferredNameAnnotation, name);
         }
 
         public static string GetUnpreferredUniqueName(this EdmProperty tableColumn)
@@ -89,7 +88,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(tableColumn);
 
-            tableColumn.Annotations.SetAnnotation(UnpreferredUniqueNameAnnotation, name);
+            tableColumn.GetMetadataProperties().SetAnnotation(UnpreferredUniqueNameAnnotation, name);
         }
 
         public static void RemoveStoreGeneratedIdentityPattern(this EdmProperty tableColumn)
@@ -101,20 +100,6 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             {
                 tableColumn.StoreGeneratedPattern = StoreGeneratedPattern.None;
             }
-        }
-
-        public static bool GetAllowOverride(this EdmProperty column)
-        {
-            DebugCheck.NotNull(column);
-
-            return (bool)column.Annotations.GetAnnotation(AllowOverrideAnnotation);
-        }
-
-        public static void SetAllowOverride(this EdmProperty column, bool allowOverride)
-        {
-            DebugCheck.NotNull(column);
-
-            column.Annotations.SetAnnotation(AllowOverrideAnnotation, allowOverride);
         }
 
         public static bool HasStoreGeneratedPattern(this EdmProperty property)
@@ -177,7 +162,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(property);
 
-            property.Annotations.SetConfiguration(configuration);
+            property.GetMetadataProperties().SetConfiguration(configuration);
         }
 
         public static List<EdmPropertyPath> ToPropertyPathList(this EdmProperty property)

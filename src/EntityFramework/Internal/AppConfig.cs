@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Internal
 {
@@ -7,17 +7,18 @@ namespace System.Data.Entity.Internal
     using System.Configuration;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.DependencyResolution;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal.ConfigFile;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Linq;
 
-    /// <summary>
-    /// A simple representation of an app.config or web.config file.
-    /// </summary>
+    // <summary>
+    // A simple representation of an app.config or web.config file.
+    // </summary>
     internal class AppConfig
     {
-        private const string EFSectionName = "entityFramework";
+        public const string EFSectionName = "entityFramework";
 
         private static readonly AppConfig _defaultInstance = new AppConfig();
         private readonly KeyValueConfigurationCollection _appSettings;
@@ -32,10 +33,10 @@ namespace System.Data.Entity.Internal
         private readonly ProviderServicesFactory _providerServicesFactory;
         private readonly Lazy<IList<NamedDbProviderService>> _providerServices;
 
-        /// <summary>
-        /// Initializes a new instance of AppConfig based on supplied configuration
-        /// </summary>
-        /// <param name="configuration"> Configuration to load settings from </param>
+        // <summary>
+        // Initializes a new instance of AppConfig based on supplied configuration
+        // </summary>
+        // <param name="configuration"> Configuration to load settings from </param>
         public AppConfig(Configuration configuration)
             : this(
                 configuration.ConnectionStrings.ConnectionStrings,
@@ -45,23 +46,23 @@ namespace System.Data.Entity.Internal
             DebugCheck.NotNull(configuration);
         }
 
-        /// <summary>
-        /// Initializes a new instance of AppConfig based on supplied connection strings
-        /// The default configuration for database initializers and default connection factory will be used
-        /// </summary>
-        /// <param name="connectionStrings"> Connection strings to be used </param>
+        // <summary>
+        // Initializes a new instance of AppConfig based on supplied connection strings
+        // The default configuration for database initializers and default connection factory will be used
+        // </summary>
+        // <param name="connectionStrings"> Connection strings to be used </param>
         public AppConfig(ConnectionStringSettingsCollection connectionStrings)
             : this(connectionStrings, null, null)
         {
             DebugCheck.NotNull(connectionStrings);
         }
 
-        /// <summary>
-        /// Initializes a new instance of AppConfig based on the <see cref="ConfigurationManager" /> for the AppDomain
-        /// </summary>
-        /// <remarks>
-        /// Use AppConfig.DefaultInstance instead of this constructor
-        /// </remarks>
+        // <summary>
+        // Initializes a new instance of AppConfig based on the <see cref="ConfigurationManager" /> for the AppDomain
+        // </summary>
+        // <remarks>
+        // Use AppConfig.DefaultInstance instead of this constructor
+        // </remarks>
         private AppConfig()
             : this(
                 ConfigurationManager.ConnectionStrings,
@@ -119,19 +120,19 @@ namespace System.Data.Entity.Internal
             }
         }
 
-        /// <summary>
-        /// Gets the default connection factory based on the configuration
-        /// </summary>
+        // <summary>
+        // Gets the default connection factory based on the configuration
+        // </summary>
         public virtual IDbConnectionFactory TryGetDefaultConnectionFactory()
         {
             return _defaultConnectionFactory.Value;
         }
 
-        /// <summary>
-        /// Gets the specified connection string from the configuration
-        /// </summary>
-        /// <param name="name"> Name of the connection string to get </param>
-        /// <returns> The connection string, or null if there is no connection string with the specified name </returns>
+        // <summary>
+        // Gets the specified connection string from the configuration
+        // </summary>
+        // <param name="name"> Name of the connection string to get </param>
+        // <returns> The connection string, or null if there is no connection string with the specified name </returns>
         public ConnectionStringSettings GetConnectionString(string name)
         {
             DebugCheck.NotEmpty(name);
@@ -139,9 +140,9 @@ namespace System.Data.Entity.Internal
             return _connectionStrings[name];
         }
 
-        /// <summary>
-        /// Gets a singleton instance of configuration based on the <see cref="ConfigurationManager" /> for the AppDomain
-        /// </summary>
+        // <summary>
+        // Gets a singleton instance of configuration based on the <see cref="ConfigurationManager" /> for the AppDomain
+        // </summary>
         public static AppConfig DefaultInstance
         {
             get { return _defaultInstance; }
@@ -157,6 +158,11 @@ namespace System.Data.Entity.Internal
             return settings;
         }
 
+        public virtual ContextConfig ContextConfigs
+        {
+            get { return new ContextConfig(_entityFrameworkSettings); }
+        }
+
         public virtual InitializerConfig Initializers
         {
             get { return new InitializerConfig(_entityFrameworkSettings, _appSettings); }
@@ -170,6 +176,16 @@ namespace System.Data.Entity.Internal
         public virtual IList<NamedDbProviderService> DbProviderServices
         {
             get { return _providerServices.Value; }
+        }
+
+        public virtual IEnumerable<IDbInterceptor> Interceptors
+        {
+            get { return _entityFrameworkSettings.Interceptors.Interceptors; }
+        }
+
+        public virtual QueryCacheConfig QueryCache
+        {
+            get { return new QueryCacheConfig(_entityFrameworkSettings); }
         }
     }
 }

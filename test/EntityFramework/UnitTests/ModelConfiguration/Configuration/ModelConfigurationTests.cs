@@ -40,11 +40,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var model = new EdmModel(DataSpace.CSpace);
 
             var entityA = model.AddEntityType("A");
-            entityA.Annotations.SetClrType(typeA);
+            entityA.GetMetadataProperties().SetClrType(typeA);
             entityA.SetConfiguration(modelConfiguration.Entity(typeA));
 
             var entityB = model.AddEntityType("B");
-            entityB.Annotations.SetClrType(typeB);
+            entityB.GetMetadataProperties().SetClrType(typeB);
             entityB.SetConfiguration(modelConfiguration.Entity(typeB));
 
             model.AddEntitySet("AS", entityA);
@@ -63,15 +63,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         [Fact]
         public void Configure_should_uniquify_unconfigured_association_function_names()
         {
-            var typeA = new MockType("A");
-            var typeB = new MockType("B").Property(typeA.AsCollection(), "As");
-            var mockPropertyInfo = typeB.GetProperty("As");
-            typeA.Property(typeB.AsCollection(), "Bs");
+            var mockPropertyInfo = typeof(BType1).GetDeclaredProperty("As");
 
             var modelConfiguration = new ModelConfiguration();
 
             var navigationPropertyConfiguration
-                = modelConfiguration.Entity(typeB).Navigation(mockPropertyInfo);
+                = modelConfiguration.Entity(typeof(BType1)).Navigation(mockPropertyInfo);
 
             navigationPropertyConfiguration.ModificationStoredProceduresConfiguration
                 = new ModificationStoredProceduresConfiguration();
@@ -85,12 +82,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var model = new EdmModel(DataSpace.CSpace);
 
             var entityA = model.AddEntityType("A");
-            entityA.Annotations.SetClrType(typeA);
-            entityA.SetConfiguration(modelConfiguration.Entity(typeA));
+            entityA.GetMetadataProperties().SetClrType(typeof(AType1));
+            entityA.SetConfiguration(modelConfiguration.Entity(typeof(AType1)));
 
             var entityB = model.AddEntityType("B");
-            entityB.Annotations.SetClrType(typeB);
-            entityB.SetConfiguration(modelConfiguration.Entity(typeB));
+            entityB.GetMetadataProperties().SetClrType(typeof(BType1));
+            entityB.SetConfiguration(modelConfiguration.Entity(typeof(BType1)));
 
             model.AddEntitySet("AS", entityA);
             model.AddEntitySet("BS", entityB);
@@ -122,37 +119,55 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.True(databaseMapping.Database.Functions.Any(f => f.StoreFunctionNameAttribute == "AB_Delete1"));
         }
 
+        public class AType1
+        {
+            public ICollection<BType1> Bs { get; set; }
+        }
+
+        public class BType1
+        {
+            public ICollection<AType1> As { get; set; }
+        }
+
         [Fact]
         public void Configure_when_base_entity_mapped_to_function_should_map_sub_types_to_functions()
         {
             var modelConfiguration = new ModelConfiguration();
 
-            var rootType = new MockType();
-            var middleType = new MockType().BaseType(rootType);
-            var leafType = new MockType().BaseType(middleType);
-
-            modelConfiguration.Entity(rootType).MapToStoredProcedures();
-            modelConfiguration.Entity(middleType);
-            modelConfiguration.Entity(leafType);
+            modelConfiguration.Entity(typeof(CType2)).MapToStoredProcedures();
+            modelConfiguration.Entity(typeof(BType2));
+            modelConfiguration.Entity(typeof(AType2));
 
             var model = new EdmModel(DataSpace.CSpace);
 
             var rootEntity = model.AddEntityType("Root");
-            rootEntity.Annotations.SetClrType(rootType);
+            rootEntity.GetMetadataProperties().SetClrType(typeof(CType2));
 
             var middleEntity = model.AddEntityType("Middle");
-            middleEntity.Annotations.SetClrType(middleType);
+            middleEntity.GetMetadataProperties().SetClrType(typeof(BType2));
             middleEntity.BaseType = rootEntity;
 
             var leafEntity = model.AddEntityType("Leaf");
-            leafEntity.Annotations.SetClrType(leafType);
+            leafEntity.GetMetadataProperties().SetClrType(typeof(AType2));
             leafEntity.BaseType = middleEntity;
 
             modelConfiguration.Configure(model);
 
-            Assert.NotNull(modelConfiguration.Entity(rootType).ModificationStoredProceduresConfiguration);
-            Assert.NotNull(modelConfiguration.Entity(middleType).ModificationStoredProceduresConfiguration);
-            Assert.NotNull(modelConfiguration.Entity(leafType).ModificationStoredProceduresConfiguration);
+            Assert.NotNull(modelConfiguration.Entity(typeof(CType2)).ModificationStoredProceduresConfiguration);
+            Assert.NotNull(modelConfiguration.Entity(typeof(BType2)).ModificationStoredProceduresConfiguration);
+            Assert.NotNull(modelConfiguration.Entity(typeof(AType2)).ModificationStoredProceduresConfiguration);
+        }
+
+        public class AType2 : AType1
+        {
+        }
+
+        public class BType2 : CType2
+        {
+        }
+
+        public class CType2
+        {
         }
 
         [Fact]
@@ -160,23 +175,20 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         {
             var modelConfiguration = new ModelConfiguration();
 
-            var baseType = new MockType("B");
-            var derivedType = new MockType("D").BaseType(baseType);
-
-            modelConfiguration.Entity(baseType);
-            modelConfiguration.Entity(derivedType).MapToStoredProcedures();
+            modelConfiguration.Entity(typeof(BType2));
+            modelConfiguration.Entity(typeof(AType2)).MapToStoredProcedures();
 
             var model = new EdmModel(DataSpace.CSpace);
 
             var baseEntity = model.AddEntityType("Base");
-            baseEntity.Annotations.SetClrType(baseType);
+            baseEntity.GetMetadataProperties().SetClrType(typeof(BType2));
 
             var derivedEntity = model.AddEntityType("Derived");
-            derivedEntity.Annotations.SetClrType(derivedType);
+            derivedEntity.GetMetadataProperties().SetClrType(typeof(AType2));
             derivedEntity.BaseType = baseEntity;
 
             Assert.Equal(
-                Strings.BaseTypeNotMappedToFunctions("B", "D"),
+                Strings.BaseTypeNotMappedToFunctions("BType2", "AType2"),
                 Assert.Throws<InvalidOperationException>(
                     () => modelConfiguration.Configure(model)).Message);
         }
@@ -186,26 +198,23 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         {
             var modelConfiguration = new ModelConfiguration();
 
-            var baseType = new MockType("B");
-            var derivedType = new MockType("D").BaseType(baseType);
-
-            modelConfiguration.Entity(baseType);
-            modelConfiguration.Entity(derivedType).MapToStoredProcedures();
+            modelConfiguration.Entity(typeof(BType2));
+            modelConfiguration.Entity(typeof(CType2)).MapToStoredProcedures();
 
             var model = new EdmModel(DataSpace.CSpace);
 
             var baseEntity = model.AddEntityType("Base");
-            baseEntity.Annotations.SetClrType(baseType);
+            baseEntity.GetMetadataProperties().SetClrType(typeof(BType2));
             baseEntity.Abstract = true;
 
             var derivedEntity = model.AddEntityType("Derived");
-            derivedEntity.Annotations.SetClrType(derivedType);
+            derivedEntity.GetMetadataProperties().SetClrType(typeof(CType2));
             derivedEntity.BaseType = baseEntity;
 
             modelConfiguration.Configure(model);
 
-            Assert.NotNull(modelConfiguration.Entity(baseType).ModificationStoredProceduresConfiguration);
-            Assert.NotNull(modelConfiguration.Entity(derivedType).ModificationStoredProceduresConfiguration);
+            Assert.NotNull(modelConfiguration.Entity(typeof(BType2)).ModificationStoredProceduresConfiguration);
+            Assert.NotNull(modelConfiguration.Entity(typeof(CType2)).ModificationStoredProceduresConfiguration);
         }
 
         [Fact]
@@ -319,10 +328,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var model = new EdmModel(DataSpace.CSpace);
             var entityType = model.AddEntityType("E");
 
-            entityType.Annotations.SetClrType(mockEntityType);
+            entityType.GetMetadataProperties().SetClrType(mockEntityType);
             var complexType = model.AddComplexType("C");
 
-            complexType.Annotations.SetClrType(mockComplexType);
+            complexType.GetMetadataProperties().SetClrType(mockComplexType);
 
             var modelConfiguration = new ModelConfiguration();
             var mockComplexTypeConfiguration = new Mock<ComplexTypeConfiguration>(mockComplexType.Object);
@@ -886,6 +895,47 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Same(entityType3Mapping.MappingFragments.Single().ColumnMappings.ElementAt(2).ColumnProperty, table3.Properties[2]);
         }
 
+        //            Base (*) --IA-- (1) Related
+        //           /   
+        //    (TPC)Derived     
+        //
+        [Fact]
+        public void TPC_with_IA_on_non_leaf_type_not_allowed()
+        {
+            new Exception("The association 'Related_to_Base' between entity types 'Related' and 'Base' is invalid. In a TPC hierarchy independent associations are only allowed on the most derived types.")
+                .ValidateMessage("EntityMappingConfiguration_TPCWithIAsOnNonLeafType", "Related_to_Base", "Related", "Base");
+
+            var modelBuilder = 
+             new TestModelBuilder()
+                .Entity("Base")
+                .Key("P1")
+                .Property("P2")
+                .Subclass("Derived");
+
+            modelBuilder.Entity("Related");
+            modelBuilder.Association(
+                "Related_To_Base", "Related", RelationshipMultiplicity.One, "BaseEntities", 
+                "Base", RelationshipMultiplicity.Many, "RelatedEntities");
+
+            EdmModel model = modelBuilder;
+            var databaseMapping = 
+                new DatabaseMappingGenerator(ProviderRegistry.Sql2008_ProviderInfo, ProviderRegistry.Sql2008_ProviderManifest)
+                .Generate(model);
+
+            var modelConfiguration = new ModelConfiguration();
+            modelConfiguration.Entity(model.GetEntityType("Derived").GetClrType())
+                              .AddMappingConfiguration(
+                                  new EntityMappingConfiguration
+                                  {
+                                      MapInheritedProperties = true,
+                                      TableName = new DatabaseName("DerivedEntities")
+                                  });
+
+            Assert.Throws<InvalidOperationException>(
+                () => modelConfiguration.Configure(databaseMapping, ProviderRegistry.Sql2008_ProviderManifest))
+                .ValidateMessage("EntityMappingConfiguration_TPCWithIAsOnNonLeafType", "Related_To_Base", "Related", "Base");
+        }
+
         //              E1
         //            / 
         //         E2  
@@ -950,13 +1000,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Equal("P1", entityType1Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P2", entityType1Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
             Assert.Same(
-                table1.Properties[3], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().ColumnProperty);
+                table1.Properties[3], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().Column);
             Assert.Equal("foo", entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().Value);
             Assert.Equal(
-                "nvarchar", entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().ColumnProperty.TypeName);
+                "nvarchar", entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().Column.TypeName);
             Assert.Equal(
                 DatabaseMappingGenerator.DiscriminatorMaxLength,
-                entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().ColumnProperty.MaxLength);
+                entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().Column.MaxLength);
 
             Assert.False(entityType2Mapping.IsHierarchyMapping);
             Assert.Same(table1, table2);
@@ -965,7 +1015,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Same(table1.Properties[1], table2.Properties[1]);
             Assert.Equal("P1", entityType2Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P3", entityType2Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
-            Assert.Same(table2.Properties[3], entityType2Mapping.MappingFragments.Single().ColumnConditions.Single().ColumnProperty);
+            Assert.Same(table2.Properties[3], entityType2Mapping.MappingFragments.Single().ColumnConditions.Single().Column);
             Assert.Equal("bar", entityType2Mapping.MappingFragments.Single().ColumnConditions.Single().Value);
         }
 
@@ -1059,7 +1109,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Equal("P1", entityType1Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P2", entityType1Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
             Assert.Same(
-                table1.Properties[4], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().ColumnProperty);
+                table1.Properties[4], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().Column);
             Assert.Equal(1, entityType1MappingConditions.MappingFragments.Single().ColumnConditions.Single().Value);
 
             Assert.False(entityType2Mapping.IsHierarchyMapping);
@@ -1069,7 +1119,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Equal(2, entityType2Mapping.MappingFragments.Single().ColumnMappings.Count());
             Assert.Equal("P1", entityType2Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P3", entityType2Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
-            Assert.Same(table2.Properties[4], entityType2Mapping.MappingFragments.Single().ColumnConditions.Single().ColumnProperty);
+            Assert.Same(table2.Properties[4], entityType2Mapping.MappingFragments.Single().ColumnConditions.Single().Column);
             Assert.Equal(2, entityType2Mapping.MappingFragments.Single().ColumnConditions.Single().Value);
             Assert.Null(entityType2Mapping.MappingFragments.Single().ColumnConditions.Single().IsNull);
 
@@ -1081,10 +1131,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Equal("P1", entityType3Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P3", entityType3Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
             Assert.Equal("P4", entityType3Mapping.MappingFragments.Single().ColumnMappings.ElementAt(2).ColumnProperty.Name);
-            Assert.Same(table3.Properties[4], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).ColumnProperty);
+            Assert.Same(table3.Properties[4], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).Column);
             Assert.Equal(3, entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).Value);
-            Assert.Equal("int", entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).ColumnProperty.TypeName);
-            Assert.Same(table3.Properties[3], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).ColumnProperty);
+            Assert.Equal("int", entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).Column.TypeName);
+            Assert.Same(table3.Properties[3], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).Column);
             Assert.Equal(false, entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).IsNull);
         }
 
@@ -1187,10 +1237,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Equal("P1", entityType1Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P2", entityType1Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
             Assert.Same(
-                table1.Properties[2], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.ElementAt(0).ColumnProperty);
+                table1.Properties[2], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.ElementAt(0).Column);
             Assert.True((bool)entityType1MappingConditions.MappingFragments.Single().ColumnConditions.ElementAt(0).IsNull);
             Assert.Same(
-                table1.Properties[3], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.ElementAt(1).ColumnProperty);
+                table1.Properties[3], entityType1MappingConditions.MappingFragments.Single().ColumnConditions.ElementAt(1).Column);
             Assert.True((bool)entityType1MappingConditions.MappingFragments.Single().ColumnConditions.ElementAt(1).IsNull);
 
             Assert.False(entityType2Mapping.IsHierarchyMapping);
@@ -1200,9 +1250,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Equal(2, entityType2Mapping.MappingFragments.Single().ColumnMappings.Count());
             Assert.Equal("P1", entityType2Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P3", entityType2Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
-            Assert.Same(table1.Properties[3], entityType2Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).ColumnProperty);
+            Assert.Same(table1.Properties[3], entityType2Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).Column);
             Assert.True((bool)entityType2Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).IsNull);
-            Assert.Same(table1.Properties[2], entityType2Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).ColumnProperty);
+            Assert.Same(table1.Properties[2], entityType2Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).Column);
             Assert.False((bool)entityType2Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).IsNull);
 
             Assert.False(entityType3Mapping.IsHierarchyMapping);
@@ -1212,9 +1262,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Equal(2, entityType3Mapping.MappingFragments.Single().ColumnMappings.Count());
             Assert.Equal("P1", entityType3Mapping.MappingFragments.Single().ColumnMappings.ElementAt(0).ColumnProperty.Name);
             Assert.Equal("P4", entityType3Mapping.MappingFragments.Single().ColumnMappings.ElementAt(1).ColumnProperty.Name);
-            Assert.Same(table1.Properties[2], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).ColumnProperty);
+            Assert.Same(table1.Properties[2], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).Column);
             Assert.True((bool)entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(0).IsNull);
-            Assert.Same(table1.Properties[3], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).ColumnProperty);
+            Assert.Same(table1.Properties[3], entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).Column);
             Assert.False((bool)entityType3Mapping.MappingFragments.Single().ColumnConditions.ElementAt(1).IsNull);
         }
 

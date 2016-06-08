@@ -16,12 +16,22 @@ namespace System.Data.Entity.Internal
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using DaFunc;
     using Moq;
     using Xunit;
 
     public class InternalContextTests : TestBase
     {
+        [Fact]
+        public void MethodInfo_fields_are_initialized()
+        {
+            Assert.NotNull(InternalContext.CreateInitializationActionMethod);
+            Assert.NotNull(InternalContext.CreateObjectAsObjectMethod);
+#if !NET40
+            Assert.NotNull(InternalContext.ExecuteSqlQueryAsIDbAsyncEnumeratorMethod);
+#endif
+            Assert.NotNull(InternalContext.ExecuteSqlQueryAsIEnumeratorMethod);
+        }
+
         public class OnDisposing : TestBase
         {
             [Fact]
@@ -43,16 +53,6 @@ namespace System.Data.Entity.Internal
         public class MigrationsConfiguration : TestBase
         {
             [Fact]
-            public void ContextKey_returns_to_string_of_context_type()
-            {
-                var genericFuncy = new GT<NT, NT>.GenericFuncy<GT<GT<NT, NT>, NT>, NT>();
-
-                var internalContext = new EagerInternalContext(genericFuncy);
-
-                Assert.Equal(genericFuncy.GetType().ToString(), internalContext.ContextKey);
-            }
-
-            [Fact]
             public void MigrationsConfigurationDiscovered_returns_true_if_configuration_discovered()
             {
                 Assert.True(new ContextWithMigrations().InternalContext.MigrationsConfigurationDiscovered);
@@ -67,7 +67,7 @@ namespace System.Data.Entity.Internal
             [Fact]
             public void ContextKey_returns_key_from_Migrations_configuration_if_discovered()
             {
-                Assert.Equal("My Key", new ContextWithMigrations().InternalContext.ContextKey);
+                Assert.Equal("My Key", new ContextWithMigrations().InternalContext.MigrationsConfiguration.ContextKey);
             }
 
             [Fact]
@@ -91,6 +91,11 @@ namespace System.Data.Entity.Internal
 
             public class ContextWithMigrations : DbContext
             {
+                public ContextWithMigrations()
+                {
+                    Database.Initialize(force: false);
+                }
+
                 static ContextWithMigrations()
                 {
                     Database.SetInitializer<ContextWithMigrations>(null);
@@ -99,6 +104,11 @@ namespace System.Data.Entity.Internal
 
             public class ContextWithoutMigrations : DbContext
             {
+                public ContextWithoutMigrations()
+                {
+                    Database.Initialize(force: false);
+                }
+
                 static ContextWithoutMigrations()
                 {
                     Database.SetInitializer<ContextWithoutMigrations>(null);
@@ -163,7 +173,7 @@ namespace System.Data.Entity.Internal
                     {
                         CallBase = true
                     }.Object;
-                var objectContextMock = Mock.Get((ObjectContextForMock)internalContext.ObjectContext);
+                var objectContextMock = Mock.Get(internalContext.ObjectContext);
                 objectContextMock.Setup(
                     m => m.ExecuteStoreQuery<Random>(It.IsAny<string>(), It.IsAny<ExecutionOptions>(), It.IsAny<object[]>()))
                     .Returns(
@@ -205,7 +215,7 @@ namespace System.Data.Entity.Internal
                     {
                         CallBase = true
                     }.Object;
-                var objectContextMock = Mock.Get((ObjectContextForMock)internalContext.ObjectContext);
+                var objectContextMock = Mock.Get(internalContext.ObjectContext);
                 objectContextMock.Setup(
                     m => m.ExecuteStoreQuery<Random>(It.IsAny<string>(), It.IsAny<ExecutionOptions>(), It.IsAny<object[]>()))
                     .Returns(
@@ -249,7 +259,7 @@ namespace System.Data.Entity.Internal
                     {
                         CallBase = true
                     }.Object;
-                var objectContextMock = Mock.Get((ObjectContextForMock)internalContext.ObjectContext);
+                var objectContextMock = Mock.Get(internalContext.ObjectContext);
                 objectContextMock.Setup(
                     m =>
                     m.ExecuteStoreQueryAsync<Random>(
@@ -293,7 +303,7 @@ namespace System.Data.Entity.Internal
                     {
                         CallBase = true
                     }.Object;
-                var objectContextMock = Mock.Get((ObjectContextForMock)internalContext.ObjectContext);
+                var objectContextMock = Mock.Get(internalContext.ObjectContext);
                 objectContextMock.Setup(
                     m =>
                     m.ExecuteStoreQueryAsync<Random>(
@@ -330,7 +340,7 @@ namespace System.Data.Entity.Internal
                     {
                         CallBase = true
                     }.Object;
-                var objectContextMock = Mock.Get((ObjectContextForMock)internalContext.ObjectContext);
+                var objectContextMock = Mock.Get(internalContext.ObjectContext);
                 objectContextMock.Setup(
                     m => m.ExecuteStoreCommand(It.IsAny<TransactionalBehavior>(), It.IsAny<string>(), It.IsAny<object[]>()));
 
@@ -352,7 +362,7 @@ namespace System.Data.Entity.Internal
                     {
                         CallBase = true
                     }.Object;
-                var objectContextMock = Mock.Get((ObjectContextForMock)internalContext.ObjectContext);
+                var objectContextMock = Mock.Get(internalContext.ObjectContext);
                 objectContextMock.Setup(
                     m => m.ExecuteStoreCommandAsync(
                         It.IsAny<TransactionalBehavior>(),
@@ -607,5 +617,20 @@ namespace System.Data.Entity.Internal
                 return mockEntityEntry.Object;
             }
         }
+
+#if !NET40
+        public class SaveChangesAsync
+        {
+            [Fact]
+            public void OperationCanceledException_thrown_before_saving_changes_if_task_is_cancelled()
+            {
+                var internalContext = new Mock<InternalContext> { CallBase = true }.Object;
+
+                Assert.Throws<OperationCanceledException>(
+                    () => internalContext.SaveChangesAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+        }
+#endif
     }
 }

@@ -2,8 +2,10 @@
 
 namespace System.Data.Entity.Migrations.Builders
 {
+    using System.Collections.Generic;
     using System.ComponentModel;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Data.Entity.Migrations.Model;
     using System.Data.Entity.Spatial;
     using System.Diagnostics.CodeAnalysis;
@@ -32,6 +34,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="timestamp"> Value indicating whether or not this column should be configured as a timestamp. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -43,7 +46,8 @@ namespace System.Data.Entity.Migrations.Builders
             string defaultValueSql = null,
             bool timestamp = false,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Binary,
@@ -54,7 +58,8 @@ namespace System.Data.Entity.Migrations.Builders
                 fixedLength: fixedLength,
                 timestamp: timestamp,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -69,6 +74,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -77,7 +83,8 @@ namespace System.Data.Entity.Migrations.Builders
             bool? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Boolean,
@@ -85,7 +92,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValue,
                 defaultValueSql,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -101,6 +109,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -110,7 +119,8 @@ namespace System.Data.Entity.Migrations.Builders
             byte? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Byte,
@@ -119,7 +129,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 identity: identity,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -135,6 +146,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -144,7 +156,8 @@ namespace System.Data.Entity.Migrations.Builders
             DateTime? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.DateTime,
@@ -153,7 +166,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 precision: precision,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -171,6 +185,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
         /// <param name="identity"> Value indicating whether or not the database will generate values for this column during insert. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -182,7 +197,8 @@ namespace System.Data.Entity.Migrations.Builders
             string defaultValueSql = null,
             string name = null,
             string storeType = null,
-            bool identity = false)
+            bool identity = false,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Decimal,
@@ -193,7 +209,8 @@ namespace System.Data.Entity.Migrations.Builders
                 scale: scale,
                 name: name,
                 storeType: storeType,
-                identity: identity);
+                identity: identity,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -208,6 +225,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -216,7 +234,8 @@ namespace System.Data.Entity.Migrations.Builders
             double? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Double,
@@ -224,7 +243,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValue,
                 defaultValueSql,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -240,6 +260,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -249,7 +270,8 @@ namespace System.Data.Entity.Migrations.Builders
             Guid? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Guid,
@@ -258,7 +280,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 identity: identity,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -273,6 +296,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -281,7 +305,8 @@ namespace System.Data.Entity.Migrations.Builders
             float? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Single,
@@ -289,7 +314,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValue,
                 defaultValueSql,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -305,6 +331,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -314,7 +341,8 @@ namespace System.Data.Entity.Migrations.Builders
             short? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Int16,
@@ -323,7 +351,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 identity: identity,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -339,6 +368,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -348,7 +378,8 @@ namespace System.Data.Entity.Migrations.Builders
             int? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Int32,
@@ -357,7 +388,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 identity: identity,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -373,6 +405,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -382,7 +415,8 @@ namespace System.Data.Entity.Migrations.Builders
             long? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Int64,
@@ -391,7 +425,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 identity: identity,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -409,6 +444,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -420,7 +456,8 @@ namespace System.Data.Entity.Migrations.Builders
             string defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.String,
@@ -431,7 +468,8 @@ namespace System.Data.Entity.Migrations.Builders
                 fixedLength: fixedLength,
                 unicode: unicode,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -447,6 +485,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -456,7 +495,8 @@ namespace System.Data.Entity.Migrations.Builders
             TimeSpan? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Time,
@@ -465,7 +505,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 precision: precision,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -481,6 +522,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -490,7 +532,8 @@ namespace System.Data.Entity.Migrations.Builders
             DateTimeOffset? defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.DateTimeOffset,
@@ -499,7 +542,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValueSql,
                 precision: precision,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -514,6 +558,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -522,7 +567,8 @@ namespace System.Data.Entity.Migrations.Builders
             DbGeography defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Geography,
@@ -530,7 +576,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValue,
                 defaultValueSql,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         /// <summary>
@@ -545,6 +592,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this column. </param>
         /// <param name="name"> The name of the column. </param>
         /// <param name="storeType"> Provider specific data type to use for this column. </param>
+        /// <param name="annotations"> Custom annotations usually from the Code First model. </param>
         /// <returns> The newly constructed column definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -553,7 +601,8 @@ namespace System.Data.Entity.Migrations.Builders
             DbGeometry defaultValue = null,
             string defaultValueSql = null,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             return BuildColumn(
                 PrimitiveTypeKind.Geometry,
@@ -561,7 +610,8 @@ namespace System.Data.Entity.Migrations.Builders
                 defaultValue,
                 defaultValueSql,
                 name: name,
-                storeType: storeType);
+                storeType: storeType,
+                annotations: annotations);
         }
 
         private static ColumnModel BuildColumn(
@@ -577,7 +627,8 @@ namespace System.Data.Entity.Migrations.Builders
             bool identity = false,
             bool timestamp = false,
             string name = null,
-            string storeType = null)
+            string storeType = null,
+            IDictionary<string, AnnotationValues> annotations = null)
         {
             var column
                 = new ColumnModel(primitiveTypeKind)
@@ -593,7 +644,8 @@ namespace System.Data.Entity.Migrations.Builders
                         DefaultValueSql = defaultValueSql,
                         IsTimestamp = timestamp,
                         Name = name,
-                        StoreType = storeType
+                        StoreType = storeType,
+                        Annotations = annotations
                     };
 
             return column;

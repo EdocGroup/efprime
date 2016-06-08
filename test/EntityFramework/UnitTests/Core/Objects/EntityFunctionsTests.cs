@@ -2,38 +2,37 @@
 
 namespace System.Data.Entity.Core.Objects
 {
+    using System.Data.Entity.Utilities;
     using System.Linq;
     using System.Reflection;
     using Xunit;
 
     public class EntityFunctionsTests : TestBase
     {
-        private const BindingFlags FunctionBindingFlags = BindingFlags.Static | BindingFlags.Public;
-
         [Fact]
         public void All_EntityFunctions_are_attributed_with_DbFunctionAttribute_except_unicode_methods()
         {
 #pragma warning disable 612,618
-            var entityFunctions = typeof(EntityFunctions).GetMethods(FunctionBindingFlags);
+            var entityFunctions = typeof(EntityFunctions).GetDeclaredMethods();
 #pragma warning restore 612,618
-            Assert.True(entityFunctions.Length >= 93); // Just make sure Reflection is returning what we expect
+            Assert.True(entityFunctions.Count() >= 93); // Just make sure Reflection is returning what we expect
 
-            foreach (var function in entityFunctions.Where(f => f.Name != "AsUnicode" && f.Name != "AsNonUnicode"))
+            foreach (var function in entityFunctions.Where(f => f.IsPublic && f.Name != "AsUnicode" && f.Name != "AsNonUnicode"))
             {
-                Assert.NotNull(function.GetCustomAttributes(inherit: false).OfType<DbFunctionAttribute>().FirstOrDefault());
+                Assert.NotNull(function.GetCustomAttributes<DbFunctionAttribute>(inherit: false).FirstOrDefault());
             }
         }
 
         [Fact]
         public void All_DbFunctions_are_also_included_in_EntityFunctions()
         {
-            var dbFunctions = typeof(DbFunctions).GetMethods(FunctionBindingFlags);
+            var dbFunctions = typeof(DbFunctions).GetDeclaredMethods().Where(f => f.IsPublic);
 #pragma warning disable 612,618
-            var entityFunctions = typeof(EntityFunctions).GetMethods(FunctionBindingFlags);
+            var entityFunctions = typeof(EntityFunctions).GetDeclaredMethods().Where(f => f.IsPublic);
 #pragma warning restore 612,618
 
-            Assert.Equal(dbFunctions.Length, entityFunctions.Length);
-            Assert.True(dbFunctions.Length >= 93); // Just make sure Reflection is returning what we expect
+            Assert.Equal(dbFunctions.Count(), entityFunctions.Count());
+            Assert.True(dbFunctions.Count() >= 93); // Just make sure Reflection is returning what we expect
 
             foreach (var function in dbFunctions)
             {

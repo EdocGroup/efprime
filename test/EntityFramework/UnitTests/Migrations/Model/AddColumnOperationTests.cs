@@ -2,7 +2,9 @@
 
 namespace System.Data.Entity.Migrations.Model
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Data.Entity.Resources;
     using Xunit;
 
@@ -22,9 +24,10 @@ namespace System.Data.Entity.Migrations.Model
         public void Inverse_should_produce_drop_column_operation()
         {
             var column = new ColumnModel(PrimitiveTypeKind.Decimal)
-                             {
-                                 Name = "C"
-                             };
+            {
+                Name = "C",
+                Annotations = new Dictionary<string, AnnotationValues> { { "A1", new AnnotationValues(null, "V1") } }
+            };
 
             var addColumnOperation
                 = new AddColumnOperation("T", column);
@@ -33,6 +36,7 @@ namespace System.Data.Entity.Migrations.Model
 
             Assert.Equal("C", dropColumnOperation.Name);
             Assert.Equal("T", dropColumnOperation.Table);
+            Assert.Equal("V1", dropColumnOperation.RemovedAnnotations["A1"]);
         }
 
         [Fact]

@@ -2,12 +2,18 @@
 
 namespace System.Data.Entity.Migrations
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Migrations.Builders;
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Model;
+    using System.Data.Entity.Resources;
     using System.Linq;
     using Moq;
     using Xunit;
+    using System.IO;
+    using System.Reflection;
 
     public class DbMigrationTests
     {
@@ -170,6 +176,62 @@ namespace System.Data.Entity.Migrations
 
             Assert.Equal("Customers", dropColumnOperation.Table);
             Assert.Equal("OldColumn", dropColumnOperation.Name);
+        }
+
+        [Fact]
+        public void DropColumn_can_build_operation_with_name_and_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.DropColumn(
+                "Customers",
+                "Foo",
+                new Dictionary<string, object>
+                {
+                    { "Blue", "Lips" }
+                });
+
+            var operation = migration.Operations.Cast<DropColumnOperation>().Single();
+
+            Assert.Equal("Customers", operation.Table);
+            Assert.Equal("Foo", operation.Name);
+
+            Assert.Equal(1, operation.RemovedAnnotations.Count);
+            Assert.Equal("Lips", operation.RemovedAnnotations["Blue"]);
+        }
+
+        [Fact]
+        public void DropColumn_can_build_operation_with_name_and_null_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.DropColumn(
+                "Customers",
+                "Foo",
+                null);
+
+            var operation = migration.Operations.Cast<DropColumnOperation>().Single();
+
+            Assert.Equal("Customers", operation.Table);
+            Assert.Equal("Foo", operation.Name);
+
+            Assert.Equal(0, operation.RemovedAnnotations.Count);
+        }
+
+        [Fact]
+        public void DropColumn_with_annotations_checks_arguments()
+        {
+            var migration = new TestMigration();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("table"),
+                Assert.Throws<ArgumentException>(
+                    () => migration.DropColumn(null, "C", null)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(
+                    () => migration.DropColumn("T", null, null)).Message);
         }
 
         [Fact]
@@ -461,6 +523,134 @@ namespace System.Data.Entity.Migrations
         }
 
         [Fact]
+        public void CreateTable_can_build_operation_with_name_columns_and_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.CreateTable(
+                "Customers",
+                cs => new
+                {
+                    Id = cs.Int()
+                },
+                new Dictionary<string, object>
+                {
+                    { "Blue", "Lips" }
+                });
+
+            var operation = migration.Operations.Cast<CreateTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal("Id", operation.Columns.Single().Name);
+
+            Assert.Equal(1, operation.Annotations.Count);
+            Assert.Equal("Lips", operation.Annotations["Blue"]);
+        }
+
+        [Fact]
+        public void CreateTable_can_build_operation_with_name_columns_and_null_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.CreateTable(
+                "Customers",
+                cs => new
+                {
+                    Id = cs.Int()
+                },
+                null);
+
+            var operation = migration.Operations.Cast<CreateTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal("Id", operation.Columns.Single().Name);
+
+            Assert.Equal(0, operation.Annotations.Count);
+        }
+
+        [Fact]
+        public void CreateTable_with_annotations_checks_arguments()
+        {
+            var migration = new TestMigration();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(
+                    () => migration.CreateTable(null, ct => new { }, null)).Message);
+
+            Assert.Equal(
+                "columnsAction",
+                Assert.Throws<ArgumentNullException>(() => migration.CreateTable<object>("Customers", null, null)).ParamName);
+        }
+
+        [Fact]
+        public void AlterTableAnnotations_can_build_operation_with_name_columns_and_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.AlterTableAnnotations(
+                "Customers",
+                cs => new
+                {
+                    Id = cs.Int()
+                },
+                new Dictionary<string, AnnotationValues>
+                {
+                    { "Everyone's", new AnnotationValues("At", "It") }
+                });
+
+            var operation = migration.Operations.Cast<AlterTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal("Id", operation.Columns.Single().Name);
+
+            Assert.Equal(1, operation.Annotations.Count);
+            Assert.Equal("At", operation.Annotations["Everyone's"].OldValue);
+            Assert.Equal("It", operation.Annotations["Everyone's"].NewValue);
+        }
+
+
+        [Fact]
+        public void AlterTableAnnotations_can_build_operation_with_name_columns_and_null_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.AlterTableAnnotations(
+                "Customers",
+                cs => new
+                {
+                    Id = cs.Int()
+                },
+                null);
+
+            var operation = migration.Operations.Cast<AlterTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal("Id", operation.Columns.Single().Name);
+
+            Assert.Equal(0, operation.Annotations.Count);
+        }
+
+        [Fact]
+        public void AlterTableAnnotations_with_annotations_checks_arguments()
+        {
+            var migration = new TestMigration();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(
+                    () => migration.AlterTableAnnotations(null, ct => new { }, null)).Message);
+
+            Assert.Equal(
+                "columnsAction",
+                Assert.Throws<ArgumentNullException>(() => migration.AlterTableAnnotations<object>("Customers", null, null)).ParamName);
+        }
+
+        [Fact]
         public void DropTable_should_add_drop_table_operation()
         {
             var migration = new TestMigration();
@@ -471,6 +661,117 @@ namespace System.Data.Entity.Migrations
 
             Assert.NotNull(dropTableOperation);
             Assert.Equal("Customers", dropTableOperation.Name);
+        }
+
+        [Fact]
+        public void DropTable_can_build_operation_with_name_and_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.DropTable(
+                "Customers",
+                new Dictionary<string, object>
+                {
+                    { "Blue", "Lips" }
+                },
+                new Dictionary<string, IDictionary<string, object>>
+                {
+                    { "Everyone's", new Dictionary<string, object> { { "At", "It" } } }
+                });
+
+            var operation = migration.Operations.Cast<DropTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal(1, operation.RemovedAnnotations.Count);
+            Assert.Equal("Lips", operation.RemovedAnnotations["Blue"]);
+
+            Assert.Equal(1, operation.RemovedColumnAnnotations.Count);
+            Assert.Equal("It", operation.RemovedColumnAnnotations["Everyone's"]["At"]);
+        }
+
+        [Fact]
+        public void DropTable_can_build_operation_with_name_and_just_table_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.DropTable(
+                "Customers",
+                new Dictionary<string, object>
+                {
+                    { "Blue", "Lips" }
+                });
+
+            var operation = migration.Operations.Cast<DropTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal(1, operation.RemovedAnnotations.Count);
+            Assert.Equal("Lips", operation.RemovedAnnotations["Blue"]);
+
+            Assert.Equal(0, operation.RemovedColumnAnnotations.Count);
+        }
+
+        [Fact]
+        public void DropTable_can_build_operation_with_name_and_just_column_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.DropTable(
+                "Customers",
+                new Dictionary<string, IDictionary<string, object>>
+                {
+                    { "Everyone's", new Dictionary<string, object> { { "At", "It" } } }
+                });
+
+            var operation = migration.Operations.Cast<DropTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal(0, operation.RemovedAnnotations.Count);
+
+            Assert.Equal(1, operation.RemovedColumnAnnotations.Count);
+            Assert.Equal("It", operation.RemovedColumnAnnotations["Everyone's"]["At"]);
+        }
+
+        [Fact]
+        public void DropTable_can_build_operation_with_name_and_all_null_annotations()
+        {
+            var migration = new TestMigration();
+
+            migration.DropTable(
+                "Customers",
+                null,
+                null);
+
+            var operation = migration.Operations.Cast<DropTableOperation>().Single();
+
+            Assert.Equal("Customers", operation.Name);
+
+            Assert.Equal(0, operation.RemovedAnnotations.Count);
+
+            Assert.Equal(0, operation.RemovedColumnAnnotations.Count);
+        }
+
+        [Fact]
+        public void DropTable_with_annotations_checks_arguments()
+        {
+            var migration = new TestMigration();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(
+                    () => migration.DropTable(null, (IDictionary<string, object>)null)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(
+                    () => migration.DropTable(null, (IDictionary<string, IDictionary<string, object>>)null)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(
+                    () => migration.DropTable(null, null, null)).Message);
         }
 
         [Fact]
@@ -517,6 +818,21 @@ namespace System.Data.Entity.Migrations
         }
 
         [Fact]
+        public void RenameIndex_should_add_rename_index_operation()
+        {
+            var migration = new TestMigration();
+
+            migration.RenameIndex("table", "old", "new");
+
+            var renameIndexOperation = (RenameIndexOperation)migration.Operations.Single();
+
+            Assert.NotNull(renameIndexOperation);
+            Assert.Equal("table", renameIndexOperation.Table);
+            Assert.Equal("old", renameIndexOperation.Name);
+            Assert.Equal("new", renameIndexOperation.NewName);
+        }
+
+        [Fact]
         public void CreateIndex_should_add_create_index_operation()
         {
             var migration = new TestMigration();
@@ -554,6 +870,55 @@ namespace System.Data.Entity.Migrations
             var sqlOperation = migration.Operations.Cast<SqlOperation>().Single();
 
             Assert.Equal("foo", sqlOperation.Sql);
+        }
+
+        [Fact]
+        public void SqlFile_should_add_sql_operation()
+        {
+            var migration = new TestMigration();
+
+            migration.SqlFile("TestDataFiles/SqlOperation_Basic.sql");
+
+            var sqlOperation = migration.Operations.Cast<SqlOperation>().Single();
+
+            Assert.Equal("insert into foo", sqlOperation.Sql);
+        }
+
+        [Fact]
+        public void SqlFile_should_add_sql_operation_with_rooted_path()
+        {
+            var migration = new TestMigration();
+            var rootedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestDataFiles/SqlOperation_Basic.sql");
+
+            migration.SqlFile(rootedPath);
+
+            var sqlOperation = migration.Operations.Cast<SqlOperation>().Single();
+
+            Assert.Equal("insert into foo", sqlOperation.Sql);
+        }
+
+        [Fact]
+        public void SqlResource_should_add_sql_operation()
+        {
+            var migration = new TestMigration();
+
+            migration.SqlResource("System.Data.Entity.TestDataFiles.SqlOperation_Basic.sql");
+
+            var sqlOperation = migration.Operations.Cast<SqlOperation>().Single();
+
+            Assert.Equal("insert into foo", sqlOperation.Sql);
+        }
+
+        [Fact]
+        public void SqlResource_should_add_sql_operation_from_specific_assembly()
+        {
+            var migration = new TestMigration();
+
+            migration.SqlResource("System.Data.Entity.TestDataFiles.SqlOperation_Basic.sql", Assembly.GetExecutingAssembly());
+
+            var sqlOperation = migration.Operations.Cast<SqlOperation>().Single();
+
+            Assert.Equal("insert into foo", sqlOperation.Sql);
         }
 
         [Fact]

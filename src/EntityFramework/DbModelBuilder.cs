@@ -21,14 +21,15 @@ namespace System.Data.Entity
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
 
+    //TODO: cref seems to have an error in vNext that it will not resolve a reference to a protected method.
+    //      Restore to <see cref="DbContext.OnModelCreating(DbModelBuilder)"/> below when working.
     /// <summary>
     /// DbModelBuilder is used to map CLR classes to a database schema.
     /// This code centric approach to building an Entity Data Model (EDM) model is known as 'Code First'.
     /// </summary>
     /// <remarks>
     /// DbModelBuilder is typically used to configure a model by overriding
-    /// <see
-    ///     cref="DbContext.OnModelCreating(DbModelBuilder)" />
+    /// DbContext.OnModelCreating(DbModelBuilder)
     /// .
     /// You can also use DbModelBuilder independently of DbContext to build a model and then construct a
     /// <see cref="DbContext" /> or <see cref="T:System.Data.Objects.ObjectContext" />.
@@ -180,6 +181,7 @@ namespace System.Data.Entity
         /// for database objects that do not have an explicitly configured schema name.
         /// </summary>
         /// <param name="schema"> The name of the default database schema. </param>
+        /// <returns> The same DbModelBuilder instance so that multiple calls can be chained. </returns>
         public virtual DbModelBuilder HasDefaultSchema(string schema)
         {
             _modelConfiguration.DefaultSchema = schema;
@@ -221,12 +223,29 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        /// Registers a type as an entity in the model and returns an object that can be used to
-        /// configure the entity. This method can be called multiple times for the same type to
-        /// perform multiple lines of configuration.
+        /// Registers an entity type as part of the model.
         /// </summary>
-        /// <param name="entityType"> The type to be registered or configured. </param>
-        /// <returns> The configuration object for the specified entity type. </returns>
+        /// <param name="entityType"> The type to be registered. </param>
+        /// <remarks>
+        /// This method is provided as a convenience to allow entity types to be registered dynamically
+        /// without the need to use MakeGenericMethod in order to call the normal generic Entity method.
+        /// This method does not allow further configuration of the entity type using the fluent APIs since
+        /// these APIs make extensive use of generic type parameters.
+        /// </remarks>
+        public virtual void RegisterEntityType(Type entityType)
+        {
+            Check.NotNull(entityType, "entityType");
+
+            Entity(entityType);
+        }
+
+        // <summary>
+        // Registers a type as an entity in the model and returns an object that can be used to
+        // configure the entity. This method can be called multiple times for the same type to
+        // perform multiple lines of configuration.
+        // </summary>
+        // <param name="entityType"> The type to be registered or configured. </param>
+        // <returns> The configuration object for the specified entity type. </returns>
         internal virtual EntityTypeConfiguration Entity(Type entityType)
         {
             DebugCheck.NotNull(entityType);
@@ -250,7 +269,7 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        /// Begins configuration of a lightweight convention that applies to all entities in
+        /// Begins configuration of a lightweight convention that applies to all entities and complex types in
         /// the model.
         /// </summary>
         /// <returns> A configuration object for the convention. </returns>
@@ -260,11 +279,11 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        /// Begins configuration of a lightweight convention that applies to all entities of
-        /// the specified type in the model. This method does not register entity types as
-        /// part of the model.
+        /// Begins configuration of a lightweight convention that applies to all entities and complex types
+        /// in the model that inherit from or implement the type specified by the generic argument.
+        /// This method does not register types as part of the model.
         /// </summary>
-        /// <typeparam name="T"> The type of the entities that this convention will apply to. </typeparam>
+        /// <typeparam name="T"> The type of the entities or complex types that this convention will apply to. </typeparam>
         /// <returns> A configuration object for the convention. </returns>
         public TypeConventionConfiguration<T> Types<T>()
             where T : class
@@ -384,24 +403,24 @@ namespace System.Data.Entity
                     Database = EdmModel.CreateStoreModel(providerInfo, providerManifest, schemaVersion)
                 },
                 modelBuilderClone);
-            var modelAdapter = (IEdmModelAdapter)model;
+
+            model.ConceptualModel.Container.AddAnnotation(XmlConstants.UseClrTypesAnnotationWithPrefix, "true");
 
             _conventionsConfiguration.ApplyModelConfiguration(_modelConfiguration);
 
             _modelConfiguration.NormalizeConfigurations();
 
-            MapTypes(modelAdapter.ConceptualModel);
+            MapTypes(model.ConceptualModel);
 
-            _modelConfiguration.Configure(modelAdapter.ConceptualModel);
+            _modelConfiguration.Configure(model.ConceptualModel);
 
             _conventionsConfiguration.ApplyConceptualModel(model);
 
-            modelAdapter.ConceptualModel.Validate();
+            model.ConceptualModel.Validate();
 
             model = new DbModel(
-                modelAdapter.ConceptualModel.GenerateDatabaseMapping(providerInfo, providerManifest),
+                model.ConceptualModel.GenerateDatabaseMapping(providerInfo, providerManifest),
                 modelBuilderClone);
-            modelAdapter = (IEdmModelAdapter)model;
 
             // Run the PluralizingTableNameConvention first so that the new table name is available for configuration
             _conventionsConfiguration.ApplyPluralizingTableNameConvention(model);
@@ -412,7 +431,7 @@ namespace System.Data.Entity
 
             _conventionsConfiguration.ApplyMapping(model.DatabaseMapping);
 
-            modelAdapter.StoreModel.Validate();
+            model.StoreModel.Validate();
 
             return model;
         }
@@ -440,13 +459,29 @@ namespace System.Data.Entity
                                         _modelBuilderVersion,
                                         DbConfiguration.DependencyResolver.GetService<AttributeProvider>()));
 
-            _modelConfiguration.Entities
-                               .Where(type => typeMapper.MapEntityType(type) == null)
-                               .Each(t => { throw Error.InvalidEntityType(t); });
+            // PERF: this code written this way since it's part of a hotpath, consider its performance when refactoring. See codeplex #2298.
+            // ReSharper disable ForCanBeConvertedToForeach
+            var entityTypes = _modelConfiguration.Entities as IList<Type> ?? _modelConfiguration.Entities.ToList();
+            for (var entityTypesIterator = 0; entityTypesIterator < entityTypes.Count; ++entityTypesIterator)
+            {
+                var type = entityTypes[entityTypesIterator];
+                if (typeMapper.MapEntityType(type) == null)
+                {
+                    throw Error.InvalidEntityType(type);
+                }
+            }
 
-            _modelConfiguration.ComplexTypes
-                               .Where(type => typeMapper.MapComplexType(type) == null)
-                               .Each(t => { throw Error.CodeFirstInvalidComplexType(t); });
+            var complexTypes = _modelConfiguration.ComplexTypes as IList<Type> ??
+                               _modelConfiguration.ComplexTypes.ToList();
+            for (var complexTypesIterator = 0; complexTypesIterator < complexTypes.Count; ++complexTypesIterator)
+            {
+                var type = complexTypes[complexTypesIterator];
+                if (typeMapper.MapComplexType(type) == null)
+                {
+                    throw Error.CodeFirstInvalidComplexType(type);
+                }
+            }
+            // ReSharper restore ForCanBeConvertedToForeach
         }
 
         internal ModelConfiguration.Configuration.ModelConfiguration ModelConfiguration

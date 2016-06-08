@@ -12,7 +12,7 @@ namespace System.Data.Entity.Migrations.History
     /// To customize the definition of the migrations history table you can derive from
     /// this class and override OnModelCreating. Derived instances can either be registered
     /// on a per migrations configuration basis using <see cref="DbMigrationsConfiguration.SetHistoryContextFactory" />,
-    /// or globally using <see cref="DbConfiguration" />.
+    /// or globally using <see cref="DbConfiguration.SetDefaultHistoryContext" />.
     /// </summary>
     public class HistoryContext : DbContext, IDbModelCacheKeyProvider
     {
@@ -28,9 +28,9 @@ namespace System.Data.Entity.Migrations.History
 
         internal static readonly Func<DbConnection, string, HistoryContext> DefaultFactory = (e, d) => new HistoryContext(e, d);
 
-        /// <summary>
-        /// For testing
-        /// </summary>
+        // <summary>
+        // For testing
+        // </summary>
         [SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         internal HistoryContext()
         {
@@ -40,7 +40,7 @@ namespace System.Data.Entity.Migrations.History
         /// <summary>
         /// Initializes a new instance of the HistoryContext class.
         /// If you are creating a derived history context you will generally expose a constructor
-        /// that accepts these same three parameters and passes them to this base constructor.
+        /// that accepts these same parameters and passes them to this base constructor.
         /// </summary>
         /// <param name="existingConnection">
         /// An existing connection to use for the new context.

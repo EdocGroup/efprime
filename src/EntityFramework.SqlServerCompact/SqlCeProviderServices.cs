@@ -1,7 +1,11 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
-
+#if SQLSERVERCOMPACT35
+namespace System.Data.Entity.SqlServerCompact.Legacy
+#else
 namespace System.Data.Entity.SqlServerCompact
+#endif
 {
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
@@ -33,7 +37,6 @@ namespace System.Data.Entity.SqlServerCompact
     /// resolved to <see cref="SqlCeMigrationSqlGenerator" /> instances to provide default Migrations SQL
     /// generation for SQL Compact.
     /// </remarks>
-    [CLSCompliant(false)]
     public sealed class SqlCeProviderServices : DbProviderServices
     {
         /// <summary>
@@ -41,7 +44,7 @@ namespace System.Data.Entity.SqlServerCompact
         /// the "provider invariant name" used to specify Microsoft SQL Server Compact Edition 4.0 for
         /// ADO.NET and Entity Framework provider services.
         /// </summary>
-        public const string ProviderInvariantName = "System.Data.SqlServerCe.4.0";
+        public const string ProviderInvariantName = SqlCeProviderManifest.ProviderInvariantName;
 
         /// <summary>
         /// Singleton object;
@@ -51,12 +54,19 @@ namespace System.Data.Entity.SqlServerCompact
 
         internal bool _isLocalProvider = true;
 
+        private ConcurrentDictionary<bool, SqlCeProviderManifest> _providerManifests =
+            new ConcurrentDictionary<bool, SqlCeProviderManifest>();
+
         private SqlCeProviderServices()
         {
             AddDependencyResolver(new SingletonDependencyResolver<IDbConnectionFactory>(new SqlCeConnectionFactory(ProviderInvariantName)));
 
             AddDependencyResolver(new SingletonDependencyResolver<Func<MigrationSqlGenerator>>(
                 () => new SqlCeMigrationSqlGenerator(), ProviderInvariantName));
+
+            AddDependencyResolver(
+                new SingletonDependencyResolver<TableExistenceChecker>(
+                    new SqlCeTableExistenceChecker(), ProviderInvariantName));
         }
 
         #region CodeOnly Methods
@@ -87,6 +97,20 @@ namespace System.Data.Entity.SqlServerCompact
         /// <returns> Bool indicating whether database exists or not. </returns>
         protected override bool DbDatabaseExists(DbConnection connection, int? timeOut, StoreItemCollection storeItemCollection)
         {
+            return DbDatabaseExists(connection, timeOut, new Lazy<StoreItemCollection>(() => storeItemCollection));
+        }
+
+        /// <summary>
+        /// API for checkin whether database exists or not.
+        /// This will internally only check whether the file that the connection points to exists or not.
+        /// Note: In case of SQLCE, timeout and storeItemCollection parameters are ignored.
+        /// </summary>
+        /// <param name="connection"> Connection </param>
+        /// <param name="timeOut"> Timeout for internal commands. </param>
+        /// <param name="storeItemCollection"> Item Collection. </param>
+        /// <returns> Bool indicating whether database exists or not. </returns>
+        protected override bool DbDatabaseExists(DbConnection connection, int? timeOut, Lazy<StoreItemCollection> storeItemCollection)
+        {
             Check.NotNull(connection, "connection");
             Check.NotNull(storeItemCollection, "storeItemCollection");
 
@@ -95,21 +119,24 @@ namespace System.Data.Entity.SqlServerCompact
 
             if (_isLocalProvider)
             {
-                return CommonUtils.DatabaseExists(connection.DataSource);
+                return CommonUtils.DatabaseExists(DbInterception.Dispatch.Connection.GetDataSource(connection, new DbInterceptionContext()));
             }
             else
             {
                 Type rdpType;
 
                 // If we are working with RDP, then we will need to invoke the APIs through reflection.
-                var engine = RemoteProviderHelper.GetRemoteSqlCeEngine(connection.ConnectionString, out rdpType);
+                var engine = RemoteProviderHelper.GetRemoteSqlCeEngine(
+                    DbInterception.Dispatch.Connection.GetConnectionString(connection, new DbInterceptionContext()),
+                    out rdpType);
                 Debug.Assert(engine != null);
 
                 var mi = rdpType.GetMethod("FileExists", new[] { typeof(string), typeof(int?) });
                 Debug.Assert(mi != null);
 
                 // We will pass 'timeout' to RDP, this will be used as timeout period for connecting and executing on TDSServer.
-                return (bool)(mi.Invoke(engine, new object[] { connection.DataSource, timeOut }));
+                return (bool)(mi.Invoke(engine,
+                    new object[] { DbInterception.Dispatch.Connection.GetDataSource(connection, new DbInterceptionContext()), timeOut }));
             }
         }
 
@@ -138,8 +165,7 @@ namespace System.Data.Entity.SqlServerCompact
             // Throw an exception if connection is open.
             // We should not close the connection because user could have result sets/data readers associated with this connection.
             // Thus, it is users responsiblity to close the connection before calling delete database.
-            //
-            if (connection.State
+            if (DbInterception.Dispatch.Connection.GetState(connection, new DbInterceptionContext())
                 == ConnectionState.Open)
             {
                 throw ADP1.DeleteDatabaseWithOpenConnection();
@@ -147,7 +173,7 @@ namespace System.Data.Entity.SqlServerCompact
 
             if (_isLocalProvider)
             {
-                CommonUtils.DeleteDatabase(connection.DataSource);
+                CommonUtils.DeleteDatabase(DbInterception.Dispatch.Connection.GetDataSource(connection, new DbInterceptionContext()));
             }
             else
             {
@@ -156,7 +182,9 @@ namespace System.Data.Entity.SqlServerCompact
                     Type rdpType;
 
                     // If we are working with RDP, then we will need to invoke the APIs through reflection.
-                    var engine = RemoteProviderHelper.GetRemoteSqlCeEngine(connection.ConnectionString, out rdpType);
+                    var engine = RemoteProviderHelper.GetRemoteSqlCeEngine(
+                        DbInterception.Dispatch.Connection.GetConnectionString(connection, new DbInterceptionContext()),
+                        out rdpType);
                     Debug.Assert(engine != null);
 
                     // Invoke the required method on SqlCeEngine.
@@ -164,7 +192,8 @@ namespace System.Data.Entity.SqlServerCompact
                     Debug.Assert(mi != null);
 
                     // We will pass 'timeout' to RDP, this will be used as timeout period for connecting and executing on TDSServer.
-                    mi.Invoke(engine, new object[] { connection.DataSource, timeOut });
+                    mi.Invoke(engine,
+                        new object[] { DbInterception.Dispatch.Connection.GetDataSource(connection, new DbInterceptionContext()), timeOut });
                 }
                 catch (Exception e)
                 {
@@ -201,7 +230,7 @@ namespace System.Data.Entity.SqlServerCompact
 
             if (_isLocalProvider)
             {
-                var engine = new SqlCeEngine(connection.ConnectionString);
+                var engine = new SqlCeEngine(DbInterception.Dispatch.Connection.GetConnectionString(connection, new DbInterceptionContext()));
                 engine.CreateDatabase();
                 engine.Dispose();
             }
@@ -212,7 +241,9 @@ namespace System.Data.Entity.SqlServerCompact
                     Type rdpType;
 
                     // If we are working with RDP, then we will need to invoke the APIs through reflection.
-                    var engine = RemoteProviderHelper.GetRemoteSqlCeEngine(connection.ConnectionString, out rdpType);
+                    var engine = RemoteProviderHelper.GetRemoteSqlCeEngine(
+                        DbInterception.Dispatch.Connection.GetConnectionString(connection, new DbInterceptionContext()),
+                        out rdpType);
                     Debug.Assert(engine != null);
 
                     // Invoke the required method on SqlCeEngine.
@@ -236,13 +267,14 @@ namespace System.Data.Entity.SqlServerCompact
 
             DbTransaction transaction = null;
 
+            var interceptionContext = new DbInterceptionContext();
             try
             {
                 // Open the connection.
-                connection.Open();
+                DbInterception.Dispatch.Connection.Open(connection, interceptionContext);
 
                 // Open a transaction and attach to the command.
-                transaction = connection.BeginTransaction();
+                transaction = DbInterception.Dispatch.Connection.BeginTransaction(connection, new BeginTransactionInterceptionContext());
                 command.Transaction = transaction;
 
                 // Execute each statement.
@@ -253,14 +285,14 @@ namespace System.Data.Entity.SqlServerCompact
                 }
 
                 // Commit the transaction.
-                transaction.Commit();
+                DbInterception.Dispatch.Transaction.Commit(transaction, interceptionContext);
             }
             catch (Exception e)
             {
                 if (transaction != null)
                 {
                     // Rollback the transaction.
-                    transaction.Rollback();
+                    DbInterception.Dispatch.Transaction.Rollback(transaction, interceptionContext);
                 }
 
                 // Throw IOE with SqlCeException embedded as inner exception.
@@ -275,11 +307,11 @@ namespace System.Data.Entity.SqlServerCompact
                 }
                 if (transaction != null)
                 {
-                    transaction.Dispose();
+                    DbInterception.Dispatch.Transaction.Dispose(transaction, interceptionContext);
                 }
                 if (connection != null)
                 {
-                    connection.Close();
+                    DbInterception.Dispatch.Connection.Close(connection, interceptionContext);
                 }
             }
         }
@@ -333,12 +365,12 @@ namespace System.Data.Entity.SqlServerCompact
             sqlCeConnection.InfoMessage
                 += (_, e)
                    =>
-                       {
-                           if (!string.IsNullOrWhiteSpace(e.Message))
-                           {
-                               handler(e.Message);
-                           }
-                       };
+                    {
+                        if (!string.IsNullOrWhiteSpace(e.Message))
+                        {
+                            handler(e.Message);
+                        }
+                    };
         }
 
         /// <summary>
@@ -357,12 +389,12 @@ namespace System.Data.Entity.SqlServerCompact
             return result;
         }
 
-        /// <summary>
-        /// Create a SqlCeCommand object, given the provider manifest and command tree
-        /// </summary>
-        /// <param name="providerManifest"> provider manifest </param>
-        /// <param name="commandTree"> command tree for the statement </param>
-        /// <returns> a command object </returns>
+        // <summary>
+        // Create a SqlCeCommand object, given the provider manifest and command tree
+        // </summary>
+        // <param name="providerManifest"> provider manifest </param>
+        // <param name="commandTree"> command tree for the statement </param>
+        // <returns> a command object </returns>
         [SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         private DbCommand CreateCommand(DbProviderManifest providerManifest, DbCommandTree commandTree)
@@ -497,12 +529,12 @@ namespace System.Data.Entity.SqlServerCompact
                 throw ADP1.Argument(EntityRes.GetString(EntityRes.UnableToDetermineStoreVersion));
             }
 
-            return new SqlCeProviderManifest(_isLocalProvider);
+            return _providerManifests.GetOrAdd(_isLocalProvider, l => new SqlCeProviderManifest(l));
         }
 
-        /// <summary>
-        /// Constructs a SqlCeParameter
-        /// </summary>
+        // <summary>
+        // Constructs a SqlCeParameter
+        // </summary>
         internal static DbParameter CreateSqlCeParameter(
             string name, TypeUsage type, object value, bool ignoreMaxLengthFacet, bool isLocalProvider)
         {
@@ -585,10 +617,10 @@ namespace System.Data.Entity.SqlServerCompact
             return result;
         }
 
-        /// <summary>
-        /// Determines SqlDbType for the given primitive type. Extracts facet
-        /// information as well.
-        /// </summary>
+        // <summary>
+        // Determines SqlDbType for the given primitive type. Extracts facet
+        // information as well.
+        // </summary>
         private static SqlDbType GetSqlDbType(TypeUsage type, out int? size, out byte? precision, out byte? scale)
         {
             // only supported for primitive type
@@ -664,10 +696,10 @@ namespace System.Data.Entity.SqlServerCompact
             }
         }
 
-        /// <summary>
-        /// Determines preferred value for SqlParameter.Size. Returns null
-        /// where there is no preference.
-        /// </summary>
+        // <summary>
+        // Determines preferred value for SqlParameter.Size. Returns null
+        // where there is no preference.
+        // </summary>
         private static int? GetParameterSize(TypeUsage type)
         {
             int maxLength;
@@ -685,10 +717,10 @@ namespace System.Data.Entity.SqlServerCompact
             }
         }
 
-        /// <summary>
-        /// Returns SqlParameter.Precision where the type facet exists. Otherwise,
-        /// returns null.
-        /// </summary>
+        // <summary>
+        // Returns SqlParameter.Precision where the type facet exists. Otherwise,
+        // returns null.
+        // </summary>
         private static byte? GetParameterPrecision(TypeUsage type, byte? defaultIfUndefined)
         {
             byte precision;
@@ -702,10 +734,10 @@ namespace System.Data.Entity.SqlServerCompact
             }
         }
 
-        /// <summary>
-        /// Returns SqlParameter.Scale where the type facet exists. Otherwise,
-        /// returns null.
-        /// </summary>
+        // <summary>
+        // Returns SqlParameter.Scale where the type facet exists. Otherwise,
+        // returns null.
+        // </summary>
         private static byte? GetScale(TypeUsage type)
         {
             byte scale;
@@ -719,9 +751,9 @@ namespace System.Data.Entity.SqlServerCompact
             }
         }
 
-        /// <summary>
-        /// Chooses the appropriate SqlDbType for the given string type.
-        /// </summary>
+        // <summary>
+        // Chooses the appropriate SqlDbType for the given string type.
+        // </summary>
         private static SqlDbType GetStringDbType(TypeUsage type)
         {
             Debug.Assert(
@@ -771,9 +803,9 @@ namespace System.Data.Entity.SqlServerCompact
             return dbType;
         }
 
-        /// <summary>
-        /// Chooses the appropriate SqlDbType for the given binary type.
-        /// </summary>
+        // <summary>
+        // Chooses the appropriate SqlDbType for the given binary type.
+        // </summary>
         private static SqlDbType GetBinaryDbType(TypeUsage type)
         {
             Debug.Assert(

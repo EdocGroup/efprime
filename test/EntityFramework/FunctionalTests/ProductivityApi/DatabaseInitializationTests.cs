@@ -9,10 +9,12 @@ namespace ProductivityApiTests
     using System.Data.Entity.Core;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Migrations;
     using System.Data.Entity.Migrations.History;
     using System.Data.Entity.ModelConfiguration.Conventions;
     using System.Data.Entity.SqlServer;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.Linq;
     using System.Transactions;
@@ -185,34 +187,47 @@ namespace ProductivityApiTests
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Transaction_can_be_started_after_database_initialization_has_happened()
         {
-            Database.Delete(SimpleConnection<SimpleContextForDropCreateDatabaseAlways>());
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
+                {
+                    Database.Delete(SimpleConnection<SimpleContextForDropCreateDatabaseAlways>());
+                });
             Database.SetInitializer(new SimpleDropCreateDatabaseAlways());
 
-            using (var context = new SimpleContextForDropCreateDatabaseAlways())
-            {
-                // SQL Server doesn't allow Create/Drop Database actions within a transaction.
-                context.Database.Initialize(force: true);
-
-                // Database Initializer shouldn't start a transaction on it's own
-                Assert.Equal(0, GetTransactionCount(context.Database.Connection));
-
-                using (new TransactionScope())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    // Now add some more data
-                    context.Categories.Add(new Category("Watchers2"));
-                    context.SaveChanges();
+                    using (var context = new SimpleContextForDropCreateDatabaseAlways())
+                    {
+                        // SQL Server doesn't allow Create/Drop Database actions within a transaction.
+                        context.Database.Initialize(force: true);
 
-                    Assert.Equal(1, GetTransactionCount(context.Database.Connection));
-                    Assert.True(context.Categories.Where(c => c.Id == "Watchers2").AsNoTracking().Any());
-                }
-            }
+                        // Database Initializer shouldn't start a transaction on it's own
+                        Assert.Equal(0, GetTransactionCount(context.Database.Connection));
 
-            using (var context = new SimpleContextForDropCreateDatabaseAlways())
-            {
-                Assert.False(context.Categories.Where(c => c.Id == "Watchers2").AsNoTracking().Any());
-            }
+                        using (new TransactionScope())
+                        {
+                            // Now add some more data
+                            context.Categories.Add(new Category("Watchers2"));
+                            context.SaveChanges();
+
+                            Assert.Equal(1, GetTransactionCount(context.Database.Connection));
+                            Assert.True(context.Categories.Where(c => c.Id == "Watchers2").AsNoTracking().Any());
+                        }
+                    }
+                });
+
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
+                {
+                    using (var context = new SimpleContextForDropCreateDatabaseAlways())
+                    {
+                        Assert.False(context.Categories.Where(c => c.Id == "Watchers2").AsNoTracking().Any());
+                    }
+                });
         }
 
         #endregion
@@ -247,6 +262,23 @@ namespace ProductivityApiTests
         }
 
         [Fact]
+        public void CreateDatabaseIfNotExists_does_nothing_if_database_exist_with_only_views()
+        {
+            Database.Delete(SimpleConnection<SimpleContextForCreateDatabaseIfNotExists>());
+            Database.SetInitializer(new SimpleCreateDatabaseIfNotExists());
+
+            var database = new SqlTestDatabase(
+                ModelHelpers.DefaultDbName<SimpleContextForCreateDatabaseIfNotExists>());
+            database.EnsureDatabase();
+            database.ExecuteNonQuery("CREATE VIEW Categories AS SELECT 'Watchers' Id, NULL DetailedDescription");
+
+            using (var context = new SimpleContextForCreateDatabaseIfNotExists())
+            {
+                Initializer_does_nothing_if_database_exists_and_model_matches(context, skipAdd: true);
+            }
+        }
+
+        [Fact]
         public void CreateDatabaseIfNotExists_in_transaction_does_nothing_if_database_exists_and_model_matches()
         {
             Database.Delete(SimpleConnection<SimpleContextForCreateDatabaseIfNotExists>());
@@ -261,6 +293,7 @@ namespace ProductivityApiTests
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void CreateDatabaseIfNotExists_in_local_transaction_does_nothing_if_database_exists_and_model_matches()
         {
             Database.Delete(SimpleConnection<SimpleContextForCreateDatabaseIfNotExists>());
@@ -289,8 +322,8 @@ namespace ProductivityApiTests
         }
 
         [Fact]
-        public void
-            DropCreateDatabaseIfModelChanges_in_local_transaction_does_nothing_if_database_exists_and_model_matches()
+        [UseDefaultExecutionStrategy]
+        public void DropCreateDatabaseIfModelChanges_in_local_transaction_does_nothing_if_database_exists_and_model_matches()
         {
             Database.Delete(SimpleConnection<SimpleContextForDropCreateDatabaseIfModelChanges>());
             Database.SetInitializer(new SimpleDropCreateDatabaseIfModelChanges());
@@ -306,16 +339,20 @@ namespace ProductivityApiTests
         private void Initializer_does_nothing_if_database_exists_and_model_matches(
             SimpleModelContext context,
             bool useTransaction = false,
-            bool useLocal = false)
+            bool useLocal = false,
+            bool skipAdd = false)
         {
-            context.Database.Initialize(force: true);
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(() => context.Database.Initialize(force: true));
 
             // Check that the database is created and seeded
             Assert.Equal("Watchers", context.Categories.Single().Id);
 
             // Now add some more data
-            context.Categories.Add(new Category("Slayers"));
-            context.SaveChanges();
+            if (!skipAdd)
+            {
+                context.Categories.Add(new Category("Slayers"));
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(() => context.SaveChanges());
+            }
 
             DbTransaction localTransaction = null;
 
@@ -324,34 +361,42 @@ namespace ProductivityApiTests
             {
                 if (useLocal)
                 {
-                    // Begin a local transaction
-                    localTransaction = BeginLocalTransaction(context);
+                    ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                        () =>
+                        {
+                            // Begin a local transaction
+                            localTransaction = BeginLocalTransaction(context);
 
-                    // This call should succeed even under transaction since database initialization does nothing here.
-                    context.Database.Initialize(force: true);
+                            // This call should succeed even under transaction since database initialization does nothing here.
+                            context.Database.Initialize(force: true);
 
-                    // Even if transaction is committed nothing should have changed.
-                    localTransaction.Commit();
+                            // Even if transaction is committed nothing should have changed.
+                            localTransaction.Commit();
+                        });
                 }
 
-                using (var transaction = new TransactionScope())
-                {
-                    // This call should succeed even under transaction since database initialization does nothing here.
-                    context.Database.Initialize(force: true);
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        using (var transaction = new TransactionScope())
+                        {
+                            // This call should succeed even under transaction since database initialization does nothing here.
+                            context.Database.Initialize(force: true);
 
-                    // Even if transaction is committed nothing should have changed.
-                    transaction.Complete();
-                }
+                            // Even if transaction is committed nothing should have changed.
+                            transaction.Complete();
+                        }
+                    });
             }
             else
             {
-                context.Database.Initialize(force: true);
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(() => context.Database.Initialize(force: true));
             }
 
             var categoriesInDatabase = context.Categories.AsNoTracking();
-            Assert.Equal(2, categoriesInDatabase.Count());
+            Assert.Equal(skipAdd ? 1 : 2, categoriesInDatabase.Count());
             Assert.True(categoriesInDatabase.Any(c => c.Id == "Watchers"));
-            Assert.True(categoriesInDatabase.Any(c => c.Id == "Slayers"));
+            Assert.True(skipAdd || categoriesInDatabase.Any(c => c.Id == "Slayers"));
 
             if (localTransaction != null)
             {
@@ -479,6 +524,7 @@ namespace ProductivityApiTests
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Local_transaction_can_be_started_after_database_initialization_has_happened()
         {
             Database.Delete(SimpleConnection<SimpleContextForCreateDatabaseIfNotExists>());
@@ -495,13 +541,18 @@ namespace ProductivityApiTests
                 // Database Initializer shouldn't start a transaction on it's own
                 Assert.Equal(0, GetTransactionCount(context.Database.Connection));
 
-                // Begin a local transaction
-                var transaction = BeginLocalTransaction(context);
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        // Begin a local transaction
+                        var transaction = BeginLocalTransaction(context);
 
-                context.Categories.Find("Watchers").DetailedDescription = "those Watching";
-                context.SaveChanges();
+                        context.Categories.Find("Watchers").DetailedDescription = "those Watching";
+                        context.SaveChanges();
 
-                transaction.Commit();
+                        transaction.Commit();
+                    });
+
                 CloseEntityConnection(context);
 
                 Assert.Equal("those Watching", context.Categories.AsNoTracking().Single().DetailedDescription);
@@ -1736,7 +1787,7 @@ namespace ProductivityApiTests
         }
 
         [Fact]
-        public void Model_is_built_only_once_when_database_exists_and_contains_metadata()
+        public void Model_is_built_and_existance_checked_only_once_when_database_exists_and_contains_metadata()
         {
             using (var context = new BaseModelContext(SimpleConnection<ExistingDatabaseContext>()))
             {
@@ -1747,18 +1798,30 @@ namespace ProductivityApiTests
                       WHERE ContextKey = 'ProductivityApiTests.DatabaseInitializationTests+BaseModelContext'");
             }
 
-            using (var context = new ExistingDatabaseContext())
+            var counter = new DdlCounter();
+            DbInterception.Add(counter);
+            try
             {
-                var _ = ((IObjectContextAdapter)context).ObjectContext;
+                using (var context = new ExistingDatabaseContext())
+                {
+                    var _ = ((IObjectContextAdapter)context).ObjectContext;
 
-                Assert.Equal(1, context.BuildCount);
+                    Assert.Equal(1, context.BuildCount);
 
-                Assert.True(context.Database.Exists());
+                    Assert.Equal(1, counter.ExistsCount);
+                    Assert.Equal(1, counter.MigrationsDiscoveryCount);
+
+                    Assert.True(context.Database.Exists());
+                }
+            }
+            finally
+            {
+                DbInterception.Remove(counter);
             }
         }
 
         [Fact]
-        public void Model_is_built_only_once_when_database_exists_and_contains_no_metadata()
+        public void Model_is_built_and_existance_checked_only_once_when_database_exists_and_contains_no_metadata()
         {
             using (var context = new BaseModelContext(SimpleConnection<ExistingDatabaseNoMetadataContext>()))
             {
@@ -1770,36 +1833,63 @@ namespace ProductivityApiTests
                       DROP TABLE __MigrationHistory");
             }
 
-            using (var context = new ExistingDatabaseNoMetadataContext())
+            var counter = new DdlCounter();
+            DbInterception.Add(counter);
+            try
             {
-                var _ = ((IObjectContextAdapter)context).ObjectContext;
+                using (var context = new ExistingDatabaseNoMetadataContext())
+                {
+                    var _ = ((IObjectContextAdapter)context).ObjectContext;
 
-                Assert.Equal(1, context.BuildCount);
+                    Assert.Equal(1, context.BuildCount);
 
-                Assert.True(context.Database.Exists());
+                    Assert.Equal(1, counter.ExistsCount);
+
+                    // We do two queries here to handle the case where the context key exists (which failed)
+                    // then the check for the case with no context key, which also fails.
+                    Assert.Equal(2, counter.MigrationsDiscoveryCount);
+
+                    Assert.True(context.Database.Exists());
+                }
+            }
+            finally
+            {
+                DbInterception.Remove(counter);
             }
         }
 
         [Fact]
-        public void Model_is_built_only_once_when_database_does_not_exist()
+        public void Model_is_built_and_existance_checked_only_once_when_database_does_not_exist()
         {
             using (var context = new BaseModelContext(SimpleConnection<NewDatabaseContext>()))
             {
                 context.Database.Delete();
             }
 
-            using (var context = new NewDatabaseContext())
+            var counter = new DdlCounter();
+            DbInterception.Add(counter);
+            try
             {
-                var _ = ((IObjectContextAdapter)context).ObjectContext;
+                using (var context = new NewDatabaseContext())
+                {
+                    var _ = ((IObjectContextAdapter)context).ObjectContext;
 
-                Assert.Equal(1, context.BuildCount);
+                    Assert.Equal(1, context.BuildCount);
 
-                Assert.True(context.Database.Exists());
+                    Assert.Equal(1, counter.ExistsCount);
+                    Assert.Equal(0, counter.MigrationsDiscoveryCount);
+
+                    Assert.True(context.Database.Exists());
+                }
+            }
+            finally
+            {
+                DbInterception.Remove(counter);
             }
         }
 
         [Fact]
-        public void Model_is_built_only_once_when_dropping_and_creating_database()
+        public void Model_is_built_and_existance_checked_only_once_when_dropping_and_creating_database()
         {
             using (var context = new BaseModelContext(SimpleConnection<DropCreateContext>()))
             {
@@ -1812,13 +1902,51 @@ namespace ProductivityApiTests
 
             Database.SetInitializer(new DropCreateDatabaseAlways<DropCreateContext>());
 
-            using (var context = new DropCreateContext())
+            var counter = new DdlCounter();
+            DbInterception.Add(counter);
+            try
             {
-                var _ = ((IObjectContextAdapter)context).ObjectContext;
+                using (var context = new DropCreateContext())
+                {
+                    var _ = ((IObjectContextAdapter)context).ObjectContext;
 
-                Assert.Equal(1, context.BuildCount);
+                    Assert.Equal(1, context.BuildCount);
 
-                Assert.True(context.Database.Exists());
+                    Assert.Equal(1, counter.ExistsCount);
+                    Assert.Equal(0, counter.MigrationsDiscoveryCount);
+
+                    Assert.True(context.Database.Exists());
+                }
+            }
+            finally
+            {
+                DbInterception.Remove(counter);
+            }
+        }
+
+        public class DdlCounter : DbCommandInterceptor
+        {
+            public int ExistsCount { get; set; }
+            public int MigrationsDiscoveryCount { get; set; }
+
+            public override void ScalarExecuting(DbCommand command, DbCommandInterceptionContext<object> interceptionContext)
+            {
+                if (command.CommandText.Contains("db_id("))
+                {
+                    ExistsCount++;
+                }
+            }
+
+            public override void ReaderExecuting(DbCommand command, DbCommandInterceptionContext<DbDataReader> interceptionContext)
+            {
+                if (command.CommandText
+                    .Replace(" ", "")
+                    .Replace("\n", "")
+                    .Replace("\r", "")
+                    .Contains("SELECTCOUNT(1)AS[A1]FROM[dbo].[__MigrationHistory]AS[Extent1]"))
+                {
+                    MigrationsDiscoveryCount++;
+                }
             }
         }
 
@@ -1867,7 +1995,6 @@ namespace ProductivityApiTests
             }
         }
 
-
         public class ExistingDatabaseContext : BaseModelContext
         {
         }
@@ -1882,6 +2009,34 @@ namespace ProductivityApiTests
 
         public class DropCreateContext : BaseModelContext
         {
+        }
+
+        [Fact] // CodePlex 1769
+        public void Initializer_that_performs_queries_should_not_corrupt_context_state()
+        {
+            Database.SetInitializer(new QueryInitializerForSimpleModel());
+            using (var context = new SimpleModelWithQueryInitializer())
+            {
+                var set = context.Products;
+
+                context.Database.Initialize(force: false);
+
+                var objectContext = ((IObjectContextAdapter)context).ObjectContext;
+
+                Assert.Equal(0, context.Products.Count());
+            }
+        }
+
+        public class SimpleModelWithQueryInitializer : SimpleModelContext
+        {
+        }
+
+        public class QueryInitializerForSimpleModel : DropCreateDatabaseAlways<SimpleModelWithQueryInitializer>
+        {
+            protected override void Seed(SimpleModelWithQueryInitializer context)
+            {
+                Assert.Equal(0, context.Products.Count());
+            }
         }
     }
 }

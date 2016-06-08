@@ -29,7 +29,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
 
             var entityTypeMapping =
                 entitySetMapping.EntityTypeMappings.FirstOrDefault(
-                    m => m.Types.Contains(entitySet.ElementType))
+                    m => m.EntityTypes.Contains(entitySet.ElementType))
                 ?? entitySetMapping.EntityTypeMappings.FirstOrDefault();
 
             var table
@@ -37,10 +37,10 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
                       ? entityTypeMapping.MappingFragments.First().Table
                       : databaseMapping.Database.AddTable(entityType.GetRootType().Name);
 
-            entityTypeMapping = new StorageEntityTypeMapping(null);
+            entityTypeMapping = new EntityTypeMapping(null);
 
             var entityTypeMappingFragment
-                = new StorageMappingFragment(databaseMapping.Database.GetEntitySet(table), entityTypeMapping, false);
+                = new MappingFragment(databaseMapping.Database.GetEntitySet(table), entityTypeMapping, false);
 
             entityTypeMapping.AddType(entityType);
             entityTypeMapping.AddFragment(entityTypeMappingFragment);

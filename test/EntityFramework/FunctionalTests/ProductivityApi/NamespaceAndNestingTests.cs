@@ -5,23 +5,69 @@ namespace ProductivityApiTests
     using System;
     using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations.Schema;
+    using System.Data.Common;
     using System.Data.Entity;
+    using System.Data.Entity.Core.EntityClient;
+    using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Core.Objects.DataClasses;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Interception;
+    using System.Data.Entity.TestHelpers;
     using System.Linq;
+    using System.Text;
+    using System.Xml;
+    using System.Xml.Linq;
+    using FunctionalTests.Bug178568;
     using Xunit;
 
     public class NamespaceAndNestingTests : FunctionalTestBase
     {
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Code_First_can_use_types_that_have_the_same_name_but_different_namespaces()
+        {
+            Can_use_types_that_have_the_same_name_but_different_namespaces(() => new MoonContext(), () => new EarthContext());
+        }
+
+        [Fact]
+        [UseDefaultExecutionStrategy]
+        public void Context_from_EDMX_with_ClrType_annotations_can_use_types_that_have_the_same_name_but_different_namespaces()
+        {
+            MetadataWorkspace moonWorkspace;
+            using (var context = new MoonContext())
+            {
+                context.Database.Initialize(force: false);
+
+                moonWorkspace = CreateEdmxBasedWorkspace(context);
+            }
+
+            MetadataWorkspace earthWorkspace;
+            using (var context = new EarthContext())
+            {
+                context.Database.Initialize(force: false);
+
+                earthWorkspace = CreateEdmxBasedWorkspace(context);
+            }
+
+            Can_use_types_that_have_the_same_name_but_different_namespaces(
+                () => new MoonContext(
+                    new ObjectContext(
+                        new EntityConnection(moonWorkspace, SimpleConnection<MoonContext>()), contextOwnsConnection: true)),
+                () => new EarthContext(
+                    new ObjectContext(
+                        new EntityConnection(earthWorkspace, SimpleConnection<EarthContext>()), contextOwnsConnection: true)));
+        }
+
+        private void Can_use_types_that_have_the_same_name_but_different_namespaces(
+            Func<MoonContext> createMoon, Func<EarthContext> createEarth)
         {
             // This test excerises queries and updates using models with a variety of types
             // including enums and complex types where the types have the same names but
             // are in different namespaces.
 
-            using (var moon = new MoonContext())
+            using (var moon = createMoon())
             {
                 var cheese = moon.Cheeses.Single();
 
@@ -30,22 +76,27 @@ namespace ProductivityApiTests
                 Assert.Equal(64, cheese.Info.Image.Length);
                 Assert.Equal(new[] { "Branston", "Piccalilli" }, cheese.Pickles.Select(p => p.Name).OrderBy(n => n));
 
-                using (moon.Database.BeginTransaction())
-                {
-                    cheese.Pickles.Add(
-                        new TheMoon.Pickle
-                            {
-                                Name = "Gromit Special"
-                            });
-                    moon.SaveChanges();
+                cheese.Pickles.Add(
+                    new TheMoon.Pickle
+                    {
+                        Name = "Gromit Special"
+                    });
 
-                    Assert.Equal(
-                        new[] { "Branston", "Gromit Special", "Piccalilli" },
-                        moon.Pickles.AsNoTracking().Select(p => p.Name).OrderBy(n => n));
-                }
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        using (moon.Database.BeginTransaction())
+                        {
+                            moon.SaveChanges();
+
+                            Assert.Equal(
+                                new[] { "Branston", "Gromit Special", "Piccalilli" },
+                                moon.Pickles.AsNoTracking().Select(p => p.Name).OrderBy(n => n));
+                        }
+                    });
             }
 
-            using (var earth = new EarthContext())
+            using (var earth = createEarth())
             {
                 var cheese = earth.Cheeses.Single();
 
@@ -54,25 +105,29 @@ namespace ProductivityApiTests
                 Assert.Equal(64, cheese.Info.Image.Length);
                 Assert.Equal(new[] { "Dill", "Relish" }, cheese.Pickles.Select(p => p.Name).OrderBy(n => n));
 
-                using (earth.Database.BeginTransaction())
-                {
-                    earth.Cheeses.Add(
-                        new TheEarth.Cheese
-                            {
-                                Name = "Swiss",
-                                Info = new TheEarth.CheeseInfo(TheEarth.Maturity.Todler, new byte[32]),
-                                Pickles = cheese.Pickles.ToList()
-                            });
+                earth.Cheeses.Add(
+                    new TheEarth.Cheese
+                    {
+                        Name = "Swiss",
+                        Info = new TheEarth.CheeseInfo(TheEarth.Maturity.Todler, new byte[32]),
+                        Pickles = cheese.Pickles.ToList()
+                    });
 
-                    earth.SaveChanges();
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        using (earth.Database.BeginTransaction())
+                        {
+                            earth.SaveChanges();
 
-                    cheese = earth.Cheeses.Single(c => c.Name == "Swiss");
+                            cheese = earth.Cheeses.Single(c => c.Name == "Swiss");
 
-                    Assert.Equal("Swiss", cheese.Name);
-                    Assert.Equal(TheEarth.Maturity.Todler, cheese.Info.Maturity);
-                    Assert.Equal(32, cheese.Info.Image.Length);
-                    Assert.Equal(new[] { "Dill", "Relish" }, cheese.Pickles.Select(p => p.Name).OrderBy(n => n));
-                }
+                            Assert.Equal("Swiss", cheese.Name);
+                            Assert.Equal(TheEarth.Maturity.Todler, cheese.Info.Maturity);
+                            Assert.Equal(32, cheese.Info.Image.Length);
+                            Assert.Equal(new[] { "Dill", "Relish" }, cheese.Pickles.Select(p => p.Name).OrderBy(n => n));
+                        }
+                    });
             }
         }
 
@@ -81,6 +136,16 @@ namespace ProductivityApiTests
             static MoonContext()
             {
                 Database.SetInitializer(new MoonInitializer());
+            }
+
+            public MoonContext()
+            {
+            }
+
+            public MoonContext(ObjectContext objectContext)
+                : base(objectContext, dbContextOwnsObjectContext: true)
+            {
+                Configuration.LazyLoadingEnabled = true;
             }
 
             public DbSet<TheMoon.Cheese> Cheeses { get; set; }
@@ -118,6 +183,16 @@ namespace ProductivityApiTests
                 Database.SetInitializer(new EarthInitializer());
             }
 
+            public EarthContext()
+            {
+            }
+
+            public EarthContext(ObjectContext objectContext)
+                : base(objectContext, dbContextOwnsObjectContext: true)
+            {
+                Configuration.LazyLoadingEnabled = true;
+            }
+
             public DbSet<TheEarth.Cheese> Cheeses { get; set; }
             public DbSet<TheEarth.Pickle> Pickles { get; set; }
         }
@@ -146,7 +221,38 @@ namespace ProductivityApiTests
             }
         }
 
+        private static MetadataWorkspace CreateEdmxBasedWorkspace(DbContext context)
+        {
+            var edmxBuilder = new StringBuilder();
+            EdmxWriter.WriteEdmx(context, XmlWriter.Create(edmxBuilder));
+            var edmx = XDocument.Parse(edmxBuilder.ToString());
+
+            var edmItemCollection = new EdmItemCollection(
+                new[]
+                {
+                    edmx.Descendants(XName.Get("Schema", "http://schemas.microsoft.com/ado/2009/11/edm")).Single().CreateReader()
+                });
+
+            var storeItemCollection = new StoreItemCollection(
+                new[]
+                {
+                    edmx.Descendants(XName.Get("Schema", "http://schemas.microsoft.com/ado/2009/11/edm/ssdl")).Single().CreateReader()
+                });
+
+            var mapping = new StorageMappingItemCollection(
+                edmItemCollection,
+                storeItemCollection,
+                new[]
+                {
+                    new XElement(edmx.Descendants(XName.Get("Mapping", "http://schemas.microsoft.com/ado/2009/11/mapping/cs")).Single())
+                        .CreateReader()
+                });
+
+            return new MetadataWorkspace(() => edmItemCollection, () => storeItemCollection, () => mapping);
+        }
+
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Code_First_can_use_nested_types()
         {
             using (var nested = new NestedContext())
@@ -158,19 +264,24 @@ namespace ProductivityApiTests
                 Assert.Equal(16, cheese.Info.Image.Length);
                 Assert.Equal(new[] { "Ketchup", "Mustard" }, cheese.Pickles.Select(p => p.Name).OrderBy(n => n));
 
-                using (nested.Database.BeginTransaction())
-                {
-                    cheese.Pickles.Add(
-                        new Pickle
-                            {
-                                Name = "Not Pickles"
-                            });
-                    nested.SaveChanges();
+                cheese.Pickles.Add(
+                    new Pickle
+                    {
+                        Name = "Not Pickles"
+                    });
 
-                    Assert.Equal(
-                        new[] { "Ketchup", "Mustard", "Not Pickles" },
-                        nested.Pickles.AsNoTracking().Select(p => p.Name).OrderBy(n => n));
-                }
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        using (nested.Database.BeginTransaction())
+                        {
+                            nested.SaveChanges();
+
+                            Assert.Equal(
+                                new[] { "Ketchup", "Mustard", "Not Pickles" },
+                                nested.Pickles.AsNoTracking().Select(p => p.Name).OrderBy(n => n));
+                        }
+                    });
             }
         }
 
@@ -751,7 +862,7 @@ namespace ProductivityApiTests
 
             var model = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo);
 
-            model.GetConceptualModel().EntityTypes.Single(e => e.Name == "SynonymToastCrunch");
+            model.ConceptualModel.EntityTypes.Single(e => e.Name == "SynonymToastCrunch");
         }
 
         public class NotMappedOuter1
@@ -787,9 +898,9 @@ namespace ProductivityApiTests
 
             var model = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo);
 
-            Assert.Contains("CountChocula", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            Assert.Contains("LuckyCharms", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            model.GetConceptualModel().EnumTypes.Single(e => e.Name == "ComplexCarbs");
+            Assert.Contains("CountChocula", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            Assert.Contains("LuckyCharms", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            model.ConceptualModel.EnumTypes.Single(e => e.Name == "ComplexCarbs");
         }
 
         public class NotMappedEnumOuter1
@@ -832,9 +943,9 @@ namespace ProductivityApiTests
 
             var model = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo);
 
-            Assert.Contains("CountChocula", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            Assert.Contains("LuckyCharms", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            model.GetConceptualModel().ComplexTypes.Single(e => e.Name == "ComplexCarbs");
+            Assert.Contains("CountChocula", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            Assert.Contains("LuckyCharms", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            model.ConceptualModel.ComplexTypes.Single(e => e.Name == "ComplexCarbs");
         }
 
         [Fact]
@@ -846,9 +957,9 @@ namespace ProductivityApiTests
 
             var model = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo);
 
-            Assert.Contains("CountChocula", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            Assert.Contains("LuckyCharms", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            model.GetConceptualModel().ComplexTypes.Single(e => e.Name == "ComplexCarbs");
+            Assert.Contains("CountChocula", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            Assert.Contains("LuckyCharms", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            model.ConceptualModel.ComplexTypes.Single(e => e.Name == "ComplexCarbs");
         }
 
         [Fact]
@@ -860,9 +971,9 @@ namespace ProductivityApiTests
 
             var model = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo);
 
-            Assert.Contains("CountChocula", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            Assert.Contains("LuckyCharms", model.GetConceptualModel().EntityTypes.Select(e => e.Name));
-            model.GetConceptualModel().EnumTypes.Single(e => e.Name == "ComplexCarbs");
+            Assert.Contains("CountChocula", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            Assert.Contains("LuckyCharms", model.ConceptualModel.EntityTypes.Select(e => e.Name));
+            model.ConceptualModel.EnumTypes.Single(e => e.Name == "ComplexCarbs");
         }
     }
 

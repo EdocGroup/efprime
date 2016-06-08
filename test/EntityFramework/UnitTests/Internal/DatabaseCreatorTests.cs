@@ -7,8 +7,6 @@ namespace System.Data.Entity.Internal
     using System.Data.Entity.Migrations;
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Sql;
-    using System.Data.Entity.Migrations.Utilities;
-    using System.Data.Entity.Resources;
     using System.Data.SqlClient;
     using Moq;
     using Xunit;
@@ -81,11 +79,13 @@ namespace System.Data.Entity.Internal
                 CreateDatabase_uses_Migrations_when_provider_is_known("FooClient", mockMigrationsResolver.Object);
             }
 
-            private void CreateDatabase_uses_Migrations_when_provider_is_known(string provider, IDbDependencyResolver resolver = null)
+            private void CreateDatabase_uses_Migrations_when_provider_is_known(
+                string provider, IDbDependencyResolver resolver = null, bool migrationsConfigured = false)
             {
                 var mockOperations = new Mock<DatabaseOperations>();
                 var mockContext = CreateMockContextForMigrator(mockOperations);
                 mockContext.Setup(m => m.ProviderName).Returns(provider);
+                mockContext.Setup(m => m.MigrationsConfigurationDiscovered).Returns(migrationsConfigured);
 
                 Mock<MigratorBase> mockMigrator = null;
 
@@ -102,16 +102,15 @@ namespace System.Data.Entity.Internal
             }
 
             [Fact] // CodePlex 1192
-            public void CreateDatabase_throws_if_Migrations_is_configured()
+            public void CreateDatabase_uses_Migrations_when_Migrations_is_configured()
             {
-                var creator = new DatabaseCreator(
-                    DbConfiguration.DependencyResolver, 
-                    new MigrationsChecker(c => true));
+                var mockMigrationsResolver = new Mock<IDbDependencyResolver>();
+                mockMigrationsResolver
+                    .Setup(m => m.GetService(typeof(Func<MigrationSqlGenerator>), "FooClient"))
+                    .Returns(() => (Func<MigrationSqlGenerator>)(() => new Mock<MigrationSqlGenerator>().Object));
 
-                Assert.Equal(
-                    Strings.DatabaseInitializationStrategy_MigrationsEnabled("FakeContextProxy"),
-                    Assert.Throws<InvalidOperationException>(
-                    () => creator.CreateDatabase(CreateMockContextForMigrator().Object, (_, __) => null, null)).Message);
+                CreateDatabase_uses_Migrations_when_provider_is_known(
+                    "FooClient", mockMigrationsResolver.Object, migrationsConfigured: true);
             }
 
             [Fact]
@@ -124,7 +123,7 @@ namespace System.Data.Entity.Internal
                     (config, context) =>
                         {
                             configuration = config;
-                            return new Mock<DbMigrator>(config, context).Object;
+                            return new Mock<DbMigrator>(config, context, DatabaseExistenceState.Unknown, true).Object;
                         },
                     null);
 
@@ -144,7 +143,7 @@ namespace System.Data.Entity.Internal
 
                 new DatabaseCreator().CreateDatabase(
                     mockContext.Object,
-                    (config, context) => (mockMigrator = new Mock<DbMigrator>(config, context)).Object,
+                    (config, context) => (mockMigrator = new Mock<DbMigrator>(config, context, DatabaseExistenceState.Unknown, true)).Object,
                     null);
 
                 mockMigrator.Verify(m => m.Update(null), Times.Once());
@@ -156,14 +155,14 @@ namespace System.Data.Entity.Internal
             {
                 var internalContext = CreateMockContextForMigrator().Object;
 
-                DbContextInfo.ClearInfoForContext(internalContext.Owner.GetType());
+                DbContextInfo.CurrentInfo = null;
                 
                 new DatabaseCreator().CreateDatabase(
                     internalContext,
-                    (config, context) => new Mock<DbMigrator>(config, context).Object,
+                    (config, context) => new Mock<DbMigrator>(config, context, DatabaseExistenceState.Unknown, true).Object,
                     null);
 
-                Assert.Null(DbContextInfo.TryGetInfoForContext(internalContext.Owner.GetType()));
+                Assert.Null(DbContextInfo.CurrentInfo);
             }
 
             [Fact]
@@ -173,7 +172,7 @@ namespace System.Data.Entity.Internal
 
                 new DatabaseCreator().CreateDatabase(
                     mockContext.Object,
-                    (config, context) => new Mock<DbMigrator>(config, context).Object,
+                    (config, context) => new Mock<DbMigrator>(config, context, DatabaseExistenceState.Unknown, true).Object,
                     null);
 
                 Assert.False(mockContext.Object.IsDisposed);
@@ -199,29 +198,6 @@ namespace System.Data.Entity.Internal
                 }
 
                 return mockContext;
-            }
-        }
-
-        public class GetMigrationsConfiguration : TestBase
-        {
-            [Fact]
-            public void GetMigrationsConfiguration_creates_a_new_configuration()
-            {
-                var mockContext = new Mock<InternalContext>(new FakeContext(), null);
-                mockContext.Setup(m => m.OwnerShortTypeName).Returns("Key");
-                mockContext.Setup(m => m.OriginalConnectionString).Returns("Database=Foo");
-                mockContext.Setup(m => m.ProviderName).Returns("Some.Provider");
-                mockContext.Setup(m => m.CommandTimeout).Returns(123);
-
-                var configuration = DatabaseCreator.GetMigrationsConfiguration(mockContext.Object);
-
-                Assert.Same(typeof(FakeContext), configuration.ContextType);
-                Assert.True(configuration.AutomaticMigrationsEnabled);
-                Assert.False(configuration.AutomaticMigrationDataLossAllowed);
-                Assert.Same(typeof(FakeContext).Assembly, configuration.MigrationsAssembly);
-                Assert.Equal(typeof(FakeContext).Namespace, configuration.MigrationsNamespace);
-                Assert.Equal("Key", configuration.ContextKey);
-                Assert.Equal(123, configuration.CommandTimeout);
             }
         }
 

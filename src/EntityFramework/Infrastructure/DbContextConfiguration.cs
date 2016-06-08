@@ -17,10 +17,10 @@ namespace System.Data.Entity.Infrastructure
 
         private readonly InternalContext _internalContext;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DbContextConfiguration" /> class.
-        /// </summary>
-        /// <param name="internalContext"> The internal context. </param>
+        // <summary>
+        // Initializes a new instance of the <see cref="DbContextConfiguration" /> class.
+        // </summary>
+        // <param name="internalContext"> The internal context. </param>
         internal DbContextConfiguration(InternalContext internalContext)
         {
             DebugCheck.NotNull(internalContext);
@@ -67,6 +67,23 @@ namespace System.Data.Entity.Infrastructure
         #endregion
 
         #region Configuration options
+        
+        /// <summary>
+        /// Gets or sets the value that determines whether SQL functions and commands should be always executed in a transaction.
+        /// </summary>
+        /// <remarks>
+        /// This flag determines whether a new transaction will be started when methods such as <see cref="Database.ExecuteSqlCommand(string,object[])"/>
+        /// are executed outside of a transaction.
+        /// Note that this does not change the behavior of <see cref="DbContext.SaveChanges()"/>.
+        /// </remarks>
+        /// <value>
+        /// The default transactional behavior.
+        /// </value>
+        public bool EnsureTransactionsForFunctionsAndCommands
+        {
+            get { return _internalContext.EnsureTransactionsForFunctionsAndCommands; } 
+            set { _internalContext.EnsureTransactionsForFunctionsAndCommands = value; }
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether lazy loading of relationships exposed as

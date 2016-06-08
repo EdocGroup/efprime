@@ -9,8 +9,10 @@ namespace ProductivityApiTests
     using System.Data.Entity.Core;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.Linq;
+    using System.Transactions;
     using AdvancedPatternsModel;
     using Moq;
     using SimpleModel;
@@ -18,8 +20,8 @@ namespace ProductivityApiTests
     using Xunit.Extensions;
 
     /// <summary>
-    /// Functional tests for DbSqlQuery and other raw SQL functionality. 
-    /// Unit tests also exist in the unit tests project.
+    ///     Functional tests for DbSqlQuery and other raw SQL functionality.
+    ///     Unit tests also exist in the unit tests project.
     /// </summary>
     public class DbSqlQueryTests : FunctionalTestBase
     {
@@ -150,15 +152,15 @@ namespace ProductivityApiTests
                 var products = context.Products.SqlQuery(
                     "select * from Products where Id < @p0 and CategoryId = @p1",
                     new SqlParameter
-                        {
-                            ParameterName = "p0",
-                            Value = 4
-                        },
+                    {
+                        ParameterName = "p0",
+                        Value = 4
+                    },
                     new SqlParameter
-                        {
-                            ParameterName = "p1",
-                            Value = "Beverages"
-                        })
+                    {
+                        ParameterName = "p1",
+                        Value = "Beverages"
+                    })
                     .ToList();
 
                 Assert.Equal(1, context.Products.Local.Count);
@@ -175,15 +177,15 @@ namespace ProductivityApiTests
                     context.Set(typeof(Product)).SqlQuery(
                         "select * from Products where Id < @p0 and CategoryId = @p1",
                         new SqlParameter
-                            {
-                                ParameterName = "p0",
-                                Value = 4
-                            },
+                        {
+                            ParameterName = "p0",
+                            Value = 4
+                        },
                         new SqlParameter
-                            {
-                                ParameterName = "p1",
-                                Value = "Beverages"
-                            })
+                        {
+                            ParameterName = "p1",
+                            Value = "Beverages"
+                        })
                         .ToList<Product>();
 
                 Assert.Equal(1, context.Products.Local.Count);
@@ -199,7 +201,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void SQL_query_can_be_used_to_materialize_entities_with_AsNoTracking_and_AsStreaming()
         {
             SQL_query_can_be_used_to_materialize_entities_without_tracking(
@@ -215,7 +217,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void SQL_query_can_be_used_to_materialize_entities_without_tracking_by_using_Database_SqlQuery_with_AsStreaming()
         {
             SQL_query_can_be_used_to_materialize_entities_without_tracking(
@@ -231,7 +233,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void Non_generic_SQL_query_can_be_used_to_materialize_entities_with_AsNoTracking_and_AsStreaming()
         {
             SQL_query_can_be_used_to_materialize_entities_without_tracking(
@@ -248,7 +250,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void
             Non_generic_SQL_query_can_be_used_to_materialize_entities_without_tracking_by_using_Database_SqlQuery_with_AsStreaming()
         {
@@ -280,7 +282,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void SQL_query_with_parameters_can_be_used_to_materialize_entities_with_AsNoTracking_and_AsStreaming()
         {
             SQL_query_with_parameters_can_be_used_to_materialize_entities_without_tracking(
@@ -297,7 +299,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void
             SQL_query_with_parameters_can_be_used_to_materialize_entities_without_tracking_by_using_Database_SqlQuery_with_AsStreaming()
         {
@@ -314,7 +316,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void Non_generic_SQL_query_with_parameters_can_be_used_to_materialize_entities_with_AsNoTracking_and_AsStreaming()
         {
             SQL_query_with_parameters_can_be_used_to_materialize_entities_without_tracking(
@@ -330,7 +332,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void Non_generic_SQL_query_with_parameters_can_be_used_to_materialize_entities_without_tracking_by_using_Database_SqlQuery_with_AsStreaming()
         {
             SQL_query_with_parameters_can_be_used_to_materialize_entities_without_tracking(
@@ -457,12 +459,15 @@ namespace ProductivityApiTests
         {
             using (var context = new SimpleModelContext())
             {
+                var expectedState = DatabaseTestHelpers.IsSqlAzure(context.Database.Connection.ConnectionString)
+                    ? ConnectionState.Closed
+                    : ConnectionState.Open;
                 var products = context.Products.SqlQuery("select * from Products");
                 using (var enumerator = products.GetEnumerator())
                 {
                     enumerator.MoveNext();
 
-                    Assert.Equal(ConnectionState.Open, context.Database.Connection.State);
+                    Assert.Equal(expectedState, context.Database.Connection.State);
                 }
             }
         }
@@ -615,7 +620,7 @@ namespace ProductivityApiTests
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void SQL_query_for_non_entity_where_columns_dont_map_throws_when_streaming()
         {
             using (var context = new SimpleModelContext())
@@ -641,14 +646,14 @@ namespace ProductivityApiTests
                 Assert.Throws<InvalidOperationException>(
                     () => ExceptionHelpers.UnwrapAggregateExceptions(
                         () =>
-                        query.ToListAsync().Result)).ValidateMessage(
-                            "Materializer_InvalidCastReference", "System.String",
-                            "System.Int32");
+                            query.ToListAsync().Result)).ValidateMessage(
+                                "Materializer_InvalidCastReference", "System.String",
+                                "System.Int32");
             }
         }
 
 #pragma warning disable 612, 618
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true, Justification = "Streaming queries are not reliable on SQL Azure")]
         public void SQL_query_for_non_entity_where_columns_dont_map_throws_when_streaming_async()
         {
             using (var context = new SimpleModelContext())
@@ -658,9 +663,9 @@ namespace ProductivityApiTests
                 Assert.Throws<InvalidOperationException>(
                     () => ExceptionHelpers.UnwrapAggregateExceptions(
                         () =>
-                        query.ToListAsync().Result)).ValidateMessage(
-                            "Materializer_InvalidCastReference", "System.String",
-                            "System.Int32");
+                            query.ToListAsync().Result)).ValidateMessage(
+                                "Materializer_InvalidCastReference", "System.String",
+                                "System.Int32");
             }
         }
 #pragma warning restore 612, 618
@@ -672,11 +677,11 @@ namespace ProductivityApiTests
         {
             SQL_query_cannot_be_used_to_materialize_anonymous_types_implementation(
                 new
-                    {
-                        Id = 2,
-                        Name = "Bovril",
-                        CategoryId = "Foods"
-                    }, q => q.ToList());
+                {
+                    Id = 2,
+                    Name = "Bovril",
+                    CategoryId = "Foods"
+                }, q => q.ToList());
         }
 
 #if !NET40
@@ -686,11 +691,11 @@ namespace ProductivityApiTests
         {
             SQL_query_cannot_be_used_to_materialize_anonymous_types_implementation(
                 new
-                    {
-                        Id = 2,
-                        Name = "Bovril",
-                        CategoryId = "Foods"
-                    }, q => ExceptionHelpers.UnwrapAggregateExceptions(() => q.ToListAsync().Result));
+                {
+                    Id = 2,
+                    Name = "Bovril",
+                    CategoryId = "Foods"
+                }, q => ExceptionHelpers.UnwrapAggregateExceptions(() => q.ToListAsync().Result));
         }
 
 #endif
@@ -852,12 +857,15 @@ namespace ProductivityApiTests
         {
             using (var context = new SimpleModelContext())
             {
+                var expectedState = DatabaseTestHelpers.IsSqlAzure(context.Database.Connection.ConnectionString)
+                    ? ConnectionState.Closed
+                    : ConnectionState.Open;
                 var products = context.Database.SqlQuery<int>("select Id from Products");
                 using (var enumerator = products.GetEnumerator())
                 {
                     enumerator.MoveNext();
 
-                    Assert.Equal(ConnectionState.Open, context.Database.Connection.State);
+                    Assert.Equal(expectedState, context.Database.Connection.State);
                 }
             }
         }
@@ -896,11 +904,14 @@ namespace ProductivityApiTests
         {
             using (var context = new SimpleModelContext())
             {
+                var expectedState = DatabaseTestHelpers.IsSqlAzure(context.Database.Connection.ConnectionString)
+                    ? ConnectionState.Closed
+                    : ConnectionState.Open;
                 var products = context.Database.SqlQuery(typeof(int), "select Id from Products");
                 var enumerator = products.GetEnumerator();
                 enumerator.MoveNext();
 
-                Assert.Equal(ConnectionState.Open, context.Database.Connection.State);
+                Assert.Equal(expectedState, context.Database.Connection.State);
             }
         }
 
@@ -936,7 +947,7 @@ namespace ProductivityApiTests
         #region SQL command tests
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void SQL_commands_can_be_executed_against_the_database()
         {
             SQL_commands_can_be_executed_against_the_database_implementation((d, q) => d.ExecuteSqlCommand(q));
@@ -945,7 +956,7 @@ namespace ProductivityApiTests
 #if !NET40
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void SQL_commands_can_be_executed_against_the_database_async()
         {
             SQL_commands_can_be_executed_against_the_database_implementation((d, q) => d.ExecuteSqlCommandAsync(q).Result);
@@ -955,20 +966,27 @@ namespace ProductivityApiTests
 
         private void SQL_commands_can_be_executed_against_the_database_implementation(Func<Database, string, int> execute)
         {
-            using (var context = new SimpleModelContext())
-            {
-                var result = execute(
-                    context.Database,
-                    "update Products set Name = 'Vegemite' where Name = 'Marmite'");
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
+                {
+                    using (var context = new SimpleModelContext())
+                    {
+                        using (new TransactionScope())
+                        {
+                            var result = execute(
+                                context.Database,
+                                "update Products set Name = 'Vegemite' where Name = 'Marmite'");
 
-                Assert.Equal(1, result);
+                            Assert.Equal(1, result);
 
-                Assert.NotNull(context.Products.SingleOrDefault(p => p.Name == "Vegemite"));
-            }
+                            Assert.NotNull(context.Products.SingleOrDefault(p => p.Name == "Vegemite"));
+                        }
+                    }
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void SQL_commands_with_parameters_can_be_executed_against_the_database()
         {
             SQL_commands_with_parameters_can_be_executed_against_the_database_implementation((d, q, p) => d.ExecuteSqlCommand(q, p));
@@ -977,7 +995,7 @@ namespace ProductivityApiTests
 #if !NET40
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void SQL_commands_with_parameters_can_be_executed_against_the_database_async()
         {
             SQL_commands_with_parameters_can_be_executed_against_the_database_implementation(
@@ -989,17 +1007,24 @@ namespace ProductivityApiTests
         private void SQL_commands_with_parameters_can_be_executed_against_the_database_implementation(
             Func<Database, string, object[], int> execute)
         {
-            using (var context = new SimpleModelContext())
-            {
-                var result = execute(
-                    context.Database,
-                    "update Products set Name = {0} where Name = {1}",
-                    new object[] { "Vegemite", "Marmite" });
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
+                {
+                    using (var context = new SimpleModelContext())
+                    {
+                        using (new TransactionScope())
+                        {
+                            var result = execute(
+                                context.Database,
+                                "update Products set Name = {0} where Name = {1}",
+                                new object[] { "Vegemite", "Marmite" });
 
-                Assert.Equal(1, result);
+                            Assert.Equal(1, result);
 
-                Assert.NotNull(context.Products.SingleOrDefault(p => p.Name == "Vegemite"));
-            }
+                            Assert.NotNull(context.Products.SingleOrDefault(p => p.Name == "Vegemite"));
+                        }
+                    }
+                });
         }
 
         #endregion

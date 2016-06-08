@@ -13,22 +13,19 @@ namespace System.Data.Entity.Core.Mapping
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
 
-    /// <summary>
-    /// Verifies that only legal expressions exist in a user-defined query mapping view.
-    /// </summary>
+    // <summary>
+    // Verifies that only legal expressions exist in a user-defined query mapping view.
+    // </summary>
     internal static class ViewValidator
     {
-        /// <summary>
-        /// Determines whether the given view is valid.
-        /// </summary>
-        /// <param name="view"> Query view to validate. </param>
-        /// <param name="setMapping"> Mapping in which view is declared. </param>
-        /// <param name="elementType"> </param>
-        /// <param name="includeSubtypes"> </param>
-        /// <returns> Errors in view definition. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Determines whether the given view is valid.
+        // </summary>
+        // <param name="view"> Query view to validate. </param>
+        // <param name="setMapping"> Mapping in which view is declared. </param>
+        // <returns> Errors in view definition. </returns>
         internal static IEnumerable<EdmSchemaError> ValidateQueryView(
-            DbQueryCommandTree view, StorageSetMapping setMapping, EntityTypeBase elementType, bool includeSubtypes)
+            DbQueryCommandTree view, EntitySetBaseMapping setMapping, EntityTypeBase elementType, bool includeSubtypes)
         {
             var validator = new ViewExpressionValidator(setMapping, elementType, includeSubtypes);
             validator.VisitExpression(view.Query);
@@ -50,7 +47,7 @@ namespace System.Data.Entity.Core.Mapping
 
         private sealed class ViewExpressionValidator : BasicExpressionVisitor
         {
-            private readonly StorageSetMapping _setMapping;
+            private readonly EntitySetBaseMapping _setMapping;
             private readonly List<EdmSchemaError> _errors;
             private readonly EntityTypeBase _elementType;
             private readonly bool _includeSubtypes;
@@ -65,7 +62,7 @@ namespace System.Data.Entity.Core.Mapping
                 get { return _setMapping.EntityContainerMapping.StorageMappingItemCollection.StoreItemCollection; }
             }
 
-            internal ViewExpressionValidator(StorageSetMapping setMapping, EntityTypeBase elementType, bool includeSubtypes)
+            internal ViewExpressionValidator(EntitySetBaseMapping setMapping, EntityTypeBase elementType, bool includeSubtypes)
             {
                 DebugCheck.NotNull(setMapping);
                 DebugCheck.NotNull(elementType);
@@ -130,7 +127,7 @@ namespace System.Data.Entity.Core.Mapping
                             new EdmSchemaError(
                                 Strings.Mapping_UnsupportedExpressionKind_QueryView(
                                     _setMapping.Set.Name, elementString, expressionKind),
-                                (int)StorageMappingErrorCode.MappingUnsupportedExpressionKindQueryView,
+                                (int)MappingErrorCode.MappingUnsupportedExpressionKindQueryView,
                                 EdmSchemaErrorSeverity.Error, _setMapping.EntityContainerMapping.SourceLocation, _setMapping.StartLineNumber,
                                 _setMapping.StartLinePosition));
                         break;
@@ -149,7 +146,7 @@ namespace System.Data.Entity.Core.Mapping
                         new EdmSchemaError(
                             Strings.Mapping_UnsupportedPropertyKind_QueryView(
                                 _setMapping.Set.Name, expression.Property.Name, expression.Property.BuiltInTypeKind),
-                            (int)StorageMappingErrorCode.MappingUnsupportedPropertyKindQueryView,
+                            (int)MappingErrorCode.MappingUnsupportedPropertyKindQueryView,
                             EdmSchemaErrorSeverity.Error, _setMapping.EntityContainerMapping.SourceLocation, _setMapping.StartLineNumber,
                             _setMapping.StartLinePosition));
                 }
@@ -174,16 +171,16 @@ namespace System.Data.Entity.Core.Mapping
                             new EdmSchemaError(
                                 Strings.Mapping_UnsupportedInitialization_QueryView(
                                     _setMapping.Set.Name, type.FullName),
-                                (int)StorageMappingErrorCode.MappingUnsupportedInitializationQueryView,
+                                (int)MappingErrorCode.MappingUnsupportedInitializationQueryView,
                                 EdmSchemaErrorSeverity.Error, _setMapping.EntityContainerMapping.SourceLocation, _setMapping.StartLineNumber,
                                 _setMapping.StartLinePosition));
                     }
                 }
             }
 
-            /// <summary>
-            /// Retrieves all complex types that can be constructed as part of the view.
-            /// </summary>
+            // <summary>
+            // Retrieves all complex types that can be constructed as part of the view.
+            // </summary>
             private IEnumerable<ComplexType> GetComplexTypes()
             {
                 // Retrieve all top-level properties of entity types constructed in the view.
@@ -191,9 +188,9 @@ namespace System.Data.Entity.Core.Mapping
                 return GetComplexTypes(properties);
             }
 
-            /// <summary>
-            /// Recursively identify complex types.
-            /// </summary>
+            // <summary>
+            // Recursively identify complex types.
+            // </summary>
             private IEnumerable<ComplexType> GetComplexTypes(IEnumerable<EdmProperty> properties)
             {
                 // CONSIDER:: if complex type inheritance is supported, this will need to change
@@ -207,9 +204,9 @@ namespace System.Data.Entity.Core.Mapping
                 }
             }
 
-            /// <summary>
-            /// Gets all entity types in scope for this view.
-            /// </summary>
+            // <summary>
+            // Gets all entity types in scope for this view.
+            // </summary>
             private IEnumerable<EntityType> GetEntityTypes()
             {
                 if (_includeSubtypes)
@@ -243,7 +240,7 @@ namespace System.Data.Entity.Core.Mapping
                         new EdmSchemaError(
                             Strings.Mapping_UnsupportedFunctionCall_QueryView(
                                 _setMapping.Set.Name, expression.Function.Identity),
-                            (int)StorageMappingErrorCode.UnsupportedFunctionCallInQueryView,
+                            (int)MappingErrorCode.UnsupportedFunctionCallInQueryView,
                             EdmSchemaErrorSeverity.Error, _setMapping.EntityContainerMapping.SourceLocation, _setMapping.StartLineNumber,
                             _setMapping.StartLinePosition));
                 }
@@ -283,27 +280,27 @@ namespace System.Data.Entity.Core.Mapping
                     _errors.Add(
                         new EdmSchemaError(
                             Strings.Mapping_UnsupportedScanTarget_QueryView(
-                                _setMapping.Set.Name, target.Name), (int)StorageMappingErrorCode.MappingUnsupportedScanTargetQueryView,
+                                _setMapping.Set.Name, target.Name), (int)MappingErrorCode.MappingUnsupportedScanTargetQueryView,
                             EdmSchemaErrorSeverity.Error, _setMapping.EntityContainerMapping.SourceLocation, _setMapping.StartLineNumber,
                             _setMapping.StartLinePosition));
                 }
             }
         }
 
-        /// <summary>
-        /// The visitor validates that the QueryView for an AssociationSet uses the same EntitySets when
-        /// creating the ends that were used in CSDL. Since the Query View is already validated, we can expect to
-        /// see only a very restricted set of expressions in the tree.
-        /// </summary>
+        // <summary>
+        // The visitor validates that the QueryView for an AssociationSet uses the same EntitySets when
+        // creating the ends that were used in CSDL. Since the Query View is already validated, we can expect to
+        // see only a very restricted set of expressions in the tree.
+        // </summary>
         private class AssociationSetViewValidator : DbExpressionVisitor<DbExpressionEntitySetInfo>
         {
             private readonly Stack<KeyValuePair<string, DbExpressionEntitySetInfo>> variableScopes =
                 new Stack<KeyValuePair<string, DbExpressionEntitySetInfo>>();
 
-            private readonly StorageSetMapping _setMapping;
+            private readonly EntitySetBaseMapping _setMapping;
             private readonly List<EdmSchemaError> _errors = new List<EdmSchemaError>();
 
-            internal AssociationSetViewValidator(StorageSetMapping setMapping)
+            internal AssociationSetViewValidator(EntitySetBaseMapping setMapping)
             {
                 DebugCheck.NotNull(setMapping);
                 _setMapping = setMapping;
@@ -362,7 +359,7 @@ namespace System.Data.Entity.Core.Mapping
                                 new EdmSchemaError(
                                     Strings.Mapping_EntitySetMismatchOnAssociationSetEnd_QueryView(
                                         setInfo.EntitySet.Name, declaredSet.Name, setEnd.Name, _setMapping.Set.Name),
-                                    (int)StorageMappingErrorCode.MappingUnsupportedInitializationQueryView,
+                                    (int)MappingErrorCode.MappingUnsupportedInitializationQueryView,
                                     EdmSchemaErrorSeverity.Error, _setMapping.EntityContainerMapping.SourceLocation,
                                     _setMapping.StartLineNumber,
                                     _setMapping.StartLinePosition));

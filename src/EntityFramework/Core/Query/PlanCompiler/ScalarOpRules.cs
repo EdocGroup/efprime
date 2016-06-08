@@ -1,14 +1,17 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Query.PlanCompiler
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
+    using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Query.InternalTrees;
+    using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
 
-    /// <summary>
-    /// Transformation rules for ScalarOps
-    /// </summary>
+    // <summary>
+    // Transformation rules for ScalarOps
+    // </summary>
     internal static class ScalarOpRules
     {
         #region CaseOp Rules
@@ -16,18 +19,18 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
         internal static readonly SimpleRule Rule_SimplifyCase = new SimpleRule(OpType.Case, ProcessSimplifyCase);
         internal static readonly SimpleRule Rule_FlattenCase = new SimpleRule(OpType.Case, ProcessFlattenCase);
 
-        /// <summary>
-        /// We perform the following simple transformation for CaseOps. If every single
-        /// then/else expression in the CaseOp is equivalent, then we can simply replace
-        /// the Op with the first then/expression. Specifically,
-        /// case when w1 then t1 when w2 then t2 ... when wn then tn else e end
-        /// => t1
-        /// assuming that t1 is equivalent to t2 is equivalent to ... to e
-        /// </summary>
-        /// <param name="context"> Rule Processing context </param>
-        /// <param name="caseOpNode"> The current subtree for the CaseOp </param>
-        /// <param name="newNode"> the (possibly) modified subtree </param>
-        /// <returns> true, if we performed any transformations </returns>
+        // <summary>
+        // We perform the following simple transformation for CaseOps. If every single
+        // then/else expression in the CaseOp is equivalent, then we can simply replace
+        // the Op with the first then/expression. Specifically,
+        // case when w1 then t1 when w2 then t2 ... when wn then tn else e end
+        // => t1
+        // assuming that t1 is equivalent to t2 is equivalent to ... to e
+        // </summary>
+        // <param name="context"> Rule Processing context </param>
+        // <param name="caseOpNode"> The current subtree for the CaseOp </param>
+        // <param name="newNode"> the (possibly) modified subtree </param>
+        // <returns> true, if we performed any transformations </returns>
         private static bool ProcessSimplifyCase(RuleProcessingContext context, Node caseOpNode, out Node newNode)
         {
             var caseOp = (CaseOp)caseOpNode.Op;
@@ -54,17 +57,17 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return false;
         }
 
-        /// <summary>
-        /// Try and collapse the case expression into a single expression.
-        /// If every single then/else expression in the CaseOp is equivalent, then we can
-        /// simply replace the CaseOp with the first then/expression. Specifically,
-        /// case when w1 then t1 when w2 then t2 ... when wn then tn else e end
-        /// => t1
-        /// if t1 is equivalent to t2 is equivalent to ... to e
-        /// </summary>
-        /// <param name="caseOpNode"> current subtree </param>
-        /// <param name="newNode"> new subtree </param>
-        /// <returns> true, if we performed a transformation </returns>
+        // <summary>
+        // Try and collapse the case expression into a single expression.
+        // If every single then/else expression in the CaseOp is equivalent, then we can
+        // simply replace the CaseOp with the first then/expression. Specifically,
+        // case when w1 then t1 when w2 then t2 ... when wn then tn else e end
+        // => t1
+        // if t1 is equivalent to t2 is equivalent to ... to e
+        // </summary>
+        // <param name="caseOpNode"> current subtree </param>
+        // <param name="newNode"> new subtree </param>
+        // <returns> true, if we performed a transformation </returns>
         private static bool ProcessSimplifyCase_Collapse(Node caseOpNode, out Node newNode)
         {
             newNode = caseOpNode;
@@ -87,21 +90,21 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return true;
         }
 
-        /// <summary>
-        /// Try and remove spurious branches from the case expression.
-        /// If any of the WHEN clauses is the 'FALSE' expression, simply remove that
-        /// branch (when-then pair) from the case expression.
-        /// If any of the WHEN clauses is the 'TRUE' expression, then all branches to the
-        /// right of it are irrelevant - eliminate them. Eliminate this branch as well,
-        /// and make the THEN expression of this branch the ELSE expression for the entire
-        /// Case expression. If the WHEN expression represents the first branch, then
-        /// replace the entire case expression by the corresponding THEN expression
-        /// </summary>
-        /// <param name="context"> rule processing context </param>
-        /// <param name="caseOp"> current caseOp </param>
-        /// <param name="caseOpNode"> Current subtree </param>
-        /// <param name="newNode"> the new subtree </param>
-        /// <returns> true, if there was a transformation </returns>
+        // <summary>
+        // Try and remove spurious branches from the case expression.
+        // If any of the WHEN clauses is the 'FALSE' expression, simply remove that
+        // branch (when-then pair) from the case expression.
+        // If any of the WHEN clauses is the 'TRUE' expression, then all branches to the
+        // right of it are irrelevant - eliminate them. Eliminate this branch as well,
+        // and make the THEN expression of this branch the ELSE expression for the entire
+        // Case expression. If the WHEN expression represents the first branch, then
+        // replace the entire case expression by the corresponding THEN expression
+        // </summary>
+        // <param name="context"> rule processing context </param>
+        // <param name="caseOp"> current caseOp </param>
+        // <param name="caseOpNode"> Current subtree </param>
+        // <param name="newNode"> the new subtree </param>
+        // <returns> true, if there was a transformation </returns>
         [SuppressMessage("Microsoft.Globalization", "CA1303:Do not pass literals as localized parameters",
             MessageId = "System.Data.Entity.Core.Query.PlanCompiler.PlanCompiler.Assert(System.Boolean,System.String)")]
         private static bool ProcessSimplifyCase_EliminateWhenClauses(
@@ -206,27 +209,25 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return true;
         }
 
-        /// <summary>
-        /// If the else clause of the CaseOp is another CaseOp, when two can be collapsed into one.
-        /// In particular,
-        /// CASE
-        /// WHEN W1 THEN T1
-        /// WHEN W2 THEN T2 ...
-        /// ELSE (CASE
-        /// WHEN WN1 THEN TN1, …
-        /// ELSE E)
-        /// Is transformed into
-        /// CASE
-        /// WHEN W1 THEN T1
-        /// WHEN W2 THEN T2 ...
-        /// WHEN WN1  THEN TN1 ...
-        /// ELSE E
-        /// </summary>
-        /// <param name="context"> </param>
-        /// <param name="caseOpNode"> current subtree </param>
-        /// <param name="newNode"> new subtree </param>
-        /// <returns> true, if we performed a transformation </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // If the else clause of the CaseOp is another CaseOp, when two can be collapsed into one.
+        // In particular,
+        // CASE
+        // WHEN W1 THEN T1
+        // WHEN W2 THEN T2 ...
+        // ELSE (CASE
+        // WHEN WN1 THEN TN1, …
+        // ELSE E)
+        // Is transformed into
+        // CASE
+        // WHEN W1 THEN T1
+        // WHEN W2 THEN T2 ...
+        // WHEN WN1  THEN TN1 ...
+        // ELSE E
+        // </summary>
+        // <param name="caseOpNode"> current subtree </param>
+        // <param name="newNode"> new subtree </param>
+        // <returns> true, if we performed a transformation </returns>
         private static bool ProcessFlattenCase(RuleProcessingContext context, Node caseOpNode, out Node newNode)
         {
             newNode = caseOpNode;
@@ -250,6 +251,63 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return true;
         }
 
+        internal static readonly PatternMatchRule Rule_IsNullOverCase =
+            new PatternMatchRule(
+                new Node(
+                    ConditionalOp.PatternIsNull,
+                    new Node(
+                        CaseOp.Pattern,
+                        new Node(LeafOp.Pattern),
+                        new Node(LeafOp.Pattern),
+                        new Node(LeafOp.Pattern))),
+                ProcessIsNullOverCase);
+
+        // Simplifies the following two cases:
+        // (CASE WHEN condition THEN NULL ELSE constant END) IS NULL => condition
+        // (CASE WHEN condition THEN constant ELSE NULL END) IS NULL => NOT condition
+        private static bool ProcessIsNullOverCase(RuleProcessingContext context, Node isNullOpNode, out Node newNode)
+        {
+            var caseOpNode = isNullOpNode.Child0;
+
+            if (caseOpNode.Children.Count != 3)
+            {
+                newNode = isNullOpNode;
+                return false;
+            }
+
+            var whenNode = caseOpNode.Child0;
+            var thenNode = caseOpNode.Child1;
+            var elseNode = caseOpNode.Child2;
+
+            switch (thenNode.Op.OpType)
+            {
+                case OpType.Null:
+                    switch (elseNode.Op.OpType)
+                    {
+                        case OpType.Constant:
+                        case OpType.InternalConstant:
+                        case OpType.NullSentinel:
+                            newNode = whenNode;
+                            return true;
+                    }
+                    break;
+                case OpType.Constant:
+                case OpType.InternalConstant:
+                case OpType.NullSentinel:
+                    if (elseNode.Op.OpType == OpType.Null)
+                    {
+                        newNode = context.Command.CreateNode(
+                            context.Command.CreateConditionalOp(OpType.Not),
+                            whenNode);
+                        return true;
+                    }
+                    break;
+            }
+
+            newNode = isNullOpNode;
+            return false;
+        }
+
         #endregion
 
         #region EqualsOverConstant Rules
@@ -262,14 +320,14 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     new Node(InternalConstantOp.Pattern)),
                 ProcessComparisonsOverConstant);
 
-        /// <summary>
-        /// Convert an Equals(X, Y) to a "true" predicate if X=Y, or a "false" predicate if X!=Y
-        /// Convert a NotEquals(X,Y) in the reverse fashion
-        /// </summary>
-        /// <param name="context"> Rule processing context </param>
-        /// <param name="node"> current node </param>
-        /// <param name="newNode"> possibly modified subtree </param>
-        /// <returns> true, if transformation was successful </returns>
+        // <summary>
+        // Convert an Equals(X, Y) to a "true" predicate if X=Y, or a "false" predicate if X!=Y
+        // Convert a NotEquals(X,Y) in the reverse fashion
+        // </summary>
+        // <param name="context"> Rule processing context </param>
+        // <param name="node"> current node </param>
+        // <param name="newNode"> possibly modified subtree </param>
+        // <returns> true, if transformation was successful </returns>
         [SuppressMessage("Microsoft.Globalization", "CA1303:Do not pass literals as localized parameters",
             MessageId = "System.Data.Entity.Core.Query.PlanCompiler.PlanCompiler.Assert(System.Boolean,System.String)")]
         private static bool ProcessComparisonsOverConstant(RuleProcessingContext context, Node node, out Node newNode)
@@ -399,19 +457,19 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     new Node(ConstantPredicateOp.Pattern)),
                 ProcessNotOverConstantPredicate);
 
-        /// <summary>
-        /// Transform
-        /// AND(x, true) => x;
-        /// AND(true, x) => x
-        /// AND(x, false) => false
-        /// AND(false, x) => false
-        /// </summary>
-        /// <param name="context"> Rule Processing context </param>
-        /// <param name="node"> Current LogOp (And, Or, Not) node </param>
-        /// <param name="constantPredicateNode"> constant predicate node </param>
-        /// <param name="otherNode"> The other child of the LogOp (possibly null) </param>
-        /// <param name="newNode"> new subtree </param>
-        /// <returns> transformation status </returns>
+        // <summary>
+        // Transform
+        // AND(x, true) => x;
+        // AND(true, x) => x
+        // AND(x, false) => false
+        // AND(false, x) => false
+        // </summary>
+        // <param name="context"> Rule Processing context </param>
+        // <param name="node"> Current LogOp (And, Or, Not) node </param>
+        // <param name="constantPredicateNode"> constant predicate node </param>
+        // <param name="otherNode"> The other child of the LogOp (possibly null) </param>
+        // <param name="newNode"> new subtree </param>
+        // <returns> transformation status </returns>
         [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "OpType")]
         [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "constantPredicateOp")]
         [SuppressMessage("Microsoft.Globalization", "CA1303:Do not pass literals as localized parameters",
@@ -487,16 +545,13 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     new Node(NullSentinelOp.Pattern)),
                 ProcessIsNullOverConstant);
 
-        /// <summary>
-        /// Convert a
-        /// IsNull(constant)
-        /// to just the
-        /// False predicate
-        /// </summary>
-        /// <param name="context"> </param>
-        /// <param name="isNullNode"> </param>
-        /// <param name="newNode"> new subtree </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Convert a
+        // IsNull(constant)
+        // to just the
+        // False predicate
+        // </summary>
+        // <param name="newNode"> new subtree </param>
         private static bool ProcessIsNullOverConstant(RuleProcessingContext context, Node isNullNode, out Node newNode)
         {
             newNode = context.Command.CreateNode(context.Command.CreateFalseOp());
@@ -510,13 +565,10 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     new Node(NullOp.Pattern)),
                 ProcessIsNullOverNull);
 
-        /// <summary>
-        /// Convert an IsNull(null) to just the 'true' predicate
-        /// </summary>
-        /// <param name="context"> </param>
-        /// <param name="isNullNode"> </param>
-        /// <param name="newNode"> new subtree </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Convert an IsNull(null) to just the 'true' predicate
+        // </summary>
+        // <param name="newNode"> new subtree </param>
         private static bool ProcessIsNullOverNull(RuleProcessingContext context, Node isNullNode, out Node newNode)
         {
             newNode = context.Command.CreateNode(context.Command.CreateTrueOp());
@@ -533,14 +585,11 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                 new Node(NullOp.Pattern)),
             ProcessNullCast);
 
-        /// <summary>
-        /// eliminates nested null casts into a single cast of the outermost cast type.
-        /// basically the transformation applied is: cast(null[x] as T) => null[t]
-        /// </summary>
-        /// <param name="context"> </param>
-        /// <param name="castNullOp"> </param>
-        /// <param name="newNode"> modified subtree </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // eliminates nested null casts into a single cast of the outermost cast type.
+        // basically the transformation applied is: cast(null[x] as T) => null[t]
+        // </summary>
+        // <param name="newNode"> modified subtree </param>
         private static bool ProcessNullCast(RuleProcessingContext context, Node castNullOp, out Node newNode)
         {
             newNode = context.Command.CreateNode(context.Command.CreateNullOp(castNullOp.Op.Type));
@@ -558,17 +607,14 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     new Node(VarRefOp.Pattern)),
                 ProcessIsNullOverVarRef);
 
-        /// <summary>
-        /// Convert a
-        /// IsNull(VarRef(v))
-        /// to just the
-        /// False predicate
-        /// if v is guaranteed to be non nullable.
-        /// </summary>
-        /// <param name="context"> </param>
-        /// <param name="isNullNode"> </param>
-        /// <param name="newNode"> new subtree </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Convert a
+        // IsNull(VarRef(v))
+        // to just the
+        // False predicate
+        // if v is guaranteed to be non nullable.
+        // </summary>
+        // <param name="newNode"> new subtree </param>
         private static bool ProcessIsNullOverVarRef(RuleProcessingContext context, Node isNullNode, out Node newNode)
         {
             var command = context.Command;
@@ -590,10 +636,68 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #endregion
 
+        #region IsNull over anything
+
+        internal static readonly PatternMatchRule Rule_IsNullOverAnything =
+            new PatternMatchRule(
+                new Node(
+                    ConditionalOp.PatternIsNull,
+                        new Node(LeafOp.Pattern)),
+                ProcessIsNullOverAnything);
+
+        private static bool ProcessIsNullOverAnything(RuleProcessingContext context, Node isNullNode, out Node newNode)
+        {
+            Debug.Assert(isNullNode.Op.OpType == OpType.IsNull);
+
+            var command = context.Command;
+
+            switch (isNullNode.Child0.Op.OpType)
+            {
+                case OpType.Cast:
+                    newNode = command.CreateNode(
+                        command.CreateConditionalOp(OpType.IsNull),
+                        isNullNode.Child0.Child0);
+                    break;
+                case OpType.Function:
+                    var function = ((FunctionOp)isNullNode.Child0.Op).Function;
+                    newNode = PreservesNulls(function)
+                        ? command.CreateNode(
+                            command.CreateConditionalOp(OpType.IsNull),
+                            isNullNode.Child0.Child0)
+                        : isNullNode;
+                    break;
+                default:
+                    newNode = isNullNode;
+                    break;
+            }
+
+            switch (isNullNode.Child0.Op.OpType)
+            {
+                case OpType.Constant:
+                case OpType.InternalConstant:
+                case OpType.NullSentinel:
+                    return ProcessIsNullOverConstant(context, newNode, out newNode);
+                case OpType.Null:
+                    return ProcessIsNullOverNull(context, newNode, out newNode);
+                case OpType.VarRef:
+                    return ProcessIsNullOverVarRef(context, newNode, out newNode);
+                default:
+                    return !ReferenceEquals(isNullNode, newNode);
+            }
+        }
+
+        private static bool PreservesNulls(EdmFunction function)
+        {
+            return function.FullName == "Edm.Length";
+        }
+
+        #endregion
+
         #region All ScalarOp Rules
 
         internal static readonly Rule[] Rules = new Rule[]
             {
+                Rule_IsNullOverCase,
                 Rule_SimplifyCase,
                 Rule_FlattenCase,
                 Rule_LikeOverConstants,

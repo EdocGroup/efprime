@@ -95,6 +95,16 @@ namespace System.Data.Entity.Internal.Linq
             Assert.Equal("foo", actualEnumerator.Current);
         }
 
+        [Fact]
+        public void FindAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var internalSet = new InternalSet<object>(new Mock<InternalContext>().Object);
+
+            Assert.Throws<OperationCanceledException>(
+                () => internalSet.FindAsync(new CancellationToken(canceled: true))
+                    .GetAwaiter().GetResult());
+        }
+
 #endif
 
         [Fact]
@@ -144,7 +154,7 @@ namespace System.Data.Entity.Internal.Linq
 
 #endif
 
-        private InternalSet<TEntity> CreateInternalSet<TEntity>(Mock<ObjectContextForMock> objectContextMock, TEntity value)
+        private InternalSet<TEntity> CreateInternalSet<TEntity>(Mock<ObjectContext> objectContextMock, TEntity value)
             where TEntity : class
         {
             var shaperMock = MockHelper.CreateShaperMock<TEntity>();

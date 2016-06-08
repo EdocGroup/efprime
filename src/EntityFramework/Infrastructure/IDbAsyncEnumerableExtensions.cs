@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 
 #if !NET40
@@ -15,50 +15,49 @@ namespace System.Data.Entity.Infrastructure
     // The methods in this class are internal so they don't conflict with the extension methods for IQueryable
     internal static class IDbAsyncEnumerableExtensions
     {
-        /// <summary>
-        /// Asynchronously executes the provided action on each element of the <see cref="IDbAsyncEnumerable" />.
-        /// </summary>
-        /// <param name="source"> </param>
-        /// <param name="action"> The action to be executed. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns> A Task representing the asynchronous operation. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously executes the provided action on each element of the <see cref="IDbAsyncEnumerable" />.
+        // </summary>
+        // <param name="action"> The action to be executed. </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns> A Task representing the asynchronous operation. </returns>
         internal static async Task ForEachAsync(
             this IDbAsyncEnumerable source, Action<object> action, CancellationToken cancellationToken)
         {
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(action);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var enumerator = source.GetAsyncEnumerator())
             {
-                if (await enumerator.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (await enumerator.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     Task<bool> moveNextTask;
                     do
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         var current = enumerator.Current;
                         moveNextTask = enumerator.MoveNextAsync(cancellationToken);
                         action(current);
                     }
-                    while (await moveNextTask.ConfigureAwait(continueOnCapturedContext: false));
+                    while (await moveNextTask.WithCurrentCulture());
                 }
             }
         }
 
-        /// <summary>
-        /// Asynchronously executes the provided action on each element of the <see cref="IDbAsyncEnumerable{T}" />.
-        /// </summary>
-        /// <param name="source"> </param>
-        /// <param name="action"> The action to be executed. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns> A Task representing the asynchronous operation. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously executes the provided action on each element of the <see cref="IDbAsyncEnumerable{T}" />.
+        // </summary>
+        // <param name="action"> The action to be executed. </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns> A Task representing the asynchronous operation. </returns>
         internal static Task ForEachAsync<T>(
             this IDbAsyncEnumerable<T> source, Action<T> action, CancellationToken cancellationToken)
         {
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(action);
-
+           
             return ForEachAsync(source.GetAsyncEnumerator(), action, cancellationToken);
         }
 
@@ -67,27 +66,30 @@ namespace System.Data.Entity.Infrastructure
         {
             using (enumerator)
             {
-                if (await enumerator.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (await enumerator.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     Task<bool> moveNextTask;
                     do
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         var current = enumerator.Current;
                         moveNextTask = enumerator.MoveNextAsync(cancellationToken);
                         action(current);
                     }
-                    while (await moveNextTask.ConfigureAwait(continueOnCapturedContext: false));
+                    while (await moveNextTask.WithCurrentCulture());
                 }
             }
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable" />.
-        /// </summary>
-        /// <typeparam name="T"> The type that the elements will be cast to. </typeparam>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
-        /// </returns>
+        // <summary>
+        // Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable" />.
+        // </summary>
+        // <typeparam name="T"> The type that the elements will be cast to. </typeparam>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
+        // </returns>
         internal static Task<List<T>> ToListAsync<T>(this IDbAsyncEnumerable source)
         {
             DebugCheck.NotNull(source);
@@ -95,31 +97,29 @@ namespace System.Data.Entity.Infrastructure
             return source.ToListAsync<T>(CancellationToken.None);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable" />.
-        /// </summary>
-        /// <typeparam name="T"> The type that the elements will be cast to. </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable" />.
+        // </summary>
+        // <typeparam name="T"> The type that the elements will be cast to. </typeparam>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
+        // </returns>
         internal static async Task<List<T>> ToListAsync<T>(this IDbAsyncEnumerable source, CancellationToken cancellationToken)
         {
             DebugCheck.NotNull(source);
 
             var list = new List<T>();
-            await source.ForEachAsync(e => list.Add((T)e), cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+            await source.ForEachAsync(e => list.Add((T)e), cancellationToken).WithCurrentCulture();
             return list;
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable{T}" />.
-        /// </summary>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
-        /// </returns>
+        // <summary>
+        // Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable{T}" />.
+        // </summary>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<List<T>> ToListAsync<T>(this IDbAsyncEnumerable<T> source)
         {
@@ -128,15 +128,13 @@ namespace System.Data.Entity.Infrastructure
             return source.ToListAsync(CancellationToken.None);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable{T}" />.
-        /// </summary>
-        /// <param name="source"> </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="List{T}" /> from the <see cref="IDbAsyncEnumerable{T}" />.
+        // </summary>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="List{T}" /> that contains elements from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<List<T>> ToListAsync<T>(this IDbAsyncEnumerable<T> source, CancellationToken cancellationToken)
         {
@@ -164,15 +162,15 @@ namespace System.Data.Entity.Infrastructure
             return tcs.Task;
         }
 
-        /// <summary>
-        /// Asynchronously creates a T[] from an <see cref="IDbAsyncEnumerable{T}" /> by enumerating it asynchronously.
-        /// </summary>
-        /// <typeparam name="T">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <returns>
-        /// A <see cref="Task" /> containing a T[] that contains elements from the input sequence.
-        /// </returns>
+        // <summary>
+        // Asynchronously creates a T[] from an <see cref="IDbAsyncEnumerable{T}" /> by enumerating it asynchronously.
+        // </summary>
+        // <typeparam name="T">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <returns>
+        // A <see cref="Task" /> containing a T[] that contains elements from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<T[]> ToArrayAsync<T>(this IDbAsyncEnumerable<T> source)
         {
@@ -181,43 +179,39 @@ namespace System.Data.Entity.Infrastructure
             return source.ToArrayAsync(CancellationToken.None);
         }
 
-        /// <summary>
-        /// Asynchronously creates a T[] from an <see cref="IDbAsyncEnumerable{T}" /> by enumerating it asynchronously.
-        /// </summary>
-        /// <typeparam name="T">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a T[] that contains elements from the input sequence.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a T[] from an <see cref="IDbAsyncEnumerable{T}" /> by enumerating it asynchronously.
+        // </summary>
+        // <typeparam name="T">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a T[] that contains elements from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static async Task<T[]> ToArrayAsync<T>(this IDbAsyncEnumerable<T> source, CancellationToken cancellationToken)
         {
             DebugCheck.NotNull(source);
 
-            var list = await source.ToListAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+            var list = await source.ToListAsync(cancellationToken).WithCurrentCulture();
             return list.ToArray();
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector function.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector function.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<Dictionary<TKey, TSource>> ToDictionaryAsync<TSource, TKey>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector)
@@ -228,23 +222,21 @@ namespace System.Data.Entity.Infrastructure
             return ToDictionaryAsync(source, keySelector, IdentityFunction<TSource>.Instance, null, CancellationToken.None);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector function.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector function.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<Dictionary<TKey, TSource>> ToDictionaryAsync<TSource, TKey>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector, CancellationToken cancellationToken)
@@ -255,25 +247,23 @@ namespace System.Data.Entity.Infrastructure
             return ToDictionaryAsync(source, keySelector, IdentityFunction<TSource>.Instance, null, cancellationToken);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector function and a comparer.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <param name="comparer">
-        /// An <see cref="IEqualityComparer{TKey}" /> to compare keys.
-        /// </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector function and a comparer.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <param name="comparer">
+        // An <see cref="IEqualityComparer{TKey}" /> to compare keys.
+        // </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<Dictionary<TKey, TSource>> ToDictionaryAsync<TSource, TKey>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector, IEqualityComparer<TKey> comparer)
@@ -284,26 +274,24 @@ namespace System.Data.Entity.Infrastructure
             return ToDictionaryAsync(source, keySelector, IdentityFunction<TSource>.Instance, comparer, CancellationToken.None);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector function and a comparer.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <param name="comparer">
-        /// An <see cref="IEqualityComparer{TKey}" /> to compare keys.
-        /// </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TSource}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector function and a comparer.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <param name="comparer">
+        // An <see cref="IEqualityComparer{TKey}" /> to compare keys.
+        // </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TSource}" /> that contains selected keys and values.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<Dictionary<TKey, TSource>> ToDictionaryAsync<TSource, TKey>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector, IEqualityComparer<TKey> comparer,
@@ -315,29 +303,27 @@ namespace System.Data.Entity.Infrastructure
             return ToDictionaryAsync(source, keySelector, IdentityFunction<TSource>.Instance, comparer, cancellationToken);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector and an element selector function.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <typeparam name="TElement">
-        /// The type of the value returned by <paramref name="elementSelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
-        /// <typeparamref
-        ///     name="TElement" />
-        /// selected from the input sequence.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector and an element selector function.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <typeparam name="TElement">
+        // The type of the value returned by <paramref name="elementSelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
+        // <typeparamref
+        //     name="TElement" />
+        // selected from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<Dictionary<TKey, TElement>> ToDictionaryAsync<TSource, TKey, TElement>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TElement> elementSelector)
@@ -349,30 +335,28 @@ namespace System.Data.Entity.Infrastructure
             return ToDictionaryAsync(source, keySelector, elementSelector, null, CancellationToken.None);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector and an element selector function.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <typeparam name="TElement">
-        /// The type of the value returned by <paramref name="elementSelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
-        /// <typeparamref
-        ///     name="TElement" />
-        /// selected from the input sequence.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector and an element selector function.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <typeparam name="TElement">
+        // The type of the value returned by <paramref name="elementSelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
+        // <typeparamref
+        //     name="TElement" />
+        // selected from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<Dictionary<TKey, TElement>> ToDictionaryAsync<TSource, TKey, TElement>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TElement> elementSelector,
@@ -385,32 +369,30 @@ namespace System.Data.Entity.Infrastructure
             return ToDictionaryAsync(source, keySelector, elementSelector, null, cancellationToken);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector function, a comparer, and an element selector function.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <typeparam name="TElement">
-        /// The type of the value returned by <paramref name="elementSelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
-        /// <param name="comparer">
-        /// An <see cref="IEqualityComparer{TKey}" /> to compare keys.
-        /// </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
-        /// <typeparamref
-        ///     name="TElement" />
-        /// selected from the input sequence.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector function, a comparer, and an element selector function.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <typeparam name="TElement">
+        // The type of the value returned by <paramref name="elementSelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
+        // <param name="comparer">
+        // An <see cref="IEqualityComparer{TKey}" /> to compare keys.
+        // </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
+        // <typeparamref
+        //     name="TElement" />
+        // selected from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static Task<Dictionary<TKey, TElement>> ToDictionaryAsync<TSource, TKey, TElement>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TElement> elementSelector,
@@ -423,33 +405,31 @@ namespace System.Data.Entity.Infrastructure
             return ToDictionaryAsync(source, keySelector, elementSelector, comparer, CancellationToken.None);
         }
 
-        /// <summary>
-        /// Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
-        /// by enumerating it asynchronously according to a specified key selector function, a comparer, and an element selector function.
-        /// </summary>
-        /// <typeparam name="TSource">
-        /// The type of the elements of <paramref name="source" /> .
-        /// </typeparam>
-        /// <typeparam name="TKey">
-        /// The type of the key returned by <paramref name="keySelector" /> .
-        /// </typeparam>
-        /// <typeparam name="TElement">
-        /// The type of the value returned by <paramref name="elementSelector" /> .
-        /// </typeparam>
-        /// <param name="source"> </param>
-        /// <param name="keySelector"> A function to extract a key from each element. </param>
-        /// <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
-        /// <param name="comparer">
-        /// An <see cref="IEqualityComparer{TKey}" /> to compare keys.
-        /// </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
-        /// <typeparamref
-        ///     name="TElement" />
-        /// selected from the input sequence.
-        /// </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Asynchronously creates a <see cref="Dictionary{TKey, TElement}" /> from an <see cref="IDbAsyncEnumerable{TSource}" />
+        // by enumerating it asynchronously according to a specified key selector function, a comparer, and an element selector function.
+        // </summary>
+        // <typeparam name="TSource">
+        // The type of the elements of <paramref name="source" /> .
+        // </typeparam>
+        // <typeparam name="TKey">
+        // The type of the key returned by <paramref name="keySelector" /> .
+        // </typeparam>
+        // <typeparam name="TElement">
+        // The type of the value returned by <paramref name="elementSelector" /> .
+        // </typeparam>
+        // <param name="keySelector"> A function to extract a key from each element. </param>
+        // <param name="elementSelector"> A transform function to produce a result element value from each element. </param>
+        // <param name="comparer">
+        // An <see cref="IEqualityComparer{TKey}" /> to compare keys.
+        // </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A <see cref="Task" /> containing a <see cref="Dictionary{TKey, TElement}" /> that contains values of type
+        // <typeparamref
+        //     name="TElement" />
+        // selected from the input sequence.
+        // </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal static async Task<Dictionary<TKey, TElement>> ToDictionaryAsync<TSource, TKey, TElement>(
             this IDbAsyncEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TElement> elementSelector,
@@ -461,8 +441,8 @@ namespace System.Data.Entity.Infrastructure
 
             var d = new Dictionary<TKey, TElement>(comparer);
             await
-                source.ForEachAsync(element => d.Add(keySelector(element), elementSelector(element)), cancellationToken).ConfigureAwait(
-                    continueOnCapturedContext: false);
+                source.ForEachAsync(element => d.Add(keySelector(element), elementSelector(element)), cancellationToken)
+                    .WithCurrentCulture();
             return d;
         }
 
@@ -493,9 +473,11 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                if (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     return e.Current;
                 }
@@ -510,9 +492,11 @@ namespace System.Data.Entity.Infrastructure
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(predicate);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                if (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     if (predicate(e.Current))
                     {
@@ -543,9 +527,11 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                if (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     return e.Current;
                 }
@@ -559,9 +545,11 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                if (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     if (predicate(e.Current))
                     {
@@ -585,14 +573,20 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                if (!await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (!await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     throw Error.EmptySequence();
                 }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var result = e.Current;
-                if (!await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+
+                if (!await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     return result;
                 }
@@ -617,12 +611,16 @@ namespace System.Data.Entity.Infrastructure
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(predicate);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var result = default(TSource);
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     if (predicate(e.Current))
                     {
                         result = e.Current;
@@ -657,14 +655,20 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                if (!await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (!await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     return default(TSource);
                 }
+
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var result = e.Current;
-                if (!await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+
+                if (!await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     return result;
                 }
@@ -689,12 +693,16 @@ namespace System.Data.Entity.Infrastructure
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(predicate);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var result = default(TSource);
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     if (predicate(e.Current))
                     {
                         result = e.Current;
@@ -726,14 +734,18 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     if (EqualityComparer<TSource>.Default.Equals(e.Current, value))
                     {
                         return true;
                     }
+
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
             }
 
@@ -751,9 +763,11 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                if (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                if (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     return true;
                 }
@@ -777,14 +791,18 @@ namespace System.Data.Entity.Infrastructure
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(predicate);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     if (predicate(e.Current))
                     {
                         return true;
                     }
+
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
             }
 
@@ -806,14 +824,18 @@ namespace System.Data.Entity.Infrastructure
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(predicate);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
                     if (!predicate(e.Current))
                     {
                         return false;
                     }
+
+                    cancellationToken.ThrowIfCancellationRequested();
                 }
             }
 
@@ -831,14 +853,18 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var count = 0;
 
             using (var e = source.GetAsyncEnumerator())
             {
                 checked
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         count++;
                     }
                 }
@@ -862,14 +888,18 @@ namespace System.Data.Entity.Infrastructure
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(predicate);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var count = 0;
 
             using (var e = source.GetAsyncEnumerator())
             {
                 checked
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         if (predicate(e.Current))
                         {
                             count++;
@@ -893,14 +923,18 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long count = 0;
 
             using (var e = source.GetAsyncEnumerator())
             {
                 checked
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         count++;
                     }
                 }
@@ -924,14 +958,18 @@ namespace System.Data.Entity.Infrastructure
             DebugCheck.NotNull(source);
             DebugCheck.NotNull(predicate);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long count = 0;
 
             using (var e = source.GetAsyncEnumerator())
             {
                 checked
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         if (predicate(e.Current))
                         {
                             count++;
@@ -954,14 +992,18 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var comparer = Comparer<TSource>.Default;
             var value = default(TSource);
             if (value == null)
             {
                 using (var e = source.GetAsyncEnumerator())
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         if (e.Current != null
                             && (value == null || comparer.Compare(e.Current, value) < 0))
                         {
@@ -978,8 +1020,10 @@ namespace System.Data.Entity.Infrastructure
 
                 using (var e = source.GetAsyncEnumerator())
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         if (hasValue)
                         {
                             if (comparer.Compare(e.Current, value) < 0)
@@ -1014,14 +1058,18 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var comparer = Comparer<TSource>.Default;
             var value = default(TSource);
             if (value == null)
             {
                 using (var e = source.GetAsyncEnumerator())
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         if (e.Current != null
                             && (value == null || comparer.Compare(e.Current, value) > 0))
                         {
@@ -1038,8 +1086,10 @@ namespace System.Data.Entity.Infrastructure
 
                 using (var e = source.GetAsyncEnumerator())
                 {
-                    while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                    while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
+
                         if (hasValue)
                         {
                             if (comparer.Compare(e.Current, value) > 0)
@@ -1074,11 +1124,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1100,11 +1154,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1129,11 +1187,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1155,11 +1217,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1184,11 +1250,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1210,11 +1280,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1239,11 +1313,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1265,11 +1343,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1294,11 +1376,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             decimal sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1320,11 +1406,15 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             decimal sum = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1349,12 +1439,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1381,12 +1475,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1416,12 +1514,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1448,12 +1550,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             long sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1483,12 +1589,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1515,12 +1625,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1550,12 +1664,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1582,12 +1700,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             double sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)
@@ -1617,12 +1739,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             decimal sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         sum += e.Current;
@@ -1649,12 +1775,16 @@ namespace System.Data.Entity.Infrastructure
         {
             DebugCheck.NotNull(source);
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             decimal sum = 0;
             long count = 0;
             using (var e = source.GetAsyncEnumerator())
             {
-                while (await e.MoveNextAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await e.MoveNextAsync(cancellationToken).WithCurrentCulture())
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     checked
                     {
                         if (e.Current.HasValue)

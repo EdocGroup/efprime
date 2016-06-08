@@ -14,7 +14,13 @@ namespace System.Data.Entity.Infrastructure.Interception
     {
         private readonly DbCommandTreeDispatcher _commandTreeDispatcher = new DbCommandTreeDispatcher();
         private readonly DbCommandDispatcher _commandDispatcher = new DbCommandDispatcher();
-        private readonly EntityConnectionDispatcher _entityConnectionDispatcher = new EntityConnectionDispatcher();
+        private readonly DbTransactionDispatcher _transactionDispatcher = new DbTransactionDispatcher();
+        private readonly DbConnectionDispatcher _dbConnectionDispatcher = new DbConnectionDispatcher();
+        private readonly DbConfigurationDispatcher _configurationDispatcher = new DbConfigurationDispatcher();
+
+        private readonly CancelableEntityConnectionDispatcher _cancelableEntityConnectionDispatcher =
+            new CancelableEntityConnectionDispatcher();
+
         private readonly CancelableDbCommandDispatcher _cancelableCommandDispatcher = new CancelableDbCommandDispatcher();
 
         internal DbDispatchers()
@@ -35,9 +41,32 @@ namespace System.Data.Entity.Infrastructure.Interception
             get { return _commandDispatcher; }
         }
 
-        internal virtual EntityConnectionDispatcher EntityConnection
+        /// <summary>
+        /// Provides methods for dispatching to <see cref="IDbCommandInterceptor" /> interceptors for
+        /// interception of methods on <see cref="DbTransaction" />.
+        /// </summary>
+        public virtual DbTransactionDispatcher Transaction
         {
-            get { return _entityConnectionDispatcher; }
+            get { return _transactionDispatcher; }
+        }
+
+        /// <summary>
+        /// Provides methods for dispatching to <see cref="IDbCommandInterceptor" /> interceptors for
+        /// interception of methods on <see cref="DbConnection" />.
+        /// </summary>
+        public virtual DbConnectionDispatcher Connection
+        {
+            get { return _dbConnectionDispatcher; }
+        }
+
+        internal virtual DbConfigurationDispatcher Configuration
+        {
+            get { return _configurationDispatcher; }
+        }
+
+        internal virtual CancelableEntityConnectionDispatcher CancelableEntityConnection
+        {
+            get { return _cancelableEntityConnectionDispatcher; }
         }
 
         internal virtual CancelableDbCommandDispatcher CancelableCommand
@@ -51,8 +80,11 @@ namespace System.Data.Entity.Infrastructure.Interception
 
             _commandTreeDispatcher.InternalDispatcher.Add(interceptor);
             _commandDispatcher.InternalDispatcher.Add(interceptor);
-            _entityConnectionDispatcher.InternalDispatcher.Add(interceptor);
+            _transactionDispatcher.InternalDispatcher.Add(interceptor);
+            _dbConnectionDispatcher.InternalDispatcher.Add(interceptor);
+            _cancelableEntityConnectionDispatcher.InternalDispatcher.Add(interceptor);
             _cancelableCommandDispatcher.InternalDispatcher.Add(interceptor);
+            _configurationDispatcher.InternalDispatcher.Add(interceptor);
         }
 
         internal virtual void RemoveInterceptor(IDbInterceptor interceptor)
@@ -61,8 +93,11 @@ namespace System.Data.Entity.Infrastructure.Interception
 
             _commandTreeDispatcher.InternalDispatcher.Remove(interceptor);
             _commandDispatcher.InternalDispatcher.Remove(interceptor);
-            _entityConnectionDispatcher.InternalDispatcher.Remove(interceptor);
+            _transactionDispatcher.InternalDispatcher.Remove(interceptor);
+            _dbConnectionDispatcher.InternalDispatcher.Remove(interceptor);
+            _cancelableEntityConnectionDispatcher.InternalDispatcher.Remove(interceptor);
             _cancelableCommandDispatcher.InternalDispatcher.Remove(interceptor);
+            _configurationDispatcher.InternalDispatcher.Remove(interceptor);
         }
 
         /// <inheritdoc />

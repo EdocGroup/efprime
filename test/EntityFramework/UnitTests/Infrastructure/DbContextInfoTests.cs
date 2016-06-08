@@ -2,18 +2,18 @@
 
 namespace System.Data.Entity.Infrastructure
 {
-    using System;
     using System.Configuration;
     using System.Data.Common;
-    using System.Data.Entity;
     using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Objects;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.Linq;
-    using System.Data.Entity.TestHelpers;
     using Moq;
     using Xunit;
 
@@ -128,7 +128,7 @@ namespace System.Data.Entity.Infrastructure
 
             Assert.False(contextInfo.IsConstructible);
             Assert.Null(contextInfo.CreateInstance());
-            Assert.Null(DbContextInfo.TryGetInfoForContext(typeof(DbContext)));
+            Assert.Null(DbContextInfo.CurrentInfo);
         }
 
         [Fact]
@@ -200,6 +200,49 @@ namespace System.Data.Entity.Infrastructure
         }
 
         [Fact]
+        public void Constructor_should_use_interception()
+        {
+            var dbConnectionInterceptorMock = new Mock<IDbConnectionInterceptor>();
+            DbInterception.Add(dbConnectionInterceptorMock.Object);
+            try
+            {
+                new DbContextInfo(typeof(SimpleContext));
+            }
+            finally
+            {
+                DbInterception.Remove(dbConnectionInterceptorMock.Object);
+            }
+
+            dbConnectionInterceptorMock.Verify(
+                m => m.ConnectionStringGetting(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Exactly(2));
+            dbConnectionInterceptorMock.Verify(
+                m => m.ConnectionStringGot(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Exactly(2));
+
+            dbConnectionInterceptorMock.Verify(
+                m => m.ConnectionStringSetting(It.IsAny<DbConnection>(), It.IsAny<DbConnectionPropertyInterceptionContext<string>>()),
+                Times.Once());
+            dbConnectionInterceptorMock.Verify(
+                m => m.ConnectionStringSet(It.IsAny<DbConnection>(), It.IsAny<DbConnectionPropertyInterceptionContext<string>>()),
+                Times.Once());
+
+            dbConnectionInterceptorMock.Verify(
+                m => m.DataSourceGetting(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Once());
+            dbConnectionInterceptorMock.Verify(
+                m => m.DataSourceGot(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Once());
+
+            dbConnectionInterceptorMock.Verify(
+                m => m.DatabaseGetting(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Once());
+            dbConnectionInterceptorMock.Verify(
+                m => m.DatabaseGot(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Once());
+        }
+
+        [Fact]
         public void DbContextInfo_should_get_connection_info_from_given_existing_context()
         {
             var mockContext = new Mock<InternalContextForMock<SimpleContext>>();
@@ -219,9 +262,12 @@ namespace System.Data.Entity.Infrastructure
         [DbConfigurationType(typeof(FunctionalTestsConfiguration))]
         public class ContextWithoutDefaultCtor : DbContext
         {
-            private ContextWithoutDefaultCtor(string nameOrConnectionString)
+            public string NameOrConnectionString { get; private set; }
+
+            internal ContextWithoutDefaultCtor(string nameOrConnectionString)
                 : base(nameOrConnectionString)
             {
+                NameOrConnectionString = nameOrConnectionString;
             }
 
             public class ContextFactory : IDbContextFactory<ContextWithoutDefaultCtor>
@@ -259,7 +305,48 @@ namespace System.Data.Entity.Infrastructure
             Assert.True(contextInfo.IsConstructible);
             using (var context = contextInfo.CreateInstance())
             {
-                Assert.Same(typeof(ContextWithoutDefaultCtor), context.GetType());
+                Assert.IsType<ContextWithoutDefaultCtor>(context);
+                Assert.Equal("foo", ((ContextWithoutDefaultCtor)context).NameOrConnectionString);
+            }
+        }
+
+        [Fact]
+        public void CreateInstance_should_use_resolver_when_both_context_factory_resolver_and_factory_class_exist()
+        {
+            var resolver = new SingletonDependencyResolver<Func<DbContext>>(
+                () => new ContextWithoutDefaultCtor("bar"), typeof(ContextWithoutDefaultCtor));
+
+            var contextInfo = new DbContextInfo(typeof(ContextWithoutDefaultCtor), () => resolver);
+
+            Assert.True(contextInfo.IsConstructible);
+            using (var context = contextInfo.CreateInstance())
+            {
+                Assert.IsType<ContextWithoutDefaultCtor>(context);
+                Assert.Equal("bar", ((ContextWithoutDefaultCtor)context).NameOrConnectionString);
+            }
+        }
+
+        [Fact]
+        public void CreateInstance_should_use_resolver_when_no_factory_class_exists()
+        {
+            var resolver = new SingletonDependencyResolver<Func<DbContext>>(
+                () => new ContextForResolverTest("bar"), typeof(ContextForResolverTest));
+
+            var contextInfo = new DbContextInfo(typeof(ContextForResolverTest), () => resolver);
+
+            Assert.True(contextInfo.IsConstructible);
+            using (var context = contextInfo.CreateInstance())
+            {
+                Assert.IsType<ContextForResolverTest>(context);
+            }
+        }
+
+        [DbConfigurationType(typeof(FunctionalTestsConfiguration))]
+        public class ContextForResolverTest : DbContext
+        {
+            internal ContextForResolverTest(string nameOrConnectionString)
+                : base(nameOrConnectionString)
+            {
             }
         }
 
@@ -309,7 +396,8 @@ namespace System.Data.Entity.Infrastructure
         [Fact]
         public void ConnectionOrigin_should_return_configuration_when_connection_string_configured_init_constructor()
         {
-            ConnectionOrigin_should_return_configuration_when_connection_string_configured(typeof(ContextWithConfiguredConnectionStringWithInit));
+            ConnectionOrigin_should_return_configuration_when_connection_string_configured(
+                typeof(ContextWithConfiguredConnectionStringWithInit));
         }
 
         private void ConnectionOrigin_should_return_configuration_when_connection_string_configured(Type contextType)
@@ -336,9 +424,9 @@ namespace System.Data.Entity.Infrastructure
         {
             var connectionStringSettings
                 = new ConnectionStringSettingsCollection
-                      {
-                          new ConnectionStringSettings("foo", "Initial Catalog=foo", "System.Data.SqlClient")
-                      };
+                {
+                    new ConnectionStringSettings("foo", "Initial Catalog=foo", "System.Data.SqlClient")
+                };
 
 #pragma warning disable 618 // Obsolete ctor
             var contextInfo = new DbContextInfo(contextType, connectionStringSettings);
@@ -480,13 +568,15 @@ namespace System.Data.Entity.Infrastructure
         [Fact]
         public void ConnectionOrigin_should_return_user_code_when_existing_connection_and_compiled_model_normal_constructor()
         {
-            ConnectionOrigin_should_return_user_code_when_existing_connection_and_compiled_model(typeof(ContextWithExistingConnectionAndCompiledModel));
+            ConnectionOrigin_should_return_user_code_when_existing_connection_and_compiled_model(
+                typeof(ContextWithExistingConnectionAndCompiledModel));
         }
 
         [Fact]
         public void ConnectionOrigin_should_return_user_code_when_existing_connection_and_compiled_model_init_constructor()
         {
-            ConnectionOrigin_should_return_user_code_when_existing_connection_and_compiled_model(typeof(ContextWithExistingConnectionAndCompiledModelWithInit));
+            ConnectionOrigin_should_return_user_code_when_existing_connection_and_compiled_model(
+                typeof(ContextWithExistingConnectionAndCompiledModelWithInit));
         }
 
         private void ConnectionOrigin_should_return_user_code_when_existing_connection_and_compiled_model(Type contextType)
@@ -597,19 +687,24 @@ namespace System.Data.Entity.Infrastructure
         }
 
         [Fact]
-        public void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config_normal_constructor()
+        public void
+            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config_normal_constructor()
         {
-            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config(typeof(ContextWithConnectionInConfig));
+            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config(
+                typeof(ContextWithConnectionInConfig));
         }
 
         [Fact]
-        public void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config_init_constructor()
+        public void
+            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config_init_constructor()
         {
-            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config(typeof(ContextWithConnectionInConfigWithInit));
+            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config(
+                typeof(ContextWithConnectionInConfigWithInit));
         }
 
         // CodePlex 1524
-        private void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config(Type contextType)
+        private void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_connection_is_in_app_config(
+            Type contextType)
         {
             var contextInfo = new DbContextInfo(contextType, ProviderRegistry.SqlCe4_ProviderInfo);
 
@@ -656,7 +751,8 @@ namespace System.Data.Entity.Infrastructure
         [Fact]
         public void CreateInstance_should_attach_on_model_creating_custom_action_and_invoke_once_init_constructor()
         {
-            CreateInstance_should_attach_on_model_creating_custom_action_and_invoke_once(typeof(ContextWithExternalOnModelCreating1WithInit));
+            CreateInstance_should_attach_on_model_creating_custom_action_and_invoke_once(
+                typeof(ContextWithExternalOnModelCreating1WithInit));
         }
 
         private void CreateInstance_should_attach_on_model_creating_custom_action_and_invoke_once(Type contextType)
@@ -787,26 +883,40 @@ namespace System.Data.Entity.Infrastructure
                     var contextInfo = new DbContextInfo(contextType, config);
 
                     Assert.IsType<FakeDbContextInfoConnectionFactory>(FunctionalTestsConfiguration.OriginalConnectionFactories.Last());
-
                     Assert.Equal(DbConnectionStringOrigin.Convention, contextInfo.ConnectionStringOrigin);
-                    Assert.Equal(@"Data Source=.\SQLEXPRESS;Initial Catalog=foo;Integrated Security=True", contextInfo.ConnectionString);
+                    Assert.True(contextInfo.ConnectionString.Contains(@"Initial Catalog=foo"));
                     Assert.Equal("System.Data.SqlClient", contextInfo.ConnectionProviderName);
+                    if (!DatabaseTestHelpers.IsSqlAzure(contextInfo.ConnectionString))
+                    {
+                        Assert.True(contextInfo.ConnectionString.Contains(@"Integrated Security=True"));
+                    }
+
+                    if (!DatabaseTestHelpers.IsSqlAzure(contextInfo.ConnectionString)
+                        && !DatabaseTestHelpers.IsLocalDb(contextInfo.ConnectionString))
+                    {
+                        Assert.True(contextInfo.ConnectionString.Contains(@"Data Source=.\SQLEXPRESS"));
+                    }
                 });
         }
 
         [Fact]
-        public void Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory_normal_constructor()
+        public void
+            Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory_normal_constructor()
         {
-            Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory(typeof(ContextWithoutDefaultCtor));
+            Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory(
+                typeof(ContextWithoutDefaultCtor));
         }
 
         [Fact]
-        public void Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory_init_constructor()
+        public void Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory_init_constructor
+            ()
         {
-            Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory(typeof(ContextWithoutDefaultCtorWithInit));
+            Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory(
+                typeof(ContextWithoutDefaultCtorWithInit));
         }
 
-        private void Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory(Type contextType)
+        private void Should_use_use_default_DefaultConnectionFactory_if_supplied_config_contains_no_DefaultConnectionFactory(
+            Type contextType)
         {
             RunTestWithConnectionFactory(
                 Database.ResetDefaultConnectionFactory,
@@ -817,22 +927,28 @@ namespace System.Data.Entity.Infrastructure
                     var contextInfo = new DbContextInfo(contextType, config);
 
                     Assert.Equal(DbConnectionStringOrigin.Convention, contextInfo.ConnectionStringOrigin);
-                    Assert.True(contextInfo.ConnectionString.Contains(@"Data Source=.\SQLEXPRESS"));
                     Assert.True(contextInfo.ConnectionString.Contains(@"Initial Catalog=foo"));
                     Assert.Equal("System.Data.SqlClient", contextInfo.ConnectionProviderName);
+                    if (!DatabaseTestHelpers.IsSqlAzure(contextInfo.ConnectionString)
+                        && !DatabaseTestHelpers.IsLocalDb(contextInfo.ConnectionString))
+                    {
+                        Assert.True(contextInfo.ConnectionString.Contains(@"Data Source=.\SQLEXPRESS"));
+                    }
                 });
         }
 
         [Fact]
         public void Should_use_connectioin_string_from_supplied_config_even_if_DefaultConnectionFactory_is_also_present_normal_constructor()
         {
-            Should_use_connectioin_string_from_supplied_config_even_if_DefaultConnectionFactory_is_also_present(typeof(ContextWithoutDefaultCtor));
+            Should_use_connectioin_string_from_supplied_config_even_if_DefaultConnectionFactory_is_also_present(
+                typeof(ContextWithoutDefaultCtor));
         }
 
         [Fact]
         public void Should_use_connectioin_string_from_supplied_config_even_if_DefaultConnectionFactory_is_also_present_init_constructor()
         {
-            Should_use_connectioin_string_from_supplied_config_even_if_DefaultConnectionFactory_is_also_present(typeof(ContextWithoutDefaultCtorWithInit));
+            Should_use_connectioin_string_from_supplied_config_even_if_DefaultConnectionFactory_is_also_present(
+                typeof(ContextWithoutDefaultCtorWithInit));
         }
 
         private void Should_use_connectioin_string_from_supplied_config_even_if_DefaultConnectionFactory_is_also_present(Type contextType)
@@ -884,9 +1000,13 @@ namespace System.Data.Entity.Infrastructure
                     var contextInfo = new DbContextInfo(contextType, config);
 
                     Assert.Equal(DbConnectionStringOrigin.Convention, contextInfo.ConnectionStringOrigin);
-                    Assert.True(contextInfo.ConnectionString.Contains(@"Data Source=.\SQLEXPRESS"));
-                    Assert.True(contextInfo.ConnectionString.Contains(@"Initial Catalog=foo"));
+                    Assert.True(contextInfo.ConnectionString.Contains(@"Initial Catalog=foo"), "Connection string does not contain \"Initial Catalog=foo\", Actual ConnectionString: " + contextInfo.ConnectionString);
                     Assert.Equal("System.Data.SqlClient", contextInfo.ConnectionProviderName);
+                    if (!DatabaseTestHelpers.IsSqlAzure(contextInfo.ConnectionString)
+                        && !DatabaseTestHelpers.IsLocalDb(contextInfo.ConnectionString))
+                    {
+                        Assert.True(contextInfo.ConnectionString.Contains(@"Data Source=.\SQLEXPRESS"), "Connection string does not target .\\SQLEXPRESS, Actual ConnectionString: " + contextInfo.ConnectionString);
+                    }
                 });
         }
 
@@ -1064,7 +1184,8 @@ namespace System.Data.Entity.Infrastructure
         [Fact]
         public void Exceptions_applying_new_connection_surfaced_and_context_type_is_unmapped_init_constructor()
         {
-            Exceptions_applying_new_connection_surfaced_and_context_type_is_unmapped(typeof(ContextWithConnectionNameNotInAppConfigFileWithInit));
+            Exceptions_applying_new_connection_surfaced_and_context_type_is_unmapped(
+                typeof(ContextWithConnectionNameNotInAppConfigFileWithInit));
         }
 
         private void Exceptions_applying_new_connection_surfaced_and_context_type_is_unmapped(Type contextType)
@@ -1076,7 +1197,7 @@ namespace System.Data.Entity.Infrastructure
                 Assert.Throws<InvalidOperationException>(
                     () => new DbContextInfo(contextType, CreateEmptyConfig(), connection)).Message);
 
-            Assert.Null(DbContextInfo.TryGetInfoForContext(contextType));
+            Assert.Null(DbContextInfo.CurrentInfo);
         }
 
         [DbConfigurationType(typeof(FunctionalTestsConfiguration))]
@@ -1099,7 +1220,8 @@ namespace System.Data.Entity.Infrastructure
         }
 
         [Fact]
-        public void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_config_is_passed_as_well_normal_constructor()
+        public void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_config_is_passed_as_well_normal_constructor
+            ()
         {
             CreateInstance_should_use_passed_provider_info_when_building_model_even_when_config_is_passed_as_well(typeof(SimpleContext));
         }
@@ -1107,7 +1229,8 @@ namespace System.Data.Entity.Infrastructure
         [Fact]
         public void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_config_is_passed_as_well_init_constructor()
         {
-            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_config_is_passed_as_well(typeof(SimpleContextWithInit));
+            CreateInstance_should_use_passed_provider_info_when_building_model_even_when_config_is_passed_as_well(
+                typeof(SimpleContextWithInit));
         }
 
         private void CreateInstance_should_use_passed_provider_info_when_building_model_even_when_config_is_passed_as_well(Type contextType)
@@ -1140,7 +1263,8 @@ namespace System.Data.Entity.Infrastructure
         [Fact]
         public void CreateInstance_should_use_passed_connection_string_even_when_provider_info_is_passed_as_well_init_constructor()
         {
-            CreateInstance_should_use_passed_connection_string_even_when_provider_info_is_passed_as_well(typeof(ContextWithoutDefaultCtorWithInit));
+            CreateInstance_should_use_passed_connection_string_even_when_provider_info_is_passed_as_well(
+                typeof(ContextWithoutDefaultCtorWithInit));
         }
 
         private void CreateInstance_should_use_passed_connection_string_even_when_provider_info_is_passed_as_well(Type contextType)
@@ -1206,26 +1330,19 @@ namespace System.Data.Entity.Infrastructure
         [Fact]
         public void Context_type_can_be_assoictaed_with_DbContextInfo_and_then_later_unsuppressed()
         {
-            Assert.Null(DbContextInfo.TryGetInfoForContext(typeof(ContextToAssociate)));
-            Assert.Null(DbContextInfo.TryGetInfoForContext(typeof(ContextToNotAssociate)));
+            Assert.Null(DbContextInfo.CurrentInfo);
 
             var contextInfo = new DbContextInfo(typeof(ContextToAssociate));
-            DbContextInfo.MapContextToInfo(typeof(ContextToAssociate), contextInfo);
+            DbContextInfo.CurrentInfo = contextInfo;
 
-            Assert.Same(contextInfo, DbContextInfo.TryGetInfoForContext(typeof(ContextToAssociate)));
-            Assert.Null(DbContextInfo.TryGetInfoForContext(typeof(ContextToNotAssociate)));
+            Assert.Same(contextInfo, DbContextInfo.CurrentInfo);
 
-            DbContextInfo.ClearInfoForContext(typeof(ContextToAssociate));
+            DbContextInfo.CurrentInfo = null;
 
-            Assert.Null(DbContextInfo.TryGetInfoForContext(typeof(ContextToAssociate)));
-            Assert.Null(DbContextInfo.TryGetInfoForContext(typeof(ContextToNotAssociate)));
+            Assert.Null(DbContextInfo.CurrentInfo);
         }
 
         public class ContextToAssociate : DbContext
-        {
-        }
-
-        public class ContextToNotAssociate : DbContext
         {
         }
     }

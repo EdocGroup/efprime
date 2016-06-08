@@ -7,6 +7,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Linq;
+#if !NET40
+    using System.Runtime.CompilerServices;
+#endif
 
     /// <summary>
     /// Represents the Entity Type
@@ -14,15 +17,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
     public abstract class EntityTypeBase : StructuralType
     {
         private readonly ReadOnlyMetadataCollection<EdmMember> _keyMembers;
+        private readonly object _keyPropertiesSync = new object();
+        private ReadOnlyMetadataCollection<EdmProperty> _keyProperties;
         private string[] _keyMemberNames;
 
-        /// <summary>
-        /// Initializes a new instance of Entity Type
-        /// </summary>
-        /// <param name="name"> name of the entity type </param>
-        /// <param name="namespaceName"> namespace of the entity type </param>
-        /// <param name="dataSpace"> dataSpace in which this edmtype belongs to </param>
-        /// <exception cref="System.ArgumentNullException">Thrown if either name, namespace or version arguments are null</exception>
+        // <summary>
+        // Initializes a new instance of Entity Type
+        // </summary>
+        // <param name="name"> name of the entity type </param>
+        // <param name="namespaceName"> namespace of the entity type </param>
+        // <param name="dataSpace"> dataSpace in which this edmtype belongs to </param>
+        // <exception cref="System.ArgumentNullException">Thrown if either name, namespace or version arguments are null</exception>
         internal EntityTypeBase(string name, string namespaceName, DataSpace dataSpace)
             : base(name, namespaceName, dataSpace)
         {
@@ -57,13 +62,59 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <returns>The list of all the key properties for this entity type.</returns>
         public virtual ReadOnlyMetadataCollection<EdmProperty> KeyProperties
         {
-            get { return new ReadOnlyMetadataCollection<EdmProperty>(KeyMembers.Cast<EdmProperty>().ToList()); }
+            get
+            {
+                // PERF: this code written this way since it's part of a hotpath, consider its performance when refactoring. See codeplex #2298.
+                var keyProperties = _keyProperties;
+                if (keyProperties == null)
+                {
+                    lock (_keyPropertiesSync)
+                    {
+                        if (_keyProperties == null)
+                        {
+                            // This event handler has to be set before _keyProperties is set in order to
+                            // avoid concurrency issues. See unit test KeyProperties_is_thread_safe for
+                            // more details.
+                            KeyMembers.SourceAccessed += KeyMembersSourceAccessedEventHandler;
+                            _keyProperties =
+                                new ReadOnlyMetadataCollection<EdmProperty>(KeyMembers.Cast<EdmProperty>().ToList());
+                        }
+                        keyProperties = _keyProperties;
+                    }
+                }
+                return keyProperties;
+            }
         }
 
-        /// <summary>
-        /// Returns the list of the property names that form the key for this entity type
-        /// Perf Bug #529294: To cache the list of member names that form the key for the entity type
-        /// </summary>
+
+#if !NET40
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        internal void ResetKeyPropertiesCache()
+        {
+            // PERF: this code written this way since it's part of a hotpath, consider its performance when refactoring. See codeplex #2298.
+            if (_keyProperties != null)
+            {
+                lock (_keyPropertiesSync)
+                {
+                    if (_keyProperties != null)
+                    {
+                        _keyProperties = null;
+                        KeyMembers.SourceAccessed -= KeyMembersSourceAccessedEventHandler;
+                    }
+                }
+            }
+        }
+
+        private void KeyMembersSourceAccessedEventHandler(object sender, EventArgs e)
+        {
+            ResetKeyPropertiesCache();
+        }
+
+        // <summary>
+        // Returns the list of the property names that form the key for this entity type
+        // Perf Bug #529294: To cache the list of member names that form the key for the entity type
+        // </summary>
         internal virtual string[] KeyMemberNames
         {
             get
@@ -91,6 +142,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <summary>
         /// Adds the specified property to the list of keys for the current entity.  
         /// </summary>
+        /// <param name="member">The property to add.</param>
         /// <exception cref="System.ArgumentNullException">if member argument is null</exception>
         /// <exception cref="System.InvalidOperationException">Thrown if the EntityType has a base type of another EntityTypeBase. In this case KeyMembers should be added to the base type</exception>
         /// <exception cref="System.InvalidOperationException">If the EntityType instance is in ReadOnly state</exception>
@@ -110,9 +162,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _keyMembers.Source.Add(member);
         }
 
-        /// <summary>
-        /// Makes this property readonly
-        /// </summary>
+        // <summary>
+        // Makes this property readonly
+        // </summary>
         internal override void SetReadOnly()
         {
             if (!IsReadOnly)
@@ -122,11 +174,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Checks for each property to be non-null and then adds it to the member collection
-        /// </summary>
-        /// <param name="members"> members for this type </param>
-        /// <param name="entityType"> the membersCollection to which the members should be added </param>
+        // <summary>
+        // Checks for each property to be non-null and then adds it to the member collection
+        // </summary>
+        // <param name="members"> members for this type </param>
+        // <param name="entityType"> the membersCollection to which the members should be added </param>
         internal static void CheckAndAddMembers(
             IEnumerable<EdmMember> members,
             EntityType entityType)
@@ -144,16 +196,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Checks for each key member to be non-null
-        /// also check for it to be present in the members collection
-        /// and then adds it to the KeyMembers collection.
-        /// Throw if the key member is not already in the members
-        /// collection. Cannot do much other than that as the
-        /// Key members is just an Ienumerable of the names
-        /// of the members.
-        /// </summary>
-        /// <param name="keyMembers"> the list of keys (member names) to be added for the given type </param>
+        // <summary>
+        // Checks for each key member to be non-null
+        // also check for it to be present in the members collection
+        // and then adds it to the KeyMembers collection.
+        // Throw if the key member is not already in the members
+        // collection. Cannot do much other than that as the
+        // Key members is just an Ienumerable of the names
+        // of the members.
+        // </summary>
+        // <param name="keyMembers"> the list of keys (member names) to be added for the given type </param>
         internal void CheckAndAddKeyMembers(IEnumerable<String> keyMembers)
         {
             foreach (var keyMember in keyMembers)
@@ -190,11 +242,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
             base.RemoveMember(member);
         }
 
-        internal override void NotifyItemIdentityChanged()
+        internal override void NotifyItemIdentityChanged(EdmMember item, string initialIdentity)
         {
-            base.NotifyItemIdentityChanged();
+            base.NotifyItemIdentityChanged(item, initialIdentity);
 
-            _keyMembers.Source.InvalidateCache();
+            _keyMembers.Source.HandleIdentityChange(item, initialIdentity);
         }
     }
 }

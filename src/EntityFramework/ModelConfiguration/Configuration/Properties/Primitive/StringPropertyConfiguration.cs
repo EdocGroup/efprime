@@ -5,21 +5,21 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Utilities;
 
-    /// <summary>
-    /// Used to configure a <see cref="String" /> property of an entity type or
-    /// complex type.
-    /// </summary>
+    // <summary>
+    // Used to configure a <see cref="String" /> property of an entity type or
+    // complex type.
+    // </summary>
     internal class StringPropertyConfiguration : LengthPropertyConfiguration
     {
-        /// <summary>
-        /// Gets or sets a value indicating whether the property supports Unicode string
-        /// content.
-        /// </summary>
+        // <summary>
+        // Gets or sets a value indicating whether the property supports Unicode string
+        // content.
+        // </summary>
         public bool? IsUnicode { get; set; }
 
-        /// <summary>
-        /// Initializes a new instance of the StringPropertyConfiguration class.
-        /// </summary>
+        // <summary>
+        // Initializes a new instance of the StringPropertyConfiguration class.
+        // </summary>
         public StringPropertyConfiguration()
         {
         }
@@ -37,9 +37,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             return new StringPropertyConfiguration(this);
         }
 
-        internal override void Configure(EdmProperty property)
+        protected override void ConfigureProperty(EdmProperty property)
         {
-            base.Configure(property);
+            base.ConfigureProperty(property);
 
             if (IsUnicode != null)
             {
@@ -80,11 +80,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             }
         }
 
-        internal override void OverrideFrom(PrimitivePropertyConfiguration other)
+        internal override void MakeCompatibleWith(PrimitivePropertyConfiguration other, bool inCSpace)
         {
             DebugCheck.NotNull(other);
 
-            base.OverrideFrom(other);
+            base.MakeCompatibleWith(other, inCSpace);
 
             var stringPropertyConfiguration = other as StringPropertyConfiguration;
 

@@ -7,7 +7,6 @@ namespace FunctionalTests
     using System.ComponentModel.DataAnnotations;
     using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity;
-    using System.Data.Entity.Core;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration;
     using System.Data.Entity.ModelConfiguration.Conventions;
@@ -32,6 +31,52 @@ namespace FunctionalTests
 
             databaseMapping.Assert<Dependent_172949>().HasForeignKey(
                 new[] { "DependentForeignKeyPropertyNotFromConvention1" }, "Principal_172949");
+        }
+
+        [Fact]
+        public void CascadeOnDelete_fluent_overrides_data_anotation()
+        {
+            Action<DbModelBuilder> principalEntityConfig = modelBuilder => modelBuilder.Entity<Principal_172949>();
+            Action<DbModelBuilder> dependentEntityConfig = modelBuilder => modelBuilder.Entity<Dependent_172949>();
+            Action<DbModelBuilder> dependentPrincipalAssociationConfig = modelBuilder =>
+                modelBuilder.Entity<Dependent_172949>()
+                    .HasRequired<Principal_172949>(i => i.PrincipalNavigation)
+                    .WithMany(a => a.DependentNavigation)
+                    .HasForeignKey(d => d.DependentForeignKeyPropertyNotFromConvention1)
+                    .WillCascadeOnDelete(false);
+            Action<DbModelBuilder> principalDependentAssociationConfig = modelBuilder =>
+                modelBuilder.Entity<Principal_172949>()
+                    .HasMany<Dependent_172949>(i => i.DependentNavigation)
+                    .WithRequired(d => d.PrincipalNavigation)
+                    .HasForeignKey(d => d.DependentForeignKeyPropertyNotFromConvention1)
+                    .WillCascadeOnDelete(false);
+
+            CascadeOnDelete_fluent_overrides_data_anotation_implementation(
+                new[] { principalEntityConfig, dependentEntityConfig, dependentPrincipalAssociationConfig });
+
+            CascadeOnDelete_fluent_overrides_data_anotation_implementation(
+                new[] { dependentEntityConfig, principalEntityConfig, dependentPrincipalAssociationConfig });
+
+            CascadeOnDelete_fluent_overrides_data_anotation_implementation(
+                new[] { principalEntityConfig, dependentEntityConfig, principalDependentAssociationConfig });
+
+            CascadeOnDelete_fluent_overrides_data_anotation_implementation(
+                new[] { dependentEntityConfig, principalEntityConfig, principalDependentAssociationConfig });
+        }
+
+        private void CascadeOnDelete_fluent_overrides_data_anotation_implementation(IEnumerable<Action<DbModelBuilder>> configurations)
+        {
+            var modelBuilder = new DbModelBuilder();
+            configurations.Each(c => c(modelBuilder));
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            var association = databaseMapping.Model.AssociationTypes.Single();
+
+            Assert.Equal(OperationAction.None, association.SourceEnd.DeleteBehavior);
+            Assert.Equal(OperationAction.None, association.TargetEnd.DeleteBehavior);
         }
 
         public class Dependent_172949
@@ -1707,13 +1752,21 @@ namespace FunctionalTests
             var modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<SelfRef>()
-                        .HasRequired(s => s.Self)
-                        .WithRequiredDependent()
-                        .Map(c => c.MapKey("TheKey"));
+                .HasRequired(s => s.Self)
+                .WithRequiredDependent()
+                .Map(
+                    c => c.MapKey("TheKey")
+                        .HasColumnAnnotation("TheKey", "Elephant", "Toot")
+                        .HasColumnAnnotation("TheKey", "Fox", "No one knows..."));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.Assert<SelfRef>().HasColumn("TheKey");
+
+            databaseMapping.Assert<SelfRef>()
+                .Column("TheKey")
+                .HasAnnotation("Elephant", "Toot")
+                .HasAnnotation("Fox", "No one knows...");
         }
 
         [Fact]
@@ -1722,14 +1775,22 @@ namespace FunctionalTests
             var modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<SelfRef>()
-                        .HasRequired(s => s.Self)
-                        .WithRequiredPrincipal()
-                        .Map(c => c.MapKey("TheKey"));
+                .HasRequired(s => s.Self)
+                .WithRequiredPrincipal()
+                .Map(
+                    c => c.MapKey("TheKey")
+                        .HasColumnAnnotation("TheKey", "Elephant", "Toot")
+                        .HasColumnAnnotation("TheKey", "Fox", "No one knows..."));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertValid();
             databaseMapping.Assert<SelfRef>().HasColumn("TheKey");
+
+            databaseMapping.Assert<SelfRef>()
+                .Column("TheKey")
+                .HasAnnotation("Elephant", "Toot")
+                .HasAnnotation("Fox", "No one knows...");
         }
 
         public class SelfRef
@@ -1744,14 +1805,22 @@ namespace FunctionalTests
             var modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<Item>()
-                        .HasOptional(i => i.ParentItem)
-                        .WithMany(i => i.ChildrenItems)
-                        .Map(c => c.MapKey("ParentItemId"));
+                .HasOptional(i => i.ParentItem)
+                .WithMany(i => i.ChildrenItems)
+                .Map(
+                    c => c.MapKey("ParentItemId")
+                        .HasColumnAnnotation("ParentItemId", "Elephant", "Toot")
+                        .HasColumnAnnotation("ParentItemId", "Fox", "No one knows..."));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertValid();
             databaseMapping.Assert<Item>().HasColumn("ParentItemId");
+
+            databaseMapping.Assert<Item>()
+                .Column("ParentItemId")
+                .HasAnnotation("Elephant", "Toot")
+                .HasAnnotation("Fox", "No one knows...");
         }
 
         [Fact]
@@ -1760,21 +1829,40 @@ namespace FunctionalTests
             var modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<Item>()
-                        .HasKey(
-                            i => new
-                                     {
-                                         i.Id,
-                                         i.Name
-                                     })
-                        .HasOptional(i => i.ParentItem)
-                        .WithMany(i => i.ChildrenItems)
-                        .Map(c => c.MapKey("TheId", "TheName"));
+                .HasKey(
+                    i => new
+                    {
+                        i.Id,
+                        i.Name
+                    })
+                .HasOptional(i => i.ParentItem)
+                .WithMany(i => i.ChildrenItems)
+                .Map(
+                    c => c.MapKey("TheId", "TheName")
+                        .HasColumnAnnotation("TheId", "Duck", "Quack")
+                        .HasColumnAnnotation("TheId", "Fish", "Blub")
+                        .HasColumnAnnotation("TheName", "Elephant", "Toot")
+                        .HasColumnAnnotation("TheName", "Fox", "No one knows..."));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertValid();
             databaseMapping.Assert<Item>().HasColumn("TheId");
             databaseMapping.Assert<Item>().HasColumn("TheName");
+
+            databaseMapping.Assert<Item>()
+                .Column("TheId")
+                .HasAnnotation("Duck", "Quack")
+                .HasAnnotation("Fish", "Blub")
+                .HasNoAnnotation("Elephant")
+                .HasNoAnnotation("Fox");
+
+            databaseMapping.Assert<Item>()
+                .Column("TheName")
+                .HasAnnotation("Elephant", "Toot")
+                .HasAnnotation("Fox", "No one knows...")
+                .HasNoAnnotation("Duck")
+                .HasNoAnnotation("Fish");
         }
 
         public class Item
@@ -1840,19 +1928,27 @@ namespace FunctionalTests
 
             modelBuilder.Entity<Tag>();
             modelBuilder.Entity<ProductA>()
-                        .HasMany(p => p.Tags)
-                        .WithMany(t => t.Products)
-                        .Map(
-                            mc =>
-                                {
-                                    mc.MapLeftKey("ProductId");
-                                    mc.MapRightKey("TagId");
-                                });
+                .HasTableAnnotation("A0", "V0")
+                .HasMany(p => p.Tags)
+                .WithMany(t => t.Products)
+                .Map(
+                    mc => mc.MapLeftKey("ProductId")
+                        .MapRightKey("TagId")
+                        .HasTableAnnotation("A1", "V1")
+                        .HasTableAnnotation("A2", "V2")
+                        .HasTableAnnotation("A3", "V3")
+                        .HasTableAnnotation("A1", "V1B")
+                        .HasTableAnnotation("A2", null));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertValid();
-            databaseMapping.Assert("ProductATags").HasColumns("ProductId", "TagId");
+            databaseMapping.Assert("ProductATags")
+                .HasNoAnnotation("A0")
+                .HasAnnotation("A1", "V1B")
+                .HasNoAnnotation("A2")
+                .HasAnnotation("A3", "V3")
+                .HasColumns("ProductId", "TagId");
         }
 
         [Fact]
@@ -2455,49 +2551,57 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<SpecialOfferProduct>()
-                        .HasKey(p => p.ProductID)
-                        .Map(
-                            m =>
+                .HasKey(p => p.ProductID)
+                .Map(
+                    m =>
+                    {
+                        m.Properties(
+                            p =>
+                                new
                                 {
-                                    m.Properties(
-                                        p =>
-                                        new
-                                            {
-                                                p.ProductID,
-                                                p.rowguid
-                                            });
-                                    m.ToTable("ProductOne");
-                                })
-                        .Map(
-                            m =>
-                                {
-                                    m.Properties(
-                                        p =>
-                                        new
-                                            {
-                                                p.ProductID,
-                                                p.ModifiedDate,
-                                                p.SpecialOfferID
-                                            });
-                                    m.ToTable("ProductTwo");
+                                    p.ProductID,
+                                    p.rowguid
                                 });
+                        m.ToTable("ProductOne");
+                    })
+                .Map(
+                    m =>
+                    {
+                        m.Properties(
+                            p =>
+                                new
+                                {
+                                    p.ProductID,
+                                    p.ModifiedDate,
+                                    p.SpecialOfferID
+                                });
+                        m.ToTable("ProductTwo");
+                    });
 
             modelBuilder.Entity<SpecialOffer>()
-                        .HasKey(o => o.SpecialOfferID)
-                        .HasMany(o => o.SpecialOfferProducts)
-                        .WithRequired(p => p.SpecialOffer)
-                        .Map(mc => mc.MapKey("TheFK"));
+                .HasKey(o => o.SpecialOfferID)
+                .HasMany(o => o.SpecialOfferProducts)
+                .WithRequired(p => p.SpecialOffer)
+                .Map(
+                    mc => mc.MapKey("TheFK")
+                        .HasColumnAnnotation("TheFK", "Elephant", "Toot")
+                        .HasColumnAnnotation("TheFK", "Fox", "No one knows..."));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             Assert.Equal(3, databaseMapping.Database.EntityTypes.Count());
 
             databaseMapping.Assert<SpecialOfferProduct>("ProductOne")
-                           .HasColumns("ProductID", "rowguid", "TheFK")
-                           .HasForeignKeyColumn("TheFK");
+                .HasColumns("ProductID", "rowguid", "TheFK")
+                .HasForeignKeyColumn("TheFK");
             databaseMapping.Assert<SpecialOfferProduct>("ProductTwo")
-                           .HasColumns("ProductID", "SpecialOfferID", "ModifiedDate")
-                           .HasNoForeignKeyColumn("TheFK");
+                .HasColumns("ProductID", "SpecialOfferID", "ModifiedDate")
+                .HasNoForeignKeyColumn("TheFK");
+
+            databaseMapping.Assert<SpecialOfferProduct>("ProductOne")
+                .Column("TheFK")
+                .HasAnnotation("Elephant", "Toot")
+                .HasAnnotation("Fox", "No one knows...");
         }
 
         [Fact]
@@ -2506,21 +2610,29 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<SpecialOfferProduct>()
-                        .HasKey(p => p.ProductID);
+                .HasKey(p => p.ProductID);
 
             modelBuilder.Entity<SpecialOffer>()
-                        .HasKey(o => o.SpecialOfferID)
-                        .HasMany(o => o.SpecialOfferProducts)
-                        .WithRequired(p => p.SpecialOffer)
-                        .Map(mc => mc.MapKey("TheFK"));
+                .HasKey(o => o.SpecialOfferID)
+                .HasMany(o => o.SpecialOfferProducts)
+                .WithRequired(p => p.SpecialOffer)
+                .Map(
+                    mc => mc.MapKey("TheFK")
+                        .HasColumnAnnotation("TheFK", "Elephant", "Toot")
+                        .HasColumnAnnotation("TheFK", "Fox", "No one knows..."));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             Assert.Equal(2, databaseMapping.Database.EntityTypes.Count());
 
             databaseMapping.Assert<SpecialOfferProduct>()
-                           .HasColumns("ProductID", "SpecialOfferID", "rowguid", "ModifiedDate", "TheFK")
-                           .HasForeignKeyColumn("TheFK");
+                .HasColumns("ProductID", "SpecialOfferID", "rowguid", "ModifiedDate", "TheFK")
+                .HasForeignKeyColumn("TheFK");
+
+            databaseMapping.Assert<SpecialOfferProduct>()
+                .Column("TheFK")
+                .HasAnnotation("Elephant", "Toot")
+                .HasAnnotation("Fox", "No one knows...");
         }
 
         [Fact]
@@ -2529,28 +2641,35 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<SpecialOfferProduct>()
-                        .HasKey(p => p.ProductID);
+                .HasKey(p => p.ProductID);
 
             modelBuilder.Entity<SpecialOffer>()
-                        .HasKey(o => o.SpecialOfferID)
-                        .HasMany(o => o.SpecialOfferProducts)
-                        .WithRequired(p => p.SpecialOffer)
-                        .Map(
-                            mc =>
-                                {
-                                    mc.MapKey("BadFK");
-                                    mc.ToTable("BadTable");
-                                    mc.MapKey("TheFK");
-                                    mc.ToTable("SpecialOfferProducts");
-                                });
+                .HasKey(o => o.SpecialOfferID)
+                .HasMany(o => o.SpecialOfferProducts)
+                .WithRequired(p => p.SpecialOffer)
+                .Map(
+                    mc =>
+                    {
+                        mc.MapKey("BadFK");
+                        mc.ToTable("BadTable");
+                        mc.MapKey("TheFK");
+                        mc.ToTable("SpecialOfferProducts");
+                        mc.HasColumnAnnotation("TheFK", "Elephant", "Toot");
+                        mc.HasColumnAnnotation("TheFK", "Fox", "No one knows...");
+                    });
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             Assert.Equal(2, databaseMapping.Database.EntityTypes.Count());
 
             databaseMapping.Assert<SpecialOfferProduct>()
-                           .HasColumns("ProductID", "SpecialOfferID", "rowguid", "ModifiedDate", "TheFK")
-                           .HasForeignKeyColumn("TheFK");
+                .HasColumns("ProductID", "SpecialOfferID", "rowguid", "ModifiedDate", "TheFK")
+                .HasForeignKeyColumn("TheFK");
+
+            databaseMapping.Assert<SpecialOfferProduct>()
+                .Column("TheFK")
+                .HasAnnotation("Elephant", "Toot")
+                .HasAnnotation("Fox", "No one knows...");
         }
 
         [Fact]
@@ -3325,7 +3444,7 @@ namespace FunctionalTests
                            .HasColumn("IndependentColumn1");
             Assert.Equal(
                 "IndependentColumn1",
-                databaseMapping.EntityContainerMappings.Single().AssociationSetMappings.ElementAt(0).ColumnConditions.ElementAt(0).ColumnProperty
+                databaseMapping.EntityContainerMappings.Single().AssociationSetMappings.ElementAt(0).Conditions.ElementAt(0).Column
                                                           .Name);
         }
 
@@ -3397,17 +3516,52 @@ namespace FunctionalTests
         {
             var modelBuilder = new DbModelBuilder();
 
-            modelBuilder.Entity<APerson>().HasOptional(p => p.Mother).WithMany().Map(t => t.MapKey("MotherId"));
-            modelBuilder.Entity<APerson>().HasOptional(p => p.Father).WithMany().Map(t => t.MapKey("FatherId"));
-            modelBuilder.Entity<APerson>().HasOptional(p => p.Birth).WithOptionalDependent().Map(t => t.MapKey("BirthdayId"));
-            modelBuilder.Entity<APerson>().HasOptional(p => p.Death).WithOptionalDependent().Map(t => t.MapKey("DeathdayId"));
-            modelBuilder.Entity<Marriage>().HasRequired(e => e.WeddingDay).WithOptional().Map(t => t.MapKey("WeddingDayId"));
-            modelBuilder.Entity<Marriage>().HasRequired(e => e.Wife).WithMany().Map(t => t.MapKey("WifeId"));
-            modelBuilder.Entity<Marriage>().HasRequired(e => e.Husband).WithMany().Map(t => t.MapKey("HusbandId"));
+            modelBuilder.Entity<APerson>()
+                .HasOptional(p => p.Mother)
+                .WithMany()
+                .Map(t => t.MapKey("MotherId").HasColumnAnnotation("MotherId", "Dog", "Woof"));
+            
+            modelBuilder.Entity<APerson>()
+                .HasOptional(p => p.Father)
+                .WithMany()
+                .Map(t => t.MapKey("FatherId").HasColumnAnnotation("FatherId", "Cat", "Meow"));
+            
+            modelBuilder.Entity<APerson>()
+                .HasOptional(p => p.Birth)
+                .WithOptionalDependent()
+                .Map(t => t.MapKey("BirthdayId").HasColumnAnnotation("BirthdayId", "Bird", "Tweet"));
+            
+            modelBuilder.Entity<APerson>()
+                .HasOptional(p => p.Death)
+                .WithOptionalDependent()
+                .Map(t => t.MapKey("DeathdayId").HasColumnAnnotation("DeathdayId", "Mouse", "Squeak"));
+            
+            modelBuilder.Entity<Marriage>()
+                .HasRequired(e => e.WeddingDay)
+                .WithOptional()
+                .Map(t => t.MapKey("WeddingDayId").HasColumnAnnotation("WeddingDayId", "Cow", "Moo"));
+            
+            modelBuilder.Entity<Marriage>()
+                .HasRequired(e => e.Wife)
+                .WithMany()
+                .Map(t => t.MapKey("WifeId").HasColumnAnnotation("WifeId", "Frog", "Croak"));
+            
+            modelBuilder.Entity<Marriage>()
+                .HasRequired(e => e.Husband)
+                .WithMany()
+                .Map(t => t.MapKey("HusbandId").HasColumnAnnotation("HusbandId", "Fox", "No one knows"));
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertValid();
+
+            databaseMapping.Assert<APerson>().Column("MotherId").HasAnnotation("Dog", "Woof");
+            databaseMapping.Assert<APerson>().Column("FatherId").HasAnnotation("Cat", "Meow");
+            databaseMapping.Assert<APerson>().Column("BirthdayId").HasAnnotation("Bird", "Tweet");
+            databaseMapping.Assert<APerson>().Column("DeathdayId").HasAnnotation("Mouse", "Squeak");
+            databaseMapping.Assert<Marriage>().Column("WeddingDayId").HasAnnotation("Cow", "Moo");
+            databaseMapping.Assert<Marriage>().Column("WifeId").HasAnnotation("Frog", "Croak");
+            databaseMapping.Assert<Marriage>().Column("HusbandId").HasAnnotation("Fox", "No one knows");
         }
 
         public class APerson

@@ -33,9 +33,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             foreignKeyConstraint.DependentColumns = new[] { fkColumn };
             var targetTable = database.AddTable("Split");
             var associationSetMapping
-                = new StorageAssociationSetMapping(
+                = new AssociationSetMapping(
                     new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)), database.GetEntitySet(sourceTable)).Initialize();
-            associationSetMapping.SourceEndMapping.AddProperty(new StorageScalarPropertyMapping(new EdmProperty("PK"), fkColumn));
+            associationSetMapping.SourceEndMapping.AddPropertyMapping(new ScalarPropertyMapping(new EdmProperty("PK"), fkColumn));
 
             var independentAssociationMappingConfiguration
                 = new ForeignKeyAssociationMappingConfiguration();
@@ -60,7 +60,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             independentAssociationMappingConfiguration.ToTable("Split");
 
             var associationSetMapping
-                = new StorageAssociationSetMapping(
+                = new AssociationSetMapping(
                     new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)),
                     new EntitySet())
                     .Initialize();
@@ -76,17 +76,84 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
         }
 
         [Fact]
-        public void Equals_should_return_true_when_table_names_and_columns_match()
+        public void Configure_should_apply_annotations_to_FK_columns()
         {
-            var independentAssociationMappingConfiguration1
-                = new ForeignKeyAssociationMappingConfiguration();
-            independentAssociationMappingConfiguration1.ToTable("Foo", "Bar");
-            independentAssociationMappingConfiguration1.MapKey("Baz");
+            var database = new EdmModel(DataSpace.SSpace);
+            var dependentTable = database.AddTable("Source");
+            var associationSetMapping = CreateIAMapping(database, dependentTable);
 
-            var independentAssociationMappingConfiguration2
-                = new ForeignKeyAssociationMappingConfiguration();
-            independentAssociationMappingConfiguration2.ToTable("Foo", "Bar");
-            independentAssociationMappingConfiguration2.MapKey("Baz");
+            var configuration = new ForeignKeyAssociationMappingConfiguration();
+            configuration.MapKey("K1")
+                .HasColumnAnnotation("K1", "A1", "V1")
+                .HasColumnAnnotation("K1", "A2", "V2")
+                .HasColumnAnnotation("K1", "A1", "V3");
+
+            configuration.Configure(associationSetMapping, database, new MockPropertyInfo());
+
+            var column = dependentTable.Properties.Single(p => p.Name == "K1");
+
+            Assert.Equal("V3", column.Annotations.Single(a => a.Name == XmlConstants.CustomAnnotationPrefix + "A1").Value);
+            Assert.Equal("V2", column.Annotations.Single(a => a.Name == XmlConstants.CustomAnnotationPrefix + "A2").Value);
+        }
+
+        [Fact]
+        public void Configure_should_throw_when_annotation_key_name_not_found()
+        {
+            var database = new EdmModel(DataSpace.SSpace);
+            var dependentTable = database.AddTable("Source");
+            var associationSetMapping = CreateIAMapping(database, dependentTable);
+
+            var configuration = new ForeignKeyAssociationMappingConfiguration();
+            configuration.MapKey("K1").HasColumnAnnotation("BadKey", "A1", "V1");
+
+            Assert.Equal(
+                Strings.BadKeyNameForAnnotation("BadKey", "A1"),
+                Assert.Throws<InvalidOperationException>(
+                    () => configuration.Configure(associationSetMapping, database, new MockPropertyInfo())).Message);
+
+        }
+
+        private static AssociationSetMapping CreateIAMapping(EdmModel database, EntityType dependentTable)
+        {
+            var fkColumn = new EdmProperty(
+                "FK", ProviderRegistry.Sql2008_ProviderManifest.GetStoreType(
+                    TypeUsage.Create(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String))));
+
+            dependentTable.AddColumn(fkColumn);
+            var foreignKeyConstraint = new ForeignKeyBuilder(database, "FK")
+            {
+                PrincipalTable = database.AddTable("P")
+            };
+
+            dependentTable.AddForeignKey(foreignKeyConstraint);
+            foreignKeyConstraint.DependentColumns = new[] { fkColumn };
+
+            var associationSetMapping
+                = new AssociationSetMapping(
+                    new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)),
+                    database.GetEntitySet(dependentTable)).Initialize();
+
+            associationSetMapping.SourceEndMapping.AddPropertyMapping(new ScalarPropertyMapping(new EdmProperty("PK"), fkColumn));
+            
+            return associationSetMapping;
+        }
+
+        [Fact]
+        public void Equals_should_return_true_when_table_names_columns_ans_annotations_match()
+        {
+            var independentAssociationMappingConfiguration1 = new ForeignKeyAssociationMappingConfiguration();
+            independentAssociationMappingConfiguration1
+                .ToTable("Foo", "Bar")
+                .MapKey("Baz", "Biz")
+                .HasColumnAnnotation("Biz", "Buz", "Knees")
+                .HasColumnAnnotation("Baz", "Boz", "Bees");
+
+            var independentAssociationMappingConfiguration2 = new ForeignKeyAssociationMappingConfiguration();
+            independentAssociationMappingConfiguration2
+                .ToTable("Foo", "Bar")
+                .MapKey("Baz", "Biz")
+                .HasColumnAnnotation("Baz", "Boz", "Bees")
+                .HasColumnAnnotation("Biz", "Buz", "Knees");
 
             Assert.Equal(independentAssociationMappingConfiguration1, independentAssociationMappingConfiguration2);
         }
@@ -119,6 +186,46 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             independentAssociationMappingConfiguration2.MapKey("Bob");
 
             Assert.NotEqual(independentAssociationMappingConfiguration1, independentAssociationMappingConfiguration2);
+        }
+
+        [Fact]
+        public void Equals_should_return_false_when_annotations_dont_match()
+        {
+            var independentAssociationMappingConfiguration1 = new ForeignKeyAssociationMappingConfiguration();
+            independentAssociationMappingConfiguration1
+                .MapKey("Baz", "Biz")
+                .HasColumnAnnotation("Baz", "Boz", "Bees")
+                .HasColumnAnnotation("Biz", "Buz", "Knees");
+
+            var independentAssociationMappingConfiguration2 = new ForeignKeyAssociationMappingConfiguration();
+            independentAssociationMappingConfiguration2
+                .MapKey("Baz", "Biz")
+                .HasColumnAnnotation("Baz", "Boz", "Cheese")
+                .HasColumnAnnotation("Biz", "Buz", "Knees");
+
+            Assert.NotEqual(independentAssociationMappingConfiguration1, independentAssociationMappingConfiguration2);
+        }
+
+        [Fact]
+        public void HasKeyAnnotation_checks_arguments()
+        {
+            var configuration = new ForeignKeyAssociationMappingConfiguration();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("keyColumnName"),
+                Assert.Throws<ArgumentException>(() => configuration.HasColumnAnnotation(null, "A", "V")).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("keyColumnName"),
+                Assert.Throws<ArgumentException>(() => configuration.HasColumnAnnotation(" ", "A", "V")).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("annotationName"),
+                Assert.Throws<ArgumentException>(() => configuration.HasColumnAnnotation("K", null, "V")).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("annotationName"),
+                Assert.Throws<ArgumentException>(() => configuration.HasColumnAnnotation("K", " ", "V")).Message);
         }
     }
 }

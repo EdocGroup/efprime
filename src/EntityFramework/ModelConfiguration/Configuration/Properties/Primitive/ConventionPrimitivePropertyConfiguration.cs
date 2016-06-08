@@ -6,6 +6,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
     using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics.CodeAnalysis;
@@ -25,13 +26,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         private readonly Lazy<Properties.Primitive.LengthPropertyConfiguration> _lengthConfiguration;
         private readonly Lazy<Properties.Primitive.StringPropertyConfiguration> _stringConfiguration;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ConventionPrimitivePropertyConfiguration" /> class.
-        /// </summary>
-        /// <param name="propertyInfo">
-        /// The <see cref="PropertyInfo" /> for this property
-        /// </param>
-        /// <param name="configuration"> The configuration object that this instance wraps. </param>
+        // <summary>
+        // Initializes a new instance of the <see cref="ConventionPrimitivePropertyConfiguration" /> class.
+        // </summary>
+        // <param name="propertyInfo">
+        // The <see cref="PropertyInfo" /> for this property
+        // </param>
+        // <param name="configuration"> The configuration object that this instance wraps. </param>
         internal ConventionPrimitivePropertyConfiguration(PropertyInfo propertyInfo, Func<Properties.Primitive.PrimitivePropertyConfiguration> configuration)
         {
             DebugCheck.NotNull(propertyInfo);
@@ -82,6 +83,32 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 && _configuration().ColumnName == null)
             {
                 _configuration().ColumnName = columnName;
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        /// Sets an annotation in the model for the database column used to store the property. The annotation
+        /// value can later be used when processing the column such as when creating migrations.
+        /// </summary>
+        /// <remarks>
+        /// It will likely be necessary to register a <see cref="IMetadataAnnotationSerializer"/> if the type of
+        /// the annotation value is anything other than a string. Calling this method will have no effect if the 
+        /// annotation with the given name has already been configured.
+        /// </remarks>
+        /// <param name="name">The annotation name, which must be a valid C#/EDM identifier.</param>
+        /// <param name="value">The annotation value, which may be a string or some other type that
+        /// can be serialized with an <see cref="IMetadataAnnotationSerializer"/></param>.
+        /// <returns>The same configuration instance so that multiple calls can be chained.</returns>
+        public virtual ConventionPrimitivePropertyConfiguration HasColumnAnnotation(string name, object value)
+        {
+            Check.NotEmpty(name, "name");
+
+            if (_configuration() != null
+                && !_configuration().Annotations.ContainsKey(name))
+            {
+                _configuration().SetAnnotation(name, value);
             }
 
             return this;
@@ -403,12 +430,6 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                     if (_lengthConfiguration.Value.IsFixedLength == null)
                     {
                         _lengthConfiguration.Value.IsFixedLength = false;
-                    }
-
-                    if (_stringConfiguration.Value != null
-                        && _stringConfiguration.Value.IsUnicode == null)
-                    {
-                        _stringConfiguration.Value.IsUnicode = true;
                     }
                 }
             }

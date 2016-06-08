@@ -12,32 +12,30 @@ namespace System.Data.Entity.Core.Mapping
     /// </summary>
     public abstract class MappingItemCollection : ItemCollection
     {
-        /// <summary>
-        /// The default constructor for ItemCollection
-        /// </summary>
+        // <summary>
+        // The default constructor for ItemCollection
+        // </summary>
         internal MappingItemCollection(DataSpace dataSpace)
             : base(dataSpace)
         {
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="identity"> identity of the type </param>
-        /// <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
-        /// <param name="map"> </param>
-        /// <returns> Returns false if no match found. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
-        internal virtual bool TryGetMap(string identity, DataSpace typeSpace, out Map map)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="identity"> identity of the type </param>
+        // <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
+        // <returns> Returns false if no match found. </returns>
+        internal virtual bool TryGetMap(string identity, DataSpace typeSpace, out MappingBase map)
         {
             //will only be implemented by Mapping Item Collections
             throw Error.NotSupported();
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        internal virtual Map GetMap(GlobalItem item)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        internal virtual MappingBase GetMap(GlobalItem item)
         {
             DebugCheck.NotNull(item);
 
@@ -45,24 +43,24 @@ namespace System.Data.Entity.Core.Mapping
             throw Error.NotSupported();
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <returns> Returns false if no match found. </returns>
-        internal virtual bool TryGetMap(GlobalItem item, out Map map)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <returns> Returns false if no match found. </returns>
+        internal virtual bool TryGetMap(GlobalItem item, out MappingBase map)
         {
             //will only be implemented by Mapping Item Collections
             throw Error.NotSupported();
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="identity"> identity of the type </param>
-        /// <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
-        /// <param name="ignoreCase"> true for case-insensitive lookup </param>
-        /// <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
-        internal virtual Map GetMap(string identity, DataSpace typeSpace, bool ignoreCase)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="identity"> identity of the type </param>
+        // <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
+        // <param name="ignoreCase"> true for case-insensitive lookup </param>
+        // <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
+        internal virtual MappingBase GetMap(string identity, DataSpace typeSpace, bool ignoreCase)
         {
             DebugCheck.NotNull(identity);
 
@@ -70,28 +68,26 @@ namespace System.Data.Entity.Core.Mapping
             throw Error.NotSupported();
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="identity"> identity of the type </param>
-        /// <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
-        /// <param name="ignoreCase"> true for case-insensitive lookup </param>
-        /// <param name="map"> </param>
-        /// <returns> Returns false if no match found. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
-        internal virtual bool TryGetMap(string identity, DataSpace typeSpace, bool ignoreCase, out Map map)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="identity"> identity of the type </param>
+        // <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
+        // <param name="ignoreCase"> true for case-insensitive lookup </param>
+        // <returns> Returns false if no match found. </returns>
+        internal virtual bool TryGetMap(string identity, DataSpace typeSpace, bool ignoreCase, out MappingBase map)
         {
             //will only be implemented by Mapping Item Collections
             throw Error.NotSupported();
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="identity"> identity of the type </param>
-        /// <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
-        /// <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
-        internal virtual Map GetMap(string identity, DataSpace typeSpace)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="identity"> identity of the type </param>
+        // <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
+        // <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
+        internal virtual MappingBase GetMap(string identity, DataSpace typeSpace)
         {
             DebugCheck.NotNull(identity);
 

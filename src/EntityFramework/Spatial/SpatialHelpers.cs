@@ -34,16 +34,19 @@ namespace System.Data.Entity.Spatial
             TypeUsage columnType, int columnOrdinal, CancellationToken cancellationToken)
         {
             Debug.Assert(Helper.IsSpatialType(columnType));
+
+            cancellationToken.ThrowIfCancellationRequested();
+
             var spatialReader = CreateSpatialDataReader(workspace, reader);
             if (Helper.IsGeographicType((PrimitiveType)columnType.EdmType))
             {
                 return
-                    await spatialReader.GetGeographyAsync(columnOrdinal, cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    await spatialReader.GetGeographyAsync(columnOrdinal, cancellationToken).WithCurrentCulture();
             }
             else
             {
                 return
-                    await spatialReader.GetGeometryAsync(columnOrdinal, cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    await spatialReader.GetGeometryAsync(columnOrdinal, cancellationToken).WithCurrentCulture();
             }
         }
 

@@ -8,10 +8,12 @@ namespace ProductivityApiTests
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.SqlServer;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.IO;
     using SimpleModel;
     using Xunit;
+    using System.Globalization;
 
     /// <summary>
     /// Functional tests for Database.  Unit tests also exist in the unit tests project.
@@ -36,7 +38,7 @@ namespace ProductivityApiTests
             {
                 connection.Open();
 
-                if (IsSqlAzure(connection.ConnectionString))
+                if (DatabaseTestHelpers.IsSqlAzure(connection.ConnectionString))
                 {
                     CreateLoginForSqlAzure(connection);
                 }
@@ -111,8 +113,9 @@ END";
         {
             using (var context = new AttachedContext(SimpleAttachConnectionString<AttachedContext>(useInitialCatalog)))
             {
-                // SQL Azure does not support attaching databases
-                if (IsSqlAzure(context.Database.Connection.ConnectionString))
+                // SQL Azure and LocalDB do not support attaching databases
+                var connectionString = context.Database.Connection.ConnectionString;
+                if (DatabaseTestHelpers.IsSqlAzure(connectionString) || DatabaseTestHelpers.IsLocalDb(connectionString))
                 {
                     return;
                 }
@@ -320,7 +323,7 @@ END";
             using (var connection = new SqlConnection(SimpleConnectionString<NoMasterPermissionContext>()))
             {
                 connection.Open();
-                if (IsSqlAzure(connection.ConnectionString))
+                if (DatabaseTestHelpers.IsSqlAzure(connection.ConnectionString))
                 {
                     // Scenario not supported on SqlAzure, need to be connected to master
                     // in order to view existing users
@@ -351,7 +354,7 @@ END");
         }
 
         [Fact]
-        public void DatabaseExists_returns_false_for_existing_database_when_no_master_nor_database_permissions()
+        public void DatabaseExists_returns_true_for_existing_database_when_no_master_nor_database_permissions()
         {
             using (var context = new NoMasterPermissionContext(SimpleConnectionString<NoMasterPermissionContext>()))
             {
@@ -369,9 +372,9 @@ END");
                     command.CommandText
                         = string.Format(
                             @"IF EXISTS (SELECT * FROM sys.sysusers WHERE name= N'EFTestSimpleModelUser')
-BEGIN
-  DROP USER [EFTestSimpleModelUser]
-END");
+                              BEGIN
+                                DROP USER [EFTestSimpleModelUser]
+                              END");
                     command.ExecuteNonQuery();
                 }
             }
@@ -383,7 +386,14 @@ END");
 
             using (var context = new NoMasterPermissionContext(connectionString))
             {
-                Assert.False(context.Database.Exists());
+                if (DatabaseTestHelpers.IsSqlAzure(connectionString))
+                {
+                    Assert.False(context.Database.Exists());
+                }
+                else
+                {
+                    Assert.True(context.Database.Exists());
+                }
             }
         }
 
@@ -419,9 +429,9 @@ END");
                 {
                     command.CommandText =
                         @"IF NOT EXISTS (SELECT * FROM sys.sysusers WHERE name= N'EFTestSimpleModelUser')
-BEGIN
-  CREATE USER [EFTestSimpleModelUser] FOR LOGIN [EFTestSimpleModelUser]
-END";
+                          BEGIN
+                            CREATE USER [EFTestSimpleModelUser] FOR LOGIN [EFTestSimpleModelUser]
+                          END";
                     command.ExecuteNonQuery();
                 }
             }
@@ -446,22 +456,22 @@ END";
         }
 
         [Fact]
-        public void DatabaseExists_returns_false_for_existing_attached_database_with_InitialCatalog_when_no_master_nor_database_permission()
+        public void DatabaseExists_returns_true_for_existing_attached_database_with_InitialCatalog_when_no_master_nor_database_permission()
         {
-            DatabaseExists_returns_false_for_existing_attached_database_when_no_master_nor_database_permission(true);
+            DatabaseExists_returns_true_for_existing_attached_database_when_no_master_nor_database_permission(true);
         }
 
         [Fact]
-        public void DatabaseExists_returns_false_for_existing_attached_database_without_InitialCatalog_when_no_master_nor_database_permission()
+        public void DatabaseExists_returns_true_for_existing_attached_database_without_InitialCatalog_when_no_master_nor_database_permission()
         {
-            DatabaseExists_returns_false_for_existing_attached_database_when_no_master_nor_database_permission(false);
+            DatabaseExists_returns_true_for_existing_attached_database_when_no_master_nor_database_permission(false);
         }
 
-        private void DatabaseExists_returns_false_for_existing_attached_database_when_no_master_nor_database_permission(bool useInitialcatalog)
+        private void DatabaseExists_returns_true_for_existing_attached_database_when_no_master_nor_database_permission(bool useInitialcatalog)
         {
             using (var context = new AttachedContext(SimpleAttachConnectionString<AttachedContext>()))
             {
-                if (IsSqlAzure(context.Database.Connection.ConnectionString))
+                if (DatabaseTestHelpers.IsSqlAzure(context.Database.Connection.ConnectionString))
                 {
                     // SQL Azure does not suppot attaching databases
                     return;
@@ -482,7 +492,7 @@ END";
                         "Password1",
                         useInitialcatalog)))
                 {
-                    Assert.False(context.Database.Exists());
+                    Assert.True(context.Database.Exists(), "context.Database does not exist, actual connection string: " + context.Database.Connection.ConnectionString);
                 }
             }
             finally
@@ -1182,8 +1192,7 @@ END";
         }
 
         [Fact]
-        public void
-            If_connection_is_changed_to_point_to_different_database_then_operations_that_use_OriginalConnectionString_pick_up_this_change()
+        public void If_connection_is_changed_to_point_to_different_database_then_operations_that_use_OriginalConnectionString_pick_up_this_change()
         {
             If_connection_is_changed_then_operations_that_use_OriginalConnectionString_pick_up_this_change(
                 c => new MutatingConnectionContext4a(c),
@@ -1201,12 +1210,16 @@ END";
 #if !NET40
 
         [Fact]
-        public void
-            If_connection_is_changed_to_point_to_different_server_then_operations_that_use_OriginalConnectionString_pick_up_this_change()
+        public void If_connection_is_changed_to_point_to_different_server_then_operations_that_use_OriginalConnectionString_pick_up_this_change()
         {
+            var changedServer = DatabaseTestHelpers.IsLocalDb(SimpleConnectionString("")) ? @".\SQLEXPRESS" : @"(localdb)\v11.0";
+            var changedConnectionString = string.Format(
+                CultureInfo.InvariantCulture,
+                @"Data Source={0};Initial Catalog=MutatingConnectionContext4;Integrated Security=True", changedServer);
+         
             If_connection_is_changed_then_operations_that_use_OriginalConnectionString_pick_up_this_change(
                 c => new MutatingConnectionContext4b(c),
-                @"Data Source=(localdb)\v11.0;Initial Catalog=MutatingConnectionContext4;Integrated Security=True");
+                changedConnectionString);
         }
 
 #endif

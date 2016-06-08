@@ -15,15 +15,15 @@ namespace System.Data.Entity.Core.Objects.ELinq
     using System.Linq.Expressions;
     using System.Reflection;
 
-    /// <summary>
-    /// Determines which leaves of a LINQ expression tree should be evaluated locally before
-    /// sending a query to the store. These sub-expressions may map to query parameters (e.g. local variables),
-    /// to constants (e.g. literals 'new DateTime(2008, 1, 1)') or query sub-expression
-    /// (e.g. 'context.Products'). Parameter expressions are replaced with QueryParameterExpression
-    /// nodes. All other elements are swapped in place with either expanded expressions (for sub-queries)
-    /// or constants. Where the expression includes mutable state that may influence the translation
-    /// to a query, a Func(Of Boolean) delegate is returned indicating when a recompilation is necessary.
-    /// </summary>
+    // <summary>
+    // Determines which leaves of a LINQ expression tree should be evaluated locally before
+    // sending a query to the store. These sub-expressions may map to query parameters (e.g. local variables),
+    // to constants (e.g. literals 'new DateTime(2008, 1, 1)') or query sub-expression
+    // (e.g. 'context.Products'). Parameter expressions are replaced with QueryParameterExpression
+    // nodes. All other elements are swapped in place with either expanded expressions (for sub-queries)
+    // or constants. Where the expression includes mutable state that may influence the translation
+    // to a query, a Func(Of Boolean) delegate is returned indicating when a recompilation is necessary.
+    // </summary>
     internal sealed class Funcletizer
     {
         // Compiled query information
@@ -99,10 +99,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             get { return _mode == Mode.CompiledQueryEvaluation || _mode == Mode.CompiledQueryLockdown; }
         }
 
-        /// <summary>
-        /// Performs funcletization on the given expression. Also returns a delegates that can be used
-        /// to determine if the entire tree needs to be recompiled.
-        /// </summary>
+        // <summary>
+        // Performs funcletization on the given expression. Also returns a delegates that can be used
+        // to determine if the entire tree needs to be recompiled.
+        // </summary>
         internal Expression Funcletize(Expression expression, out Func<bool> recompileRequired)
         {
             DebugCheck.NotNull(expression);
@@ -146,10 +146,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return result;
         }
 
-        /// <summary>
-        /// Replaces context parameter (e.g. 'ctx' in CompiledQuery.Compile(ctx => ctx.Products)) with constant
-        /// containing the object context.
-        /// </summary>
+        // <summary>
+        // Replaces context parameter (e.g. 'ctx' in CompiledQuery.Compile(ctx => ctx.Products)) with constant
+        // containing the object context.
+        // </summary>
         private Expression ReplaceRootContextParameter(Expression expression)
         {
             if (null != _rootContextExpression)
@@ -164,10 +164,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             }
         }
 
-        /// <summary>
-        /// Returns a function indicating whether the given expression and all of its children satisfy the
-        /// 'localCriterion'.
-        /// </summary>
+        // <summary>
+        // Returns a function indicating whether the given expression and all of its children satisfy the
+        // 'localCriterion'.
+        // </summary>
         private static Func<Expression, bool> Nominate(Expression expression, Func<Expression, bool> localCriterion)
         {
             DebugCheck.NotNull(localCriterion);
@@ -208,10 +208,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             ConventionalQuery,
         }
 
-        /// <summary>
-        /// Determines whether the node may be evaluated locally and whether
-        /// it is a constant. Assumes that all children are also client expressions.
-        /// </summary>
+        // <summary>
+        // Determines whether the node may be evaluated locally and whether
+        // it is a constant. Assumes that all children are also client expressions.
+        // </summary>
         private bool IsImmutable(Expression expression)
         {
             if (null == expression)
@@ -244,10 +244,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             }
         }
 
-        /// <summary>
-        /// Determines whether the node may be evaluated locally and whether
-        /// it is a variable. Assumes that all children are also variable client expressions.
-        /// </summary>
+        // <summary>
+        // Determines whether the node may be evaluated locally and whether
+        // it is a variable. Assumes that all children are also variable client expressions.
+        // </summary>
         private bool IsClosureExpression(Expression expression)
         {
             if (null == expression)
@@ -272,10 +272,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return false;
         }
 
-        /// <summary>
-        /// Determines whether the node may be evaluated as a compiled query parameter.
-        /// Assumes that all children are also eligible compiled query parameters.
-        /// </summary>
+        // <summary>
+        // Determines whether the node may be evaluated as a compiled query parameter.
+        // Assumes that all children are also eligible compiled query parameters.
+        // </summary>
         private bool IsCompiledQueryParameterVariable(Expression expression)
         {
             if (null == expression)
@@ -295,13 +295,15 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return false;
         }
 
-        /// <summary>
-        /// Determine whether the given CLR type is legal for an ObjectParameter or constant
-        /// DbExpression.
-        /// </summary>
-        private bool TryGetTypeUsageForTerminal(Type type, out TypeUsage typeUsage)
+        // <summary>
+        // Determine whether the given CLR type is legal for an ObjectParameter or constant
+        // DbExpression.
+        // </summary>
+        private bool TryGetTypeUsageForTerminal(Expression expression, out TypeUsage typeUsage)
         {
-            DebugCheck.NotNull(type);
+            DebugCheck.NotNull(expression);
+
+            var type = expression.Type;
 
             if (_rootContext.Perspective.TryGetTypeByName(
                 TypeSystem.GetNonNullableType(type).FullNameWithNesting(),
@@ -310,6 +312,22 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 &&
                 (TypeSemantics.IsScalarType(typeUsage)))
             {
+                if (expression.NodeType == ExpressionType.Convert)
+                {
+                    type = ((UnaryExpression)expression).Operand.Type;
+                }
+
+                if (type.IsValueType
+                    && Nullable.GetUnderlyingType(type) == null
+                    && TypeSemantics.IsNullable(typeUsage))
+                {
+                    typeUsage = typeUsage.ShallowCopy(
+                        new FacetValues
+                        {
+                            Nullable = false
+                        });
+                }
+
                 return true;
             }
 
@@ -317,9 +335,9 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return false;
         }
 
-        /// <summary>
-        /// Creates the next available parameter name.
-        /// </summary>
+        // <summary>
+        // Creates the next available parameter name.
+        // </summary>
         internal string GenerateParameterName()
         {
             // To avoid collisions with user parameters (the full set is not
@@ -331,10 +349,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 _parameterNumber++);
         }
 
-        /// <summary>
-        /// Walks the expression tree and replaces client-evaluable expressions with constants
-        /// or QueryParameterExpressions.
-        /// </summary>
+        // <summary>
+        // Walks the expression tree and replaces client-evaluable expressions with constants
+        // or QueryParameterExpressions.
+        // </summary>
         private sealed class FuncletizingVisitor : EntityExpressionVisitor
         {
             private readonly Funcletizer _funcletizer;
@@ -356,15 +374,15 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 _isClientVariable = isClientVariable;
             }
 
-            /// <summary>
-            /// Returns a delegate indicating (when called) whether a change has been identified
-            /// requiring a complete recompile of the query.
-            /// </summary>
+            // <summary>
+            // Returns a delegate indicating (when called) whether a change has been identified
+            // requiring a complete recompile of the query.
+            // </summary>
             internal Func<bool> GetRecompileRequiredFunction()
             {
                 // assign list to local variable to avoid including the entire Funcletizer
                 // class in the closure environment
-                var recompileRequiredDelegates = _recompileRequiredDelegates.AsReadOnly();
+                var recompileRequiredDelegates = new ReadOnlyCollection<Func<bool>>(_recompileRequiredDelegates);
                 return () => recompileRequiredDelegates.Any(d => d());
             }
 
@@ -387,7 +405,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                         else if (_isClientVariable(exp))
                         {
                             TypeUsage queryParameterType;
-                            if (_funcletizer.TryGetTypeUsageForTerminal(exp.Type, out queryParameterType))
+                            if (_funcletizer.TryGetTypeUsageForTerminal(exp, out queryParameterType))
                             {
                                 var parameterReference = queryParameterType.Parameter(_funcletizer.GenerateParameterName());
                                 return new QueryParameterExpression(parameterReference, exp, _funcletizer._compiledQueryParameters);
@@ -459,9 +477,9 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            /// <summary>
-            /// Compiles a delegate returning the value of the given expression.
-            /// </summary>
+            // <summary>
+            // Compiles a delegate returning the value of the given expression.
+            // </summary>
             private static Func<object> CompileExpression(Expression expression)
             {
                 var func = Expression
@@ -470,10 +488,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 return func;
             }
 
-            /// <summary>
-            /// Inlines a funcletizable expression. Queries and lambda expressions are expanded
-            /// inline. All other values become simple constants.
-            /// </summary>
+            // <summary>
+            // Inlines a funcletizable expression. Queries and lambda expressions are expanded
+            // inline. All other values become simple constants.
+            // </summary>
             private Expression InlineValue(Expression expression, bool recompileOnChange)
             {
                 Func<object> getValue = null;
@@ -570,9 +588,9 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            /// <summary>
-            /// Gets the appropriate LINQ expression for an inline ObjectQuery instance.
-            /// </summary>
+            // <summary>
+            // Gets the appropriate LINQ expression for an inline ObjectQuery instance.
+            // </summary>
             private Expression InlineObjectQuery(ObjectQuery inlineQuery, Type expressionType)
             {
                 DebugCheck.NotNull(inlineQuery);

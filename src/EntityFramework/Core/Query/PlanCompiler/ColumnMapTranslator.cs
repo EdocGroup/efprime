@@ -3,37 +3,39 @@
 namespace System.Data.Entity.Core.Query.PlanCompiler
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Query.InternalTrees;
+    using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
 
-    /// <summary>
-    /// Delegate pattern that the ColumnMapTranslator uses to find its replacement
-    /// columnMaps.  Given a columnMap, return it's replacement.
-    /// </summary>
+    // <summary>
+    // Delegate pattern that the ColumnMapTranslator uses to find its replacement
+    // columnMaps.  Given a columnMap, return it's replacement.
+    // </summary>
     internal delegate ColumnMap ColumnMapTranslatorTranslationDelegate(ColumnMap columnMap);
 
-    /// <summary>
-    /// ColumnMapTranslator visits the ColumnMap hiearchy and runs the translation delegate
-    /// you specify;  There are some static methods to perform common translations, but you
-    /// can bring your own translation if you desire.
-    /// This visitor only creates new ColumnMap objects when necessary; it attempts to
-    /// replace-in-place, except when that is not possible because the field is not
-    /// writable.
-    /// NOTE: over time, we should be able to modify the ColumnMaps to have more writable
-    /// fields;
-    /// </summary>
+    // <summary>
+    // ColumnMapTranslator visits the ColumnMap hierarchy and runs the translation delegate
+    // you specify;  There are some static methods to perform common translations, but you
+    // can bring your own translation if you desire.
+    // This visitor only creates new ColumnMap objects when necessary; it attempts to
+    // replace-in-place, except when that is not possible because the field is not
+    // writable.
+    // NOTE: over time, we should be able to modify the ColumnMaps to have more writable
+    // fields;
+    // </summary>
     internal class ColumnMapTranslator : ColumnMapVisitorWithResults<ColumnMap, ColumnMapTranslatorTranslationDelegate>
     {
         #region Constructors
 
-        /// <summary>
-        /// Singleton instance for the "public" methods to use;
-        /// </summary>
+        // <summary>
+        // Singleton instance for the "public" methods to use;
+        // </summary>
         private static readonly ColumnMapTranslator _instance = new ColumnMapTranslator();
 
-        /// <summary>
-        /// Constructor; no one should use this.
-        /// </summary>
+        // <summary>
+        // Constructor; no one should use this.
+        // </summary>
         private ColumnMapTranslator()
         {
         }
@@ -42,11 +44,11 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #region Visitor Helpers
 
-        /// <summary>
-        /// Returns the var to use in the copy, either the original or the
-        /// replacement.  Note that we will follow the chain of replacements, in
-        /// case the replacement was also replaced.
-        /// </summary>
+        // <summary>
+        // Returns the var to use in the copy, either the original or the
+        // replacement.  Note that we will follow the chain of replacements, in
+        // case the replacement was also replaced.
+        // </summary>
         private static Var GetReplacementVar(Var originalVar, Dictionary<Var, Var> replacementVarMap)
         {
             // SQLBUDT #478509: Follow the chain of mapped vars, don't
@@ -68,17 +70,17 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #region "Public" surface area
 
-        /// <summary>
-        /// Bring-Your-Own-Replacement-Delegate method.
-        /// </summary>
+        // <summary>
+        // Bring-Your-Own-Replacement-Delegate method.
+        // </summary>
         internal static ColumnMap Translate(ColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             return columnMap.Accept(_instance, translationDelegate);
         }
 
-        /// <summary>
-        /// Replace VarRefColumnMaps with the specified ColumnMap replacement
-        /// </summary>
+        // <summary>
+        // Replace VarRefColumnMaps with the specified ColumnMap replacement
+        // </summary>
         internal static ColumnMap Translate(ColumnMap columnMapToTranslate, Dictionary<Var, ColumnMap> varToColumnMap)
         {
             var result = Translate(
@@ -97,6 +99,16 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                             {
                                 columnMap.Name = varRefColumnMap.Name;
                             }
+
+                            // The type of the original column map may be enum and we need to preserve it type when replacing
+                            // the column map. For more details see https://entityframework.codeplex.com/workitem/1686
+                            if (Helper.IsEnumType(varRefColumnMap.Type.EdmType) && varRefColumnMap.Type.EdmType != columnMap.Type.EdmType)
+                            {
+                                Debug.Assert(
+                                    Helper.GetUnderlyingEdmTypeForEnumType(varRefColumnMap.Type.EdmType) == columnMap.Type.EdmType);
+
+                                columnMap.Type = varRefColumnMap.Type;
+                            }
                         }
                         else
                         {
@@ -109,9 +121,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return result;
         }
 
-        /// <summary>
-        /// Replace VarRefColumnMaps with new VarRefColumnMaps with the specified Var
-        /// </summary>
+        // <summary>
+        // Replace VarRefColumnMaps with new VarRefColumnMaps with the specified Var
+        // </summary>
         internal static ColumnMap Translate(ColumnMap columnMapToTranslate, Dictionary<Var, Var> varToVarMap)
         {
             var result = Translate(
@@ -134,9 +146,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return result;
         }
 
-        /// <summary>
-        /// Replace VarRefColumnMaps with ScalarColumnMaps referring to the command and column
-        /// </summary>
+        // <summary>
+        // Replace VarRefColumnMaps with ScalarColumnMaps referring to the command and column
+        // </summary>
         internal static ColumnMap Translate(ColumnMap columnMapToTranslate, Dictionary<Var, KeyValuePair<int, int>> varToCommandColumnMap)
         {
             var result = Translate(
@@ -177,9 +189,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #region List handling
 
-        /// <summary>
-        /// List(ColumnMap)
-        /// </summary>
+        // <summary>
+        // List(ColumnMap)
+        // </summary>
         private void VisitList<TResultType>(TResultType[] tList, ColumnMapTranslatorTranslationDelegate translationDelegate)
             where TResultType : ColumnMap
         {
@@ -193,9 +205,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #region EntityIdentity handling
 
-        /// <summary>
-        /// DiscriminatedEntityIdentity
-        /// </summary>
+        // <summary>
+        // DiscriminatedEntityIdentity
+        // </summary>
         protected override EntityIdentity VisitEntityIdentity(
             DiscriminatedEntityIdentity entityIdentity, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
@@ -210,9 +222,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return entityIdentity;
         }
 
-        /// <summary>
-        /// SimpleEntityIdentity
-        /// </summary>
+        // <summary>
+        // SimpleEntityIdentity
+        // </summary>
         protected override EntityIdentity VisitEntityIdentity(
             SimpleEntityIdentity entityIdentity, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
@@ -222,9 +234,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #endregion
 
-        /// <summary>
-        /// ComplexTypeColumnMap
-        /// </summary>
+        // <summary>
+        // ComplexTypeColumnMap
+        // </summary>
         internal override ColumnMap Visit(ComplexTypeColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             var newNullSentinel = columnMap.NullSentinel;
@@ -242,9 +254,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// DiscriminatedCollectionColumnMap
-        /// </summary>
+        // <summary>
+        // DiscriminatedCollectionColumnMap
+        // </summary>
         internal override ColumnMap Visit(
             DiscriminatedCollectionColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
@@ -263,9 +275,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// EntityColumnMap
-        /// </summary>
+        // <summary>
+        // EntityColumnMap
+        // </summary>
         internal override ColumnMap Visit(EntityColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             var newEntityIdentity = VisitEntityIdentity(columnMap.EntityIdentity, translationDelegate);
@@ -278,9 +290,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// SimplePolymorphicColumnMap
-        /// </summary>
+        // <summary>
+        // SimplePolymorphicColumnMap
+        // </summary>
         internal override ColumnMap Visit(SimplePolymorphicColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             var newTypeDiscriminator = columnMap.TypeDiscriminator.Accept(this, translationDelegate);
@@ -312,9 +324,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// MultipleDiscriminatorPolymorphicColumnMap
-        /// </summary>
+        // <summary>
+        // MultipleDiscriminatorPolymorphicColumnMap
+        // </summary>
         [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "ColumnMapTranslator")]
         [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly",
             MessageId = "MultipleDiscriminatorPolymorphicColumnMap")]
@@ -329,9 +341,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return null;
         }
 
-        /// <summary>
-        /// RecordColumnMap
-        /// </summary>
+        // <summary>
+        // RecordColumnMap
+        // </summary>
         internal override ColumnMap Visit(RecordColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             var newNullSentinel = columnMap.NullSentinel;
@@ -349,9 +361,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// RefColumnMap
-        /// </summary>
+        // <summary>
+        // RefColumnMap
+        // </summary>
         internal override ColumnMap Visit(RefColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             var newEntityIdentity = VisitEntityIdentity(columnMap.EntityIdentity, translationDelegate);
@@ -363,17 +375,17 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// ScalarColumnMap
-        /// </summary>
+        // <summary>
+        // ScalarColumnMap
+        // </summary>
         internal override ColumnMap Visit(ScalarColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// SimpleCollectionColumnMap
-        /// </summary>
+        // <summary>
+        // SimpleCollectionColumnMap
+        // </summary>
         internal override ColumnMap Visit(SimpleCollectionColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             VisitList(columnMap.ForeignKeys, translationDelegate);
@@ -387,9 +399,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return translationDelegate(columnMap);
         }
 
-        /// <summary>
-        /// VarRefColumnMap
-        /// </summary>
+        // <summary>
+        // VarRefColumnMap
+        // </summary>
         internal override ColumnMap Visit(VarRefColumnMap columnMap, ColumnMapTranslatorTranslationDelegate translationDelegate)
         {
             return translationDelegate(columnMap);

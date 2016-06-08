@@ -276,6 +276,7 @@ namespace System.Data.Entity
         /// The instance returned will be a proxy if the underlying context is configured to create
         /// proxies and the entity type meets the requirements for creating a proxy.
         /// </summary>
+        /// <param name="derivedEntityType">The type of entity to create.</param>
         /// <returns> The entity instance, which may be a proxy. </returns>
         public virtual object Create(Type derivedEntityType)
         {
@@ -311,9 +312,9 @@ namespace System.Data.Entity
 
         #region IInternalSetAdapter
 
-        /// <summary>
-        /// The internal IQueryable that is backing this DbQuery
-        /// </summary>
+        // <summary>
+        // The internal IQueryable that is backing this DbQuery
+        // </summary>
         IInternalSet IInternalSetAdapter.InternalSet
         {
             get { return InternalSet; }
@@ -323,10 +324,10 @@ namespace System.Data.Entity
 
         #region InternalSet
 
-        /// <summary>
-        /// Gets the underlying internal set.
-        /// </summary>
-        /// <value> The internal set. </value>
+        // <summary>
+        // Gets the underlying internal set.
+        // </summary>
+        // <value> The internal set. </value>
         internal virtual IInternalSet InternalSet
         {
             get { return null; }
@@ -356,7 +357,11 @@ namespace System.Data.Entity
         /// context.Set(typeof(Blog)).SqlQuery("SELECT * FROM dbo.Posts WHERE Author = @author", new SqlParameter("@author", userSuppliedAuthor));
         /// </summary>
         /// <param name="sql"> The SQL query string. </param>
-        /// <param name="parameters"> The parameters to apply to the SQL query string. </param>
+        /// <param name="parameters"> 
+        /// The parameters to apply to the SQL query string. If output parameters are used, their values 
+        /// will not be available until the results have been read completely. This is due to the underlying 
+        /// behavior of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A <see cref="DbSqlQuery" /> object that will execute the query when it is enumerated.
         /// </returns>

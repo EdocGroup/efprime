@@ -2,6 +2,7 @@
 
 namespace System.Data.Entity.SqlServer
 {
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data.Common;
     using System.Data.Entity.Core;
@@ -31,7 +32,7 @@ namespace System.Data.Entity.SqlServer
     /// or through code-based registration in <see cref="DbConfiguration" />.
     /// The services resolved are:
     /// Requests for <see cref="IDbConnectionFactory" /> are resolved to a Singleton instance of
-    /// <see cref="SqlConnectionFactory" /> to create connections to SQL Express by default.
+    /// <see cref="System.Data.Entity.Infrastructure.SqlConnectionFactory" /> to create connections to SQL Express by default.
     /// Requests for <see cref="Func{IDbExecutionStrategy}" /> for the invariant name "System.Data.SqlClient"
     /// for any server name are resolved to a delegate that returns a <see cref="DefaultSqlExecutionStrategy" />
     /// to provide a non-retrying policy for SQL Server.
@@ -43,7 +44,6 @@ namespace System.Data.Entity.SqlServer
     /// services for SQL Server.
     /// </remarks>
     [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling")]
-    [CLSCompliant(false)]
     public sealed class SqlProviderServices : DbProviderServices
     {
         /// <summary>
@@ -53,9 +53,12 @@ namespace System.Data.Entity.SqlServer
         /// </summary>
         public const string ProviderInvariantName = "System.Data.SqlClient";
 
-        /// <summary>
-        /// Private constructor to ensure only Singleton instance is created.
-        /// </summary>
+        private ConcurrentDictionary<string, SqlProviderManifest> _providerManifests =
+            new ConcurrentDictionary<string, SqlProviderManifest>();
+
+        // <summary>
+        // Private constructor to ensure only Singleton instance is created.
+        // </summary>
         private SqlProviderServices()
         {
             AddDependencyResolver(new SingletonDependencyResolver<IDbConnectionFactory>(new SqlConnectionFactory()));
@@ -67,6 +70,10 @@ namespace System.Data.Entity.SqlServer
             AddDependencyResolver(
                 new SingletonDependencyResolver<Func<MigrationSqlGenerator>>(
                     () => new SqlServerMigrationSqlGenerator(), ProviderInvariantName));
+
+            AddDependencyResolver(
+                new SingletonDependencyResolver<TableExistenceChecker>(
+                    new SqlTableExistenceChecker(), ProviderInvariantName));
 
             // Spatial provider will be returned if the key is null (meaning that a default provider was requested)
             // or if a key was provided and the invariant name matches.
@@ -87,9 +94,9 @@ namespace System.Data.Entity.SqlServer
                     }));
         }
 
-        /// <summary>
-        /// Singleton object
-        /// </summary>
+        // <summary>
+        // Singleton object
+        // </summary>
         private static readonly SqlProviderServices _providerInstance = new SqlProviderServices();
 
         private static bool _truncateDecimalsToScale = true;
@@ -101,6 +108,11 @@ namespace System.Data.Entity.SqlServer
         {
             get { return _providerInstance; }
         }
+
+        /// <summary>
+        /// Set to the full name of the Microsoft.SqlServer.Types assembly to override the default selection
+        /// </summary>
+        public static string SqlServerTypesAssemblyName { get; set; }
 
         /// <summary>
         /// Set this flag to false to prevent <see cref="decimal" /> values from being truncated to
@@ -165,11 +177,51 @@ namespace System.Data.Entity.SqlServer
         }
 
         /// <summary>
-        /// Create a SqlCommand object, given the provider manifest and command tree
+        /// See issue 2390 - cloning the DesignTimeVisible property on the
+        /// <see cref="T:System.Data.SqlClient.SqlCommand" /> can cause deadlocks.
+        /// So here overriding to provide a method that does not clone DesignTimeVisible.
         /// </summary>
-        /// <param name="providerManifest"> provider manifest </param>
-        /// <param name="commandTree"> command tree for the statement </param>
-        /// <returns> a command object </returns>
+        /// <param name="fromDbCommand"> the <see cref="T:System.Data.Common.DbCommand" /> object to clone </param>
+        /// <returns >a clone of the <see cref="T:System.Data.Common.DbCommand" /> </returns>
+        [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
+        [SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities",
+            Justification="Not changing the CommandText at all - simply providing a clone of the DbCommand with the same CommandText")]
+        protected override DbCommand CloneDbCommand(DbCommand fromDbCommand)
+        {
+            Check.NotNull(fromDbCommand, "fromDbCommand");
+
+            var fromSqlCommand = fromDbCommand as SqlCommand;
+            if (fromSqlCommand == null)
+            {
+                // sometimes providers use a wrapping model that uses SqlProviderServices but
+                // does not use a SqlCommand. Here just revert to the base behavior if the
+                // command passed in is not a SqlCommand.
+                return base.CloneDbCommand(fromDbCommand);
+            }
+
+            var clonedCommand = new SqlCommand();
+            clonedCommand.CommandText = fromSqlCommand.CommandText;
+            clonedCommand.CommandTimeout = fromSqlCommand.CommandTimeout;
+            clonedCommand.CommandType = fromSqlCommand.CommandType;
+            clonedCommand.Connection = fromSqlCommand.Connection;
+            clonedCommand.Transaction = fromSqlCommand.Transaction;
+            clonedCommand.UpdatedRowSource = fromSqlCommand.UpdatedRowSource;
+            foreach (var parameter in fromSqlCommand.Parameters)
+            {
+                var cloneableParameter = parameter as ICloneable;
+                clonedCommand.Parameters.Add(cloneableParameter  == null ? parameter : cloneableParameter.Clone());
+            }
+
+            return clonedCommand;
+        }
+
+
+        // <summary>
+        // Create a SqlCommand object, given the provider manifest and command tree
+        // </summary>
+        // <param name="providerManifest"> provider manifest </param>
+        // <param name="commandTree"> command tree for the statement </param>
+        // <returns> a command object </returns>
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling")]
         [SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
@@ -335,23 +387,42 @@ namespace System.Data.Entity.SqlServer
         {
             Check.NotNull(connection, "connection");
 
-            if (string.IsNullOrEmpty(connection.ConnectionString))
+            if (string.IsNullOrEmpty(DbInterception.Dispatch.Connection.GetConnectionString(connection, new DbInterceptionContext())))
             {
                 throw new ArgumentException(Strings.UnableToDetermineStoreVersion);
             }
 
             string providerManifestToken = null;
             // Try to get the provider manifest token from the database connection
-            // That failing, try using connection to master database (in case the database doesn't exist yet)
             try
             {
                 UsingConnection(connection, conn => { providerManifestToken = QueryForManifestToken(conn); });
+                return providerManifestToken;
             }
             catch
             {
-                UsingMasterConnection(connection, conn => { providerManifestToken = QueryForManifestToken(conn); });
+                // Could not connect to the database, but not throwing here for reasons described below.
             }
-            return providerManifestToken;
+
+            // That failing, try using connection to master database (in case the database doesn't exist yet)
+            try
+            {
+                UsingMasterConnection(connection, conn => { providerManifestToken = QueryForManifestToken(conn); });
+                return providerManifestToken;
+            }
+            catch
+            {
+                // May not be able to access master for any number of reasons
+            }
+
+            // Database doesn't exist and can't connect to master, so just continue with a default provider manifest token.
+            // This likely means that things will fail later because there is no database, but throwing here is very
+            // confusing because the exception doesn't appear to be anything to do with the database not being available.
+            // Also, throwing here prevents any code from using Exists in an initializer to correctly reason about whether
+            // or not a database exists when no connection to master can be made. So by returning a default token we allow
+            // correctly written code to work by never accessing the non-existent database and code that would try to use
+            // or create the database will now throw in a more meaningful way and place.
+            return SqlProviderManifest.TokenSql10;
         }
 
         private static string QueryForManifestToken(DbConnection conn)
@@ -373,7 +444,7 @@ namespace System.Data.Entity.SqlServer
                 throw new ArgumentException(Strings.UnableToDetermineStoreVersion);
             }
 
-            return new SqlProviderManifest(versionHint);
+            return _providerManifests.GetOrAdd(versionHint, s => new SqlProviderManifest(s));
         }
 
         /// <summary>
@@ -425,9 +496,9 @@ namespace System.Data.Entity.SqlServer
             return tokenVersion >= SqlVersion.Sql10;
         }
 
-        /// <summary>
-        /// Creates a SqlParameter given a name, type, and direction
-        /// </summary>
+        // <summary>
+        // Creates a SqlParameter given a name, type, and direction
+        // </summary>
         internal static SqlParameter CreateSqlParameter(
             string name, TypeUsage type, ParameterMode mode, object value, bool preventTruncation, SqlVersion version)
         {
@@ -542,20 +613,20 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        /// <summary>
-        /// Validates that the specified value is compatible with SqlParameter and if not, attempts to return an appropriate value that is.
-        /// Currently only spatial values (DbGeography/DbGeometry) may not be directly usable with SqlParameter. For these types, an instance
-        /// of the corresponding SQL Server CLR spatial UDT will be manufactured based on the spatial data contained in
-        /// <paramref name="value" />.
-        /// If <paramref name="value" /> is an instance of DbGeography/DbGeometry that was read from SQL Server by this provider, then the wrapped
-        /// CLR UDT value is available via the ProviderValue property (see SqlSpatialServices for the full conversion process from instances of
-        /// DbGeography/DbGeometry to instances of the CLR SqlGeography/SqlGeometry UDTs)
-        /// </summary>
+        // <summary>
+        // Validates that the specified value is compatible with SqlParameter and if not, attempts to return an appropriate value that is.
+        // Currently only spatial values (DbGeography/DbGeometry) may not be directly usable with SqlParameter. For these types, an instance
+        // of the corresponding SQL Server CLR spatial UDT will be manufactured based on the spatial data contained in
+        // <paramref name="value" />.
+        // If <paramref name="value" /> is an instance of DbGeography/DbGeometry that was read from SQL Server by this provider, then the wrapped
+        // CLR UDT value is available via the ProviderValue property (see SqlSpatialServices for the full conversion process from instances of
+        // DbGeography/DbGeometry to instances of the CLR SqlGeography/SqlGeometry UDTs)
+        // </summary>
         internal static object EnsureSqlParameterValue(object value)
         {
             if (value != null
                 && value != DBNull.Value
-                && Type.GetTypeCode(value.GetType()) == TypeCode.Object)
+                && value.GetType().IsClass())
             {
                 // If the parameter is being created based on an actual value (typically for constants found in DML expressions) then a DbGeography/DbGeometry
                 // value must be replaced by an an appropriate Microsoft.SqlServer.Types.SqlGeography/SqlGeometry instance. Since the DbGeography/DbGeometry
@@ -578,10 +649,10 @@ namespace System.Data.Entity.SqlServer
             return value;
         }
 
-        /// <summary>
-        /// Determines SqlDbType for the given primitive type. Extracts facet
-        /// information as well.
-        /// </summary>
+        // <summary>
+        // Determines SqlDbType for the given primitive type. Extracts facet
+        // information as well.
+        // </summary>
         private static SqlDbType GetSqlDbType(
             TypeUsage type, bool isOutParam, SqlVersion version, out int? size, out byte? precision, out byte? scale, out string udtName)
         {
@@ -681,10 +752,10 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        /// <summary>
-        /// Determines preferred value for SqlParameter.Size. Returns null
-        /// where there is no preference.
-        /// </summary>
+        // <summary>
+        // Determines preferred value for SqlParameter.Size. Returns null
+        // where there is no preference.
+        // </summary>
         private static int? GetParameterSize(TypeUsage type, bool isOutParam)
         {
             Facet maxLengthFacet;
@@ -769,21 +840,21 @@ namespace System.Data.Entity.SqlServer
             return result;
         }
 
-        /// <summary>
-        /// Returns SqlParameter.Precision where the type facet exists. Otherwise,
-        /// returns null or the maximum available precision to avoid truncation (which can occur
-        /// for output parameters).
-        /// </summary>
+        // <summary>
+        // Returns SqlParameter.Precision where the type facet exists. Otherwise,
+        // returns null or the maximum available precision to avoid truncation (which can occur
+        // for output parameters).
+        // </summary>
         private static byte? GetKatmaiDateTimePrecision(TypeUsage type, bool isOutParam)
         {
             var defaultIfUndefined = isOutParam ? 7 : (byte?)null;
             return GetParameterPrecision(type, defaultIfUndefined);
         }
 
-        /// <summary>
-        /// Returns SqlParameter.Precision where the type facet exists. Otherwise,
-        /// returns null.
-        /// </summary>
+        // <summary>
+        // Returns SqlParameter.Precision where the type facet exists. Otherwise,
+        // returns null.
+        // </summary>
         private static byte? GetParameterPrecision(TypeUsage type, byte? defaultIfUndefined)
         {
             byte precision;
@@ -797,10 +868,10 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        /// <summary>
-        /// Returns SqlParameter.Scale where the type facet exists. Otherwise,
-        /// returns null.
-        /// </summary>
+        // <summary>
+        // Returns SqlParameter.Scale where the type facet exists. Otherwise,
+        // returns null.
+        // </summary>
         private static byte? GetScale(TypeUsage type)
         {
             byte scale;
@@ -814,9 +885,9 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        /// <summary>
-        /// Chooses the appropriate SqlDbType for the given string type.
-        /// </summary>
+        // <summary>
+        // Chooses the appropriate SqlDbType for the given string type.
+        // </summary>
         [SuppressMessage("Microsoft.Globalization", "CA1308:NormalizeStringsToUppercase")]
         private static SqlDbType GetStringDbType(TypeUsage type)
         {
@@ -852,9 +923,9 @@ namespace System.Data.Entity.SqlServer
             return dbType;
         }
 
-        /// <summary>
-        /// Chooses the appropriate SqlDbType for the given binary type.
-        /// </summary>
+        // <summary>
+        // Chooses the appropriate SqlDbType for the given binary type.
+        // </summary>
         private static SqlDbType GetBinaryDbType(TypeUsage type)
         {
             Debug.Assert(
@@ -896,6 +967,9 @@ namespace System.Data.Entity.SqlServer
         /// CreateDatabase
         /// For further details on the behavior when AttachDBFilename is specified see Dev10# 188936
         /// </summary>
+        /// <param name="connection">Connection to a non-existent database that needs to be created and populated with the store objects indicated with the storeItemCollection parameter.</param>
+        /// <param name="commandTimeout">Execution timeout for any commands needed to create the database.</param>
+        /// <param name="storeItemCollection">The collection of all store items based on which the script should be created.</param>
         protected override void DbCreateDatabase(DbConnection connection, int? commandTimeout, StoreItemCollection storeItemCollection)
         {
             Check.NotNull(connection, "connection");
@@ -967,7 +1041,8 @@ namespace System.Data.Entity.SqlServer
         {
             DebugCheck.NotNull(sqlConnection);
 
-            var connectionStringBuilder = new SqlConnectionStringBuilder(sqlConnection.ConnectionString);
+            var connectionStringBuilder = new SqlConnectionStringBuilder(
+                DbInterception.Dispatch.Connection.GetConnectionString(sqlConnection, new DbInterceptionContext()));
 
             // Get the file names
             var attachDBFile = connectionStringBuilder.AttachDBFilename;
@@ -999,9 +1074,9 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        /// <summary>
-        /// Get the Ldf name given the Mdf full name
-        /// </summary>
+        // <summary>
+        // Get the Ldf name given the Mdf full name
+        // </summary>
         private static string GetLdfFileName(string dataFileName)
         {
             string logFileName;
@@ -1010,10 +1085,10 @@ namespace System.Data.Entity.SqlServer
             return logFileName;
         }
 
-        /// <summary>
-        /// Generates database name based on the given mdfFileName.
-        /// The logic is replicated from System.Web.DataAccess.SqlConnectionHelper
-        /// </summary>
+        // <summary>
+        // Generates database name based on the given mdfFileName.
+        // The logic is replicated from System.Web.DataAccess.SqlConnectionHelper
+        // </summary>
         private static string GenerateDatabaseName(string mdfFileName)
         {
             var toUpperFileName = mdfFileName.ToUpper(CultureInfo.InvariantCulture);
@@ -1036,9 +1111,9 @@ namespace System.Data.Entity.SqlServer
             return databaseName;
         }
 
-        /// <summary>
-        /// Get the full mdf file name given the attachDBFile value from the connection string
-        /// </summary>
+        // <summary>
+        // Get the full mdf file name given the attachDBFile value from the connection string
+        // </summary>
         private static string GetMdfFileName(string attachDBFile)
         {
             DebugCheck.NotEmpty(attachDBFile);
@@ -1046,7 +1121,7 @@ namespace System.Data.Entity.SqlServer
             return ExpandDataDirectory(attachDBFile);
         }
 
-        internal static SqlVersion CreateDatabaseFromScript(int? commandTimeout, DbConnection sqlConnection, string createDatabaseScript)
+        internal SqlVersion CreateDatabaseFromScript(int? commandTimeout, DbConnection sqlConnection, string createDatabaseScript)
         {
             SqlVersion sqlVersion = 0;
             UsingMasterConnection(
@@ -1077,13 +1152,47 @@ namespace System.Data.Entity.SqlServer
         /// Also note that checking for the existence of the file does not work for a remote server.  (Dev11 #290487)
         /// For further details on the behavior when AttachDBFilename is specified see Dev10# 188936
         /// </summary>
-        protected override bool DbDatabaseExists(DbConnection connection, int? commandTimeout, StoreItemCollection storeItemCollection)
+        /// <param name="connection">Connection to a database whose existence is checked by this method.</param>
+        /// <param name="commandTimeout">Execution timeout for any commands needed to determine the existence of the database.</param>
+        /// <param name="storeItemCollection">The collection of all store items from the model. This parameter is no longer used for determining database existence.</param>
+        /// <returns>True if the provider can deduce the database only based on the connection.</returns>
+        protected override bool DbDatabaseExists(
+            DbConnection connection, int? commandTimeout, StoreItemCollection storeItemCollection)
+        {
+            return DbDatabaseExists(connection, commandTimeout, new Lazy<StoreItemCollection>(() => storeItemCollection));
+        }
+
+        /// <summary>
+        /// Determines whether the database for the given connection exists.
+        /// There are three cases:
+        /// 1.  Initial Catalog = X, AttachDBFilename = null:   (SELECT Count(*) FROM sys.databases WHERE [name]= X) > 0
+        /// 2.  Initial Catalog = X, AttachDBFilename = F:      if (SELECT Count(*) FROM sys.databases WHERE [name]= X) >  true,
+        /// if not, try to open the connection and then return (SELECT Count(*) FROM sys.databases WHERE [name]= X) > 0
+        /// 3.  Initial Catalog = null, AttachDBFilename = F:   Try to open the connection. If that succeeds the result is true, otherwise
+        /// if the there are no databases corresponding to the given file return false, otherwise throw.
+        /// Note: We open the connection to cover the scenario when the mdf exists, but is not attached.
+        /// Given that opening the connection would auto-attach it, it would not be appropriate to return false in this case.
+        /// Also note that checking for the existence of the file does not work for a remote server.  (Dev11 #290487)
+        /// For further details on the behavior when AttachDBFilename is specified see Dev10# 188936
+        /// </summary>
+        /// <param name="connection">Connection to a database whose existence is checked by this method.</param>
+        /// <param name="commandTimeout">Execution timeout for any commands needed to determine the existence of the database.</param>
+        /// <param name="storeItemCollection">The collection of all store items from the model. This parameter is no longer used for determining database existence.</param>
+        /// <returns>True if the provider can deduce the database only based on the connection.</returns>
+        protected override bool DbDatabaseExists(
+            DbConnection connection, int? commandTimeout, Lazy<StoreItemCollection> storeItemCollection)
         {
             Check.NotNull(connection, "connection");
             Check.NotNull(storeItemCollection, "storeItemCollection");
 
+            if (connection.State == ConnectionState.Open)
+            {
+                return true;
+            }
+
             var sqlConnection = SqlProviderUtilities.GetRequiredSqlConnection(connection);
-            var connectionBuilder = new SqlConnectionStringBuilder(sqlConnection.ConnectionString);
+            var connectionBuilder = new SqlConnectionStringBuilder(
+                DbInterception.Dispatch.Connection.GetConnectionString(sqlConnection, new DbInterceptionContext()));
 
             if (string.IsNullOrEmpty(connectionBuilder.InitialCatalog)
                 && string.IsNullOrEmpty(connectionBuilder.AttachDBFilename))
@@ -1142,24 +1251,20 @@ namespace System.Data.Entity.SqlServer
             return false;
         }
 
-        private static bool CheckDatabaseExists(SqlConnection sqlConnection, int? commandTimeout, string databaseName)
+        private bool CheckDatabaseExists(SqlConnection sqlConnection, int? commandTimeout, string databaseName)
         {
-            var databaseExistsInSysTables = false;
+            var databaseExists = false;
             UsingMasterConnection(
                 sqlConnection, conn =>
                     {
-                        var sqlVersion = SqlVersionUtils.GetSqlVersion(conn);
-                        var databaseExistsScript = SqlDdlBuilder.CreateDatabaseExistsScript(
-                            databaseName, useDeprecatedSystemTable: sqlVersion == SqlVersion.Sql8);
+                        var databaseExistsScript = SqlDdlBuilder.CreateDatabaseExistsScript(databaseName);
                         using (var command = CreateCommand(conn, databaseExistsScript, commandTimeout))
                         {
-                            var rowsAffected = (int)DbInterception.Dispatch.Command.Scalar(
-                                command, new DbCommandInterceptionContext());
-
-                            databaseExistsInSysTables = (rowsAffected > 0);
+                            databaseExists = (int)DbInterception.Dispatch.Command.Scalar(
+                                command, new DbCommandInterceptionContext()) >= 1;
                         }
                     });
-            return databaseExistsInSysTables;
+            return databaseExists;
         }
 
         /// <summary>
@@ -1183,7 +1288,8 @@ namespace System.Data.Entity.SqlServer
 
             var sqlConnection = SqlProviderUtilities.GetRequiredSqlConnection(connection);
 
-            var connectionBuilder = new SqlConnectionStringBuilder(sqlConnection.ConnectionString);
+            var connectionBuilder = new SqlConnectionStringBuilder(
+                DbInterception.Dispatch.Connection.GetConnectionString(sqlConnection, new DbInterceptionContext()));
             var initialCatalog = connectionBuilder.InitialCatalog;
             var attachDBFile = connectionBuilder.AttachDBFilename;
 
@@ -1236,7 +1342,7 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        private static void DropDatabase(SqlConnection sqlConnection, int? commandTimeout, string databaseName)
+        private void DropDatabase(SqlConnection sqlConnection, int? commandTimeout, string databaseName)
         {
             // clear the connection pools in case someone's holding on to the database still
             SqlConnection.ClearAllPools();
@@ -1295,50 +1401,59 @@ namespace System.Data.Entity.SqlServer
 
         private static void UsingConnection(DbConnection sqlConnection, Action<DbConnection> act)
         {
+            var interceptionContext = new DbInterceptionContext();
             // remember the connection string so that we can reset if credentials are wiped
-            var holdConnectionString = sqlConnection.ConnectionString;
-            var openingConnection = sqlConnection.State == ConnectionState.Closed;
-            if (openingConnection)
-            {
-                DbConfiguration.DependencyResolver.GetService<Func<IDbExecutionStrategy>>(
-                    new ExecutionStrategyKey(ProviderInvariantName, sqlConnection.DataSource))()
-                    .Execute(
-                        () =>
-                        {
-                            // If Open() fails the original credentials need to be restored before retrying
-                            if (sqlConnection.State == ConnectionState.Closed
-                                && !sqlConnection.ConnectionString.Equals(holdConnectionString, StringComparison.Ordinal))
-                            {
-                                sqlConnection.ConnectionString = holdConnectionString;
-                            }
+            var holdConnectionString = DbInterception.Dispatch.Connection.GetConnectionString(sqlConnection, interceptionContext);
 
-                            sqlConnection.Open();
-                        });
-            }
-            try
-            {
-                act(sqlConnection);
-            }
-            finally
-            {
-                if (openingConnection && sqlConnection.State == ConnectionState.Open)
+            GetExecutionStrategy(sqlConnection, ProviderInvariantName).Execute(
+                () =>
                 {
-                    // if we opened the connection, we should close it
-                    sqlConnection.Close();
-
-                    // Can only change the connection string if the connection is closed
-                    if (!sqlConnection.ConnectionString.Equals(holdConnectionString, StringComparison.Ordinal))
+                    var openingConnection = DbInterception.Dispatch.Connection.GetState(sqlConnection, interceptionContext)
+                                            == ConnectionState.Closed;
+                    if (openingConnection)
                     {
-                        Debug.Assert(true);
-                        sqlConnection.ConnectionString = holdConnectionString;
+                        // If Open() fails the original credentials need to be restored before retrying
+                        if (DbInterception.Dispatch.Connection.GetState(sqlConnection, new DbInterceptionContext())
+                            == ConnectionState.Closed
+                            && !DbInterception.Dispatch.Connection.GetConnectionString(sqlConnection, interceptionContext)
+                                .Equals(holdConnectionString, StringComparison.Ordinal))
+                        {
+                            DbInterception.Dispatch.Connection.SetConnectionString(
+                                sqlConnection,
+                                new DbConnectionPropertyInterceptionContext<string>().WithValue(holdConnectionString));
+                        }
+
+                        DbInterception.Dispatch.Connection.Open(sqlConnection, interceptionContext);
                     }
-                }
-            }
+                    try
+                    {
+                        act(sqlConnection);
+                    }
+                    finally
+                    {
+                        if (openingConnection
+                            && DbInterception.Dispatch.Connection.GetState(sqlConnection, interceptionContext) == ConnectionState.Open)
+                        {
+                            // if we opened the connection, we should close it
+                            DbInterception.Dispatch.Connection.Close(sqlConnection, interceptionContext);
+
+                            // Can only change the connection string if the connection is closed
+                            if (!DbInterception.Dispatch.Connection.GetConnectionString(sqlConnection, interceptionContext)
+                                .Equals(holdConnectionString, StringComparison.Ordinal))
+                            {
+                                DbInterception.Dispatch.Connection.SetConnectionString(
+                                    sqlConnection,
+                                    new DbConnectionPropertyInterceptionContext<string>().WithValue(holdConnectionString));
+                            }
+                        }
+                    }
+                });
         }
 
-        private static void UsingMasterConnection(DbConnection sqlConnection, Action<DbConnection> act)
+        private void UsingMasterConnection(DbConnection sqlConnection, Action<DbConnection> act)
         {
-            var connectionBuilder = new SqlConnectionStringBuilder(sqlConnection.ConnectionString)
+            var connectionBuilder = new SqlConnectionStringBuilder(
+                DbInterception.Dispatch.Connection.GetConnectionString(sqlConnection, new DbInterceptionContext()))
                 {
                     InitialCatalog = "master",
                     AttachDBFilename = string.Empty, // any AttachDB path specified is not relevant to master
@@ -1346,9 +1461,10 @@ namespace System.Data.Entity.SqlServer
 
             try
             {
-                using (var masterConnection = GetProviderFactory(sqlConnection).CreateConnection())
+                using (var masterConnection = CloneDbConnection(sqlConnection))
                 {
-                    masterConnection.ConnectionString = connectionBuilder.ConnectionString;
+                    DbInterception.Dispatch.Connection.SetConnectionString(masterConnection,
+                        new DbConnectionPropertyInterceptionContext<string>().WithValue(connectionBuilder.ConnectionString));
                     UsingConnection(masterConnection, act);
                 }
             }
@@ -1362,6 +1478,26 @@ namespace System.Data.Entity.SqlServer
                 }
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Clones the connection.
+        /// </summary>
+        /// <param name="connection">The original connection.</param>
+        /// <param name="factory">The factory to use.</param>
+        /// <returns>Cloned connection</returns>
+        public override DbConnection CloneDbConnection(DbConnection connection, DbProviderFactory factory)
+        {
+            DebugCheck.NotNull(connection);
+            DebugCheck.NotNull(factory);
+
+            var clonableConnection = connection as ICloneable;
+            if (clonableConnection != null)
+            {
+                return (DbConnection)clonableConnection.Clone();
+            }
+
+            return base.CloneDbConnection(connection, factory);
         }
     }
 }

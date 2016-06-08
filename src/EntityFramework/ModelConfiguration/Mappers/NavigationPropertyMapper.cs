@@ -8,9 +8,9 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
     using System.Data.Entity.Utilities;
     using System.Reflection;
 
-    /// <summary>
-    /// Handles mapping from a CLR property to an EDM assocation and nav. prop.
-    /// </summary>
+    // <summary>
+    // Handles mapping from a CLR property to an EDM assocation and nav. prop.
+    // </summary>
     internal sealed class NavigationPropertyMapper
     {
         private readonly TypeMapper _typeMapper;
@@ -70,7 +70,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                     _typeMapper.MappingContext.ModelConfiguration);
 
                 new AttributeMapper(_typeMapper.MappingContext.AttributeProvider)
-                    .Map(propertyInfo, navigationProperty.Annotations);
+                    .Map(propertyInfo, navigationProperty.GetMetadataProperties());
             }
         }
     }

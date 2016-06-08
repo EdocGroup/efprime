@@ -301,9 +301,24 @@ namespace System.Data.Entity.Migrations.Design
             runner.Log = new ToolLogger(this);
         }
 
+        [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
         private void Run(BaseRunner runner)
         {
+            _appDomain.SetData("error", null);
+            _appDomain.SetData("typeName", null);
+            _appDomain.SetData("stackTrace", null);
+
             _appDomain.DoCallBack(runner.Run);
+
+            var error = (string)_appDomain.GetData("error");
+
+            if (error != null)
+            {
+                var typeName = (string)_appDomain.GetData("typeName");
+                var stackTrace = (string)_appDomain.GetData("stackTrace");
+
+                throw new ToolingException(error, typeName, stackTrace);
+            }
         }
 
         private class ToolLogger : MigrationsLogger
@@ -349,7 +364,23 @@ namespace System.Data.Entity.Migrations.Design
             public DbConnectionInfo ConnectionStringInfo { get; set; }
             public ToolLogger Log { get; set; }
 
-            public abstract void Run();
+            [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
+            [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
+            public void Run()
+            {
+                try
+                {
+                    RunCore();
+                }
+                catch (Exception ex)
+                {
+                    AppDomain.CurrentDomain.SetData("error", ex.Message);
+                    AppDomain.CurrentDomain.SetData("typeName", ex.GetType().FullName);
+                    AppDomain.CurrentDomain.SetData("stackTrace", ex.ToString());
+                }
+            }
+
+            protected abstract void RunCore();
 
             protected MigratorBase GetMigrator()
             {
@@ -417,7 +448,7 @@ namespace System.Data.Entity.Migrations.Design
         private class GetDatabaseMigrationsRunner : BaseRunner
         {
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            public override void Run()
+            protected override void RunCore()
             {
                 var databaseMigrations = GetMigrator().GetDatabaseMigrations();
 
@@ -429,7 +460,7 @@ namespace System.Data.Entity.Migrations.Design
         private class GetPendingMigrationsRunner : BaseRunner
         {
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            public override void Run()
+            protected override void RunCore()
             {
                 var pendingMigrations = GetMigrator().GetPendingMigrations();
 
@@ -443,7 +474,7 @@ namespace System.Data.Entity.Migrations.Design
             public string TargetMigration { get; set; }
             public bool Force { get; set; }
 
-            public override void Run()
+            protected override void RunCore()
             {
                 GetMigrator().Update(TargetMigration);
             }
@@ -467,7 +498,7 @@ namespace System.Data.Entity.Migrations.Design
             public bool Force { get; set; }
 
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            public override void Run()
+            protected override void RunCore()
             {
                 var migrator = GetMigrator();
 
@@ -498,7 +529,7 @@ namespace System.Data.Entity.Migrations.Design
             public bool IgnoreChanges { get; set; }
 
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            public override void Run()
+            protected override void RunCore()
             {
                 var configuration = GetConfiguration();
 
@@ -542,7 +573,7 @@ namespace System.Data.Entity.Migrations.Design
             {
                 base.OverrideConfiguration(configuration);
 
-                // If the user hasn't set their own generator and their using a VB project then switch in the default VB one
+                // If the user hasn't set their own generator and he/she is using a VB project then switch in the default VB one
                 if (Language == "vb"
                     && configuration.CodeGenerator is CSharpMigrationCodeGenerator)
                 {
@@ -564,12 +595,13 @@ namespace System.Data.Entity.Migrations.Design
         private class GetContextTypesRunner : BaseRunner
         {
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            public override void Run()
+            protected override void RunCore()
             {
                 var assembly = LoadContextAssembly();
 
                 var contextTypes = assembly.GetAccessibleTypes()
-                                           .Where(t => typeof(DbContext).IsAssignableFrom(t)).Select(t => t.FullName)
+                                           .Where(t => !t.IsAbstract && !t.IsGenericType && typeof(DbContext).IsAssignableFrom(t))
+                                           .Select(t => t.FullName)
                                            .ToList();
 
                 AppDomain.CurrentDomain.SetData("result", contextTypes);
@@ -582,12 +614,12 @@ namespace System.Data.Entity.Migrations.Design
             public string ContextTypeName { get; set; }
 
             [SuppressMessage("Microsoft.Security", "CA2140:TransparentMethodsMustNotReferenceCriticalCodeFxCopRule")]
-            public override void Run()
+            protected override void RunCore()
             {
                 var contextType = new TypeFinder(LoadContextAssembly()).FindType(
                     typeof(DbContext),
                     ContextTypeName,
-                    types => types.Where(t => !typeof(HistoryContext).IsAssignableFrom(t)),
+                    types => types.Where(t => !typeof(HistoryContext).IsAssignableFrom(t) && !t.IsAbstract && !t.IsGenericType),
                     Error.EnableMigrations_NoContext,
                     (assembly, types) =>
                         {

@@ -259,3 +259,15 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: 
     SuppressMessage("Microsoft.Design", "CA1020:AvoidNamespacesWithFewTypes", Scope = "namespace",
         Target = "System.Data.Entity.Infrastructure.MappingViews")]
+[assembly: 
+    SuppressMessage("Microsoft.Globalization", "CA1303:Do not pass literals as localized parameters", 
+        MessageId = "System.Data.Entity.Core.SchemaObjectModel.ScalarType.ConvertToByteArray(System.String)", 
+        Scope = "member", 
+        Target = "System.Data.Entity.Core.Metadata.Edm.AspProxy.#.cctor()")]
+[assembly: 
+    SuppressMessage("Microsoft.Design", "CA1020:AvoidNamespacesWithFewTypes", Scope = "namespace", 
+        Target = "System.ComponentModel.DataAnnotations.Schema")]
+[assembly: SuppressMessage("Microsoft.Design", "CA1020:AvoidNamespacesWithFewTypes", Scope = "namespace", 
+        Target = "System.Data.Entity.Utilities")]
+[assembly: SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling", Scope = "member", Target = "System.Data.Entity.Core.Objects.ELinq.ExpressionConverter+StringTranslatorUtil.#ConvertToString(System.Data.Entity.Core.Objects.ELinq.ExpressionConverter,System.Linq.Expressions.Expression)")]
+

@@ -5,24 +5,24 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
     using System.Collections.Generic;
     using System.Data.Entity.Core.Query.InternalTrees;
 
-    /// <summary>
-    /// Removes all sort nodes from the given command except for the top most one
-    /// (the child of the root PhysicalProjectOp node) if any
-    /// </summary>
+    // <summary>
+    // Removes all sort nodes from the given command except for the top most one
+    // (the child of the root PhysicalProjectOp node) if any
+    // </summary>
     internal class SortRemover : BasicOpVisitorOfNode
     {
         #region Private members
 
         private readonly Command m_command;
 
-        /// <summary>
-        /// The only sort node that should not be removed, if any
-        /// </summary>
+        // <summary>
+        // The only sort node that should not be removed, if any
+        // </summary>
         private readonly Node m_topMostSort;
 
-        /// <summary>
-        /// Keeps track of changed nodes to allow to only recompute node info when needed.
-        /// </summary>
+        // <summary>
+        // Keeps track of changed nodes to allow to only recompute node info when needed.
+        // </summary>
         private readonly HashSet<Node> changedNodes = new HashSet<Node>();
 
         #endregion
@@ -59,14 +59,14 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #region Visitor Helpers
 
-        /// <summary>
-        /// Iterates over all children.
-        /// If any of the children changes, update the node info.
-        /// This is safe to do because the only way a child can change is
-        /// if it is a sort node that needs to be removed. The nodes whose children have
-        /// chagnged also get tracked.
-        /// </summary>
-        /// <param name="n"> The current node </param>
+        // <summary>
+        // Iterates over all children.
+        // If any of the children changes, update the node info.
+        // This is safe to do because the only way a child can change is
+        // if it is a sort node that needs to be removed. The nodes whose children have
+        // chagnged also get tracked.
+        // </summary>
+        // <param name="n"> The current node </param>
         protected override void VisitChildren(Node n)
         {
             var anyChanged = false;
@@ -91,9 +91,41 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #region Visitors
 
-        /// <summary>
-        /// If the given node is not the top most SortOp node remove it.
-        /// </summary>
+        // <summary>
+        // ITreeGenerator.CreateLimitNode transforms Limit(Sort(x)) to ConstrainedSort(x,Null,Limit)
+        // with the same keys as the input Sort. The transformation ensures that the sort is not 
+        // eliminated by the SortRemover if it occurs in a subquery.
+        // ITreeGenerator.CreateLimitNode also transforms Limit(x) to ConstrainedSort(x,Null,Limit), 
+        // with no keys, when x is neither a Sort nor a ConstrainedSort. However, there are scenarios
+        // where x includes a Sort that will be lifted during NestPullup, in which case this becomes
+        // ConstrainedSort(Sort(x),Null,Limit) which is basically equivalent to Limit(Sort(x)) and 
+        // thus it needs to be transformed to ConstrainedSort(x,Null,Limit) with the same keys as 
+        // the input Sort.
+        // </summary>
+        public override Node Visit(ConstrainedSortOp op, Node n)
+        {
+            if (op.Keys.Count > 0
+                || n.Children.Count != 3
+                || n.Child0 == null
+                || n.Child1 == null
+                || n.Child0.Op.OpType != OpType.Sort
+                || n.Child1.Op.OpType != OpType.Null
+                || n.Child0.Children.Count != 1)
+            {
+                return n;
+            }
+
+            return
+                m_command.CreateNode(
+                    m_command.CreateConstrainedSortOp(((SortOp)n.Child0.Op).Keys, op.WithTies),
+                    n.Child0.Child0,
+                    n.Child1,
+                    n.Child2);
+        }
+
+        // <summary>
+        // If the given node is not the top most SortOp node remove it.
+        // </summary>
         public override Node Visit(SortOp op, Node n)
         {
             VisitChildren(n);

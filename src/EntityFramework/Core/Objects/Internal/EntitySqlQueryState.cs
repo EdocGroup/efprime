@@ -14,71 +14,60 @@ namespace System.Data.Entity.Core.Objects
     using System.Diagnostics.CodeAnalysis;
     using System.Linq.Expressions;
 
-    /// <summary>
-    /// ObjectQueryState based on Entity-SQL query text.
-    /// </summary>
+    // <summary>
+    // ObjectQueryState based on Entity-SQL query text.
+    // </summary>
     internal sealed class EntitySqlQueryState : ObjectQueryState
     {
-        /// <summary>
-        /// The Entity-SQL text that defines the query.
-        /// </summary>
-        /// <remarks>
-        /// It is important that this field is readonly for consistency reasons wrt <see cref="_queryExpression" />.
-        /// If this field becomes read-write, then write should be allowed only when <see cref="_queryExpression" /> is null,
-        /// or there should be a mechanism keeping both fields consistent.
-        /// </remarks>
+        // <summary>
+        // The Entity-SQL text that defines the query.
+        // </summary>
+        // <remarks>
+        // It is important that this field is readonly for consistency reasons wrt <see cref="_queryExpression" />.
+        // If this field becomes read-write, then write should be allowed only when <see cref="_queryExpression" /> is null,
+        // or there should be a mechanism keeping both fields consistent.
+        // </remarks>
         private readonly string _queryText;
 
-        /// <summary>
-        /// Optional <see cref="DbExpression" /> that defines the query. Must be semantically equal to the
-        /// <see
-        ///     cref="_queryText" />
-        /// .
-        /// </summary>
-        /// <remarks>
-        /// It is important that this field is readonly for consistency reasons wrt <see cref="_queryText" />.
-        /// If this field becomes read-write, then there should be a mechanism keeping both fields consistent.
-        /// </remarks>
+        // <summary>
+        // Optional <see cref="DbExpression" /> that defines the query. Must be semantically equal to the
+        // <see
+        //     cref="_queryText" />
+        // .
+        // </summary>
+        // <remarks>
+        // It is important that this field is readonly for consistency reasons wrt <see cref="_queryText" />.
+        // If this field becomes read-write, then there should be a mechanism keeping both fields consistent.
+        // </remarks>
         private readonly DbExpression _queryExpression;
 
-        /// <summary>
-        /// Can a Limit subclause be appended to the text of this query?
-        /// </summary>
+        // <summary>
+        // Can a Limit subclause be appended to the text of this query?
+        // </summary>
         private readonly bool _allowsLimit;
 
         private readonly ObjectQueryExecutionPlanFactory _objectQueryExecutionPlanFactory;
 
-        /// <summary>
-        /// Initializes a new query EntitySqlQueryState instance.
-        /// </summary>
-        /// <param name="elementType"> </param>
-        /// <param name="commandText"> The Entity-SQL text of the query </param>
-        /// <param name="allowsLimit"> </param>
-        /// <param name="context"> The ObjectContext containing the metadata workspace the query was built against, the connection on which to execute the query, and the cache to store the results in. Must not be null. </param>
-        /// <param name="parameters"> </param>
-        /// <param name="span"> </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Initializes a new query EntitySqlQueryState instance.
+        // </summary>
+        // <param name="commandText"> The Entity-SQL text of the query </param>
+        // <param name="context"> The ObjectContext containing the metadata workspace the query was built against, the connection on which to execute the query, and the cache to store the results in. Must not be null. </param>
         internal EntitySqlQueryState(
             Type elementType, string commandText, bool allowsLimit, ObjectContext context, ObjectParameterCollection parameters, Span span)
             : this(elementType, commandText, /*expression*/ null, allowsLimit, context, parameters, span)
         {
         }
 
-        /// <summary>
-        /// Initializes a new query EntitySqlQueryState instance.
-        /// </summary>
-        /// <param name="elementType"> </param>
-        /// <param name="commandText"> The Entity-SQL text of the query </param>
-        /// <param name="expression">
-        /// Optional <see cref="DbExpression" /> that defines the query. Must be semantically equal to the
-        /// <paramref name="commandText" />.
-        /// </param>
-        /// <param name="allowsLimit"> </param>
-        /// <param name="context"> The ObjectContext containing the metadata workspace the query was built against, the connection on which to execute the query, and the cache to store the results in. Must not be null. </param>
-        /// <param name="parameters"> </param>
-        /// <param name="span"> </param>
-        /// <param name="objectQueryExecutionPlanFactory"> </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Initializes a new query EntitySqlQueryState instance.
+        // </summary>
+        // <param name="commandText"> The Entity-SQL text of the query </param>
+        // <param name="expression">
+        // Optional <see cref="DbExpression" /> that defines the query. Must be semantically equal to the
+        // <paramref name="commandText" />.
+        // </param>
+        // <param name="context"> The ObjectContext containing the metadata workspace the query was built against, the connection on which to execute the query, and the cache to store the results in. Must not be null. </param>
         internal EntitySqlQueryState(
             Type elementType, string commandText, DbExpression expression, bool allowsLimit, ObjectContext context,
             ObjectParameterCollection parameters, Span span,
@@ -93,25 +82,25 @@ namespace System.Data.Entity.Core.Objects
             _objectQueryExecutionPlanFactory = objectQueryExecutionPlanFactory ?? new ObjectQueryExecutionPlanFactory();
         }
 
-        /// <summary>
-        /// Determines whether or not the current query is a 'Skip' or 'Sort' operation
-        /// and so would allow a 'Limit' clause to be appended to the current query text.
-        /// </summary>
-        /// <returns>
-        /// <c>True</c> if the current query is a Skip or Sort expression, or a Project expression with a Skip or Sort expression input.
-        /// </returns>
+        // <summary>
+        // Determines whether or not the current query is a 'Skip' or 'Sort' operation
+        // and so would allow a 'Limit' clause to be appended to the current query text.
+        // </summary>
+        // <returns>
+        // <c>True</c> if the current query is a Skip or Sort expression, or a Project expression with a Skip or Sort expression input.
+        // </returns>
         internal bool AllowsLimitSubclause
         {
             get { return _allowsLimit; }
         }
 
-        /// <summary>
-        /// Always returns the Entity-SQL text of the implemented ObjectQuery.
-        /// </summary>
-        /// <param name="commandText"> Always set to the Entity-SQL text of this ObjectQuery. </param>
-        /// <returns>
-        /// Always returns <c>true</c> .
-        /// </returns>
+        // <summary>
+        // Always returns the Entity-SQL text of the implemented ObjectQuery.
+        // </summary>
+        // <param name="commandText"> Always set to the Entity-SQL text of this ObjectQuery. </param>
+        // <returns>
+        // Always returns <c>true</c> .
+        // </returns>
         internal override bool TryGetCommandText(out string commandText)
         {
             commandText = _queryText;
@@ -147,13 +136,14 @@ namespace System.Data.Entity.Core.Objects
             // 3. The global default merge option.
             var mergeOption = EnsureMergeOption(forMergeOption, UserSpecifiedMergeOption);
 
-            // If a cached plan is present, then it can be reused if it has the required merge option
+            // If a cached plan is present, then it can be reused if it has the required merge option and streaming behavior
             // (since span and parameters cannot change between executions). However, if the cached
             // plan does not have the required merge option we proceed as if it were not present.
             var plan = _cachedPlan;
             if (plan != null)
             {
-                if (plan.MergeOption == mergeOption)
+                if (plan.MergeOption == mergeOption
+                    && plan.Streaming == EffectiveStreamingBehavior)
                 {
                     return plan;
                 }
@@ -178,7 +168,7 @@ namespace System.Data.Entity.Core.Objects
                     (null == Parameters ? null : Parameters.GetCacheKey()),
                     (null == Span ? null : Span.GetCacheKey()),
                     mergeOption,
-                    EffectiveStreamingBehaviour,
+                    EffectiveStreamingBehavior,
                     ElementType);
 
                 cacheManager = ObjectContext.MetadataWorkspace.GetQueryCacheManager();
@@ -194,9 +184,11 @@ namespace System.Data.Entity.Core.Objects
                 // Either caching is not enabled or the execution plan was not found in the cache
                 var queryExpression = Parse();
                 Debug.Assert(queryExpression != null, "EntitySqlQueryState.Parse returned null expression?");
-                var tree = DbQueryCommandTree.FromValidExpression(ObjectContext.MetadataWorkspace, DataSpace.CSpace, queryExpression);
+                var tree = DbQueryCommandTree.FromValidExpression(
+                    ObjectContext.MetadataWorkspace, DataSpace.CSpace, queryExpression,
+                    useDatabaseNullSemantics: true);
                 plan = _objectQueryExecutionPlanFactory.Prepare(
-                    ObjectContext, tree, ElementType, mergeOption, EffectiveStreamingBehaviour, Span, null,
+                    ObjectContext, tree, ElementType, mergeOption, EffectiveStreamingBehavior, Span, null,
                     DbExpressionBuilder.AliasGenerator);
 
                 // If caching is enabled then update the cache now.

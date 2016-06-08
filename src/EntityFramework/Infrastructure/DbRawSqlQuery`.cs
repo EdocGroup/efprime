@@ -21,6 +21,7 @@ namespace System.Data.Entity.Infrastructure
     /// SQL queries for entities are created using <see cref="DbSet{TEntity}.SqlQuery" />.
     /// See <see cref="DbRawSqlQuery" /> for a non-generic version of this class.
     /// </summary>
+    /// <typeparam name="TElement">The type of elements returned by the query.</typeparam>
     [SuppressMessage("Microsoft.Naming", "CA1710:IdentifiersShouldHaveCorrectSuffix")]
     public class DbRawSqlQuery<TElement> : IEnumerable<TElement>, IListSource
 #if !NET40
@@ -31,10 +32,10 @@ namespace System.Data.Entity.Infrastructure
 
         private readonly InternalSqlQuery _internalQuery;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DbRawSqlQuery{TElement}" /> class.
-        /// </summary>
-        /// <param name="internalQuery"> The internal query. </param>
+        // <summary>
+        // Initializes a new instance of the <see cref="DbRawSqlQuery{TElement}" /> class.
+        // </summary>
+        // <param name="internalQuery"> The internal query. </param>
         internal DbRawSqlQuery(InternalSqlQuery internalQuery)
         {
             _internalQuery = internalQuery;
@@ -1344,10 +1345,10 @@ namespace System.Data.Entity.Infrastructure
 
         #region Access to internal query
 
-        /// <summary>
-        /// Gets the internal query.
-        /// </summary>
-        /// <value> The internal query. </value>
+        // <summary>
+        // Gets the internal query.
+        // </summary>
+        // <value> The internal query. </value>
         internal InternalSqlQuery InternalQuery
         {
             get { return _internalQuery; }

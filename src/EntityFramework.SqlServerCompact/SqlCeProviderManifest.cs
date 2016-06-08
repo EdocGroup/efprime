@@ -11,30 +11,35 @@ namespace System.Data.Entity.SqlServerCompact
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Reflection;
+    using System.Text;
     using System.Xml;
 
-    /// <summary>
-    /// The Provider Manifest for SQL Server CE
-    /// </summary>
+    // <summary>
+    // The Provider Manifest for SQL Server CE
+    // </summary>
     internal class SqlCeProviderManifest : DbXmlEnabledProviderManifest
     {
         #region Private and Internal Fields
 
-        /// <summary>
-        /// Singleton object; RDP supports all features as that of LDP.
-        /// So, this shouldn't be an issue anyways.
-        /// </summary>
+        // <summary>
+        // Singleton object; RDP supports all features as that of LDP.
+        // So, this shouldn't be an issue anyways.
+        // </summary>
         internal static readonly SqlCeProviderManifest Instance = new SqlCeProviderManifest(true);
 
+#if SQLSERVERCOMPACT35
+        internal const string ProviderInvariantName = "System.Data.SqlServerCe.3.5";
+#else
         internal const string ProviderInvariantName = "System.Data.SqlServerCe.4.0";
+#endif
 
         internal const string Token40 = "4.0";
 
         internal bool _isLocalProvider = true;
 
-        /// <summary>
-        /// maximum size of SSC unicode
-        /// </summary>
+        // <summary>
+        // maximum size of SSC unicode
+        // </summary>
         private const int nvarcharMaxSize = 4000;
 
         private const int binaryMaxSize = 8000;
@@ -45,22 +50,28 @@ namespace System.Data.Entity.SqlServerCompact
         private const string storeSchemaMappingFile =
             "System.Data.Resources.SqlServerCe.Entity.SqlCeProviderServices.StoreSchemaMapping.msl";
 
+#if SQLSERVERCOMPACT35
+        private const string storeSchemaDescriptionFile =
+            "System.Data.Resources.SqlServerCe.Entity.Legacy.SqlCeProviderServices.StoreSchemaDefinition.ssdl";
+#else
         private const string storeSchemaDescriptionFile =
             "System.Data.Resources.SqlServerCe.Entity.SqlCeProviderServices.StoreSchemaDefinition.ssdl";
-
+#endif
+        // This SSDL is being used only at design time. And because SqlServerCe 3.5 is not supported after
+        // VS2010 we don't need a SqlServerCe 3.5 version of this file.
         private const string storeSchemaDescriptionFileForRDP =
             "Microsoft.SqlServerCe.Client.Resources.Entity.SqlCeProviderServices.StoreSchemaDefinition.ssdl";
+        // '~' is the same escape character that L2S uses
 
-        private ReadOnlyCollection<PrimitiveType> _primitiveTypes;
-        private ReadOnlyCollection<EdmFunction> _functions;
-
+        internal const char LikeEscapeChar = '~';
+        internal const string LikeEscapeCharToString = "~";
         #endregion
 
         #region Constructors
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
+        // <summary>
+        // Constructor
+        // </summary>
         public SqlCeProviderManifest(bool isLocalProvider)
             : base(GetProviderManifest())
         {
@@ -85,12 +96,12 @@ namespace System.Data.Entity.SqlServerCompact
             return GetXmlResource(providerManifestFile);
         }
 
-        /// <summary>
-        /// Providers should override this to return information specific to their provider.
-        /// This method should never return null.
-        /// </summary>
-        /// <param name="informationType"> The name of the information to be retrieved. </param>
-        /// <returns> An XmlReader at the begining of the information requested. </returns>
+        // <summary>
+        // Providers should override this to return information specific to their provider.
+        // This method should never return null.
+        // </summary>
+        // <param name="informationType"> The name of the information to be retrieved. </param>
+        // <returns> An XmlReader at the begining of the information requested. </returns>
         protected override XmlReader GetDbInformation(string informationType)
         {
             if (informationType == ProviderManifest.StoreSchemaDefinition)
@@ -112,33 +123,14 @@ namespace System.Data.Entity.SqlServerCompact
             throw ADP1.ProviderIncompatible(EntityRes.GetString(EntityRes.ProviderReturnedNullForGetDbInformation, informationType));
         }
 
-        public override ReadOnlyCollection<PrimitiveType> GetStoreTypes()
-        {
-            if (_primitiveTypes == null)
-            {
-                _primitiveTypes = base.GetStoreTypes();
-            }
-
-            return _primitiveTypes;
-        }
-
-        public override ReadOnlyCollection<EdmFunction> GetStoreFunctions()
-        {
-            if (_functions == null)
-            {
-                _functions = base.GetStoreFunctions();
-            }
-
-            return _functions;
-        }
-
-        /// <summary>
-        /// This method takes a type and a set of facets and returns the best mapped equivalent type
-        /// in EDM.
-        /// </summary>
-        /// <param name="storeType"> A TypeUsage encapsulating a store type and a set of facets </param>
-        /// <returns> A TypeUsage encapsulating an EDM type and a set of facets </returns>
+        // <summary>
+        // This method takes a type and a set of facets and returns the best mapped equivalent type
+        // in EDM.
+        // </summary>
+        // <param name="storeType"> A TypeUsage encapsulating a store type and a set of facets </param>
+        // <returns> A TypeUsage encapsulating an EDM type and a set of facets </returns>
         [SuppressMessage("Microsoft.Globalization", "CA1308:NormalizeStringsToUppercase")]
+        [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         public override TypeUsage GetEdmType(TypeUsage storeType)
         {
             Check.NotNull(storeType, "storeType");
@@ -152,7 +144,6 @@ namespace System.Data.Entity.SqlServerCompact
             var edmPrimitiveType = base.StoreTypeNameToEdmPrimitiveType[storeTypeName];
 
             var maxLength = 0;
-            var isUnicode = true;
             var isFixedLen = false;
             var isUnbounded = true;
 
@@ -172,21 +163,18 @@ namespace System.Data.Entity.SqlServerCompact
                 case "nvarchar":
                     newPrimitiveTypeKind = PrimitiveTypeKind.String;
                     isUnbounded = !TypeHelpers.TryGetMaxLength(storeType, out maxLength);
-                    isUnicode = true;
                     isFixedLen = false;
                     break;
 
                 case "nchar":
                     newPrimitiveTypeKind = PrimitiveTypeKind.String;
                     isUnbounded = !TypeHelpers.TryGetMaxLength(storeType, out maxLength);
-                    isUnicode = true;
                     isFixedLen = true;
                     break;
 
                 case "ntext":
                     newPrimitiveTypeKind = PrimitiveTypeKind.String;
                     isUnbounded = true;
-                    isUnicode = true;
                     isFixedLen = false;
                     break;
 
@@ -249,14 +237,13 @@ namespace System.Data.Entity.SqlServerCompact
             switch (newPrimitiveTypeKind)
             {
                 case PrimitiveTypeKind.String:
-                    Debug.Assert(isUnicode, "SQLCE supports unicode datatypes only");
                     if (!isUnbounded)
                     {
-                        return TypeUsage.CreateStringTypeUsage(edmPrimitiveType, isUnicode, isFixedLen, maxLength);
+                        return TypeUsage.CreateStringTypeUsage(edmPrimitiveType, /*isUnicode*/ true, isFixedLen, maxLength);
                     }
                     else
                     {
-                        return TypeUsage.CreateStringTypeUsage(edmPrimitiveType, isUnicode, isFixedLen);
+                        return TypeUsage.CreateStringTypeUsage(edmPrimitiveType, /*isUnicode*/ true, isFixedLen);
                     }
                 case PrimitiveTypeKind.Binary:
                     if (!isUnbounded)
@@ -272,12 +259,12 @@ namespace System.Data.Entity.SqlServerCompact
             }
         }
 
-        /// <summary>
-        /// This method takes a type and a set of facets and returns the best mapped equivalent type
-        /// in SQL Server, taking the store version into consideration.
-        /// </summary>
-        /// <param name="edmType"> A TypeUsage encapsulating an EDM type and a set of facets </param>
-        /// <returns> A TypeUsage encapsulating a store type and a set of facets </returns>
+        // <summary>
+        // This method takes a type and a set of facets and returns the best mapped equivalent type
+        // in SQL Server, taking the store version into consideration.
+        // </summary>
+        // <param name="edmType"> A TypeUsage encapsulating an EDM type and a set of facets </param>
+        // <returns> A TypeUsage encapsulating a store type and a set of facets </returns>
         [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         public override TypeUsage GetStoreType(TypeUsage edmType)
         {
@@ -376,8 +363,6 @@ namespace System.Data.Entity.SqlServerCompact
                 case PrimitiveTypeKind.String:
                     //char, nchar, varchar, nvarchar, ntext, text, xml
                     {
-                        var isUnicode = null == facets[ProviderManifest.UnicodeFacetName].Value
-                                        || (bool)facets[ProviderManifest.UnicodeFacetName].Value;
                         var isFixedLength = null != facets[ProviderManifest.FixedLengthFacetName].Value
                                             && (bool)facets[ProviderManifest.FixedLengthFacetName].Value;
                         var f = facets[ProviderManifest.MaxLengthFacetName];
@@ -452,17 +437,95 @@ namespace System.Data.Entity.SqlServerCompact
         private static XmlReader GetXmlResource(string resourceName)
         {
             return XmlReader.Create(
-                Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName),
-                null, resourceName);
+                Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName));
         }
 
-        /// <summary>
-        /// Returns a boolean that specifies whether the corresponding provider can handle expression trees 
-        /// containing instances of DbInExpression.
-        /// The SqlCe provider handles instances of DbInExpression.
-        /// </summary>
-        /// <returns> <c>true</c>. </returns>
+        #region Internal Methods
+
+        // <summary>
+        // Function to detect wildcard characters %, _, [ and ^ and escape them with a preceding ~
+        // This escaping is used when StartsWith, EndsWith and Contains canonical and CLR functions
+        // are translated to their equivalent LIKE expression
+        // NOTE: This code has been copied from LinqToSql
+        // </summary>
+        // <param name="text"> Original input as specified by the user </param>
+        // <param name="alwaysEscapeEscapeChar"> escape the escape character ~ regardless whether wildcard characters were encountered </param>
+        // <param name="usedEscapeChar"> true if the escaping was performed, false if no escaping was required </param>
+        // <returns> The escaped string that can be used as pattern in a LIKE expression </returns>
+        internal static string EscapeLikeText(string text, bool alwaysEscapeEscapeChar, out bool usedEscapeChar)
+        {
+            DebugCheck.NotNull(text);
+
+            usedEscapeChar = false;
+            if (!(text.Contains("%") || text.Contains("_") || text.Contains("[")
+                  || text.Contains("^") || alwaysEscapeEscapeChar && text.Contains(LikeEscapeCharToString)))
+            {
+                return text;
+            }
+            var sb = new StringBuilder(text.Length);
+            foreach (var c in text)
+            {
+                if (c == '%'
+                    || c == '_'
+                    || c == '['
+                    || c == '^'
+                    || c == LikeEscapeChar)
+                {
+                    sb.Append(LikeEscapeChar);
+                    usedEscapeChar = true;
+                }
+                sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        #endregion
+
+        // <summary>
+        // Returns true, SqlCeClient supports escaping strings to be used as arguments to like
+        // The escape character is '~'
+        // </summary>
+        // <param name="escapeCharacter"> The character '~' </param>
+        // <returns> True </returns>
+        public override bool SupportsEscapingLikeArgument(out char escapeCharacter)
+        {
+            escapeCharacter = LikeEscapeChar;
+            return true;
+        }
+
+        // <summary>
+        // Escapes the wildcard characters and the escape character in the given argument.
+        // </summary>
+        // <returns> Equivalent to the argument, with the wildcard characters and the escape character escaped </returns>
+        public override string EscapeLikeArgument(string argument)
+        {
+            Check.NotNull(argument, "argument");
+
+            bool usedEscapeCharacter;
+            return EscapeLikeText(argument, true, out usedEscapeCharacter);
+        }
+
+        // <summary>
+        // Returns a boolean that specifies whether the corresponding provider can handle expression trees 
+        // containing instances of DbInExpression.
+        // The SqlCe provider handles instances of DbInExpression.
+        // </summary>
+        // <returns> 
+        // <c>true</c> 
+        // </returns>
         public override bool SupportsInExpression()
+        {
+            return true;
+        }
+
+        // <summary>
+        // Returns a boolean that specifies whether the provider can process expression trees not having DbProjectExpression 
+        // nodes directly under both Left and Right sides of DbUnionAllExpression and DbIntersectExpression
+        // </summary>
+        // <returns> 
+        // <c>true</c>
+        // </returns>
+        public override bool SupportsIntersectAndUnionAllFlattening()
         {
             return true;
         }

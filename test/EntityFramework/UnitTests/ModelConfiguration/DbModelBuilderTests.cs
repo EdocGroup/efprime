@@ -18,21 +18,31 @@ namespace System.Data.Entity.ModelConfiguration
     using System.Linq;
     using System.Reflection;
     using Xunit;
-    using BinaryPropertyConfiguration = System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.BinaryPropertyConfiguration
-        ;
+    using BinaryPropertyConfiguration =
+        System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.BinaryPropertyConfiguration;
     using DateTimePropertyConfiguration =
         System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.DateTimePropertyConfiguration;
     using DecimalPropertyConfiguration =
         System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.DecimalPropertyConfiguration;
-    using LengthPropertyConfiguration = System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.LengthPropertyConfiguration
-        ;
+    using LengthPropertyConfiguration =
+        System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.LengthPropertyConfiguration;
     using PrimitivePropertyConfiguration =
         System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.PrimitivePropertyConfiguration;
-    using StringPropertyConfiguration = System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.StringPropertyConfiguration
-        ;
+    using StringPropertyConfiguration =
+        System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.StringPropertyConfiguration;
 
     public sealed class DbModelBuilderTests
     {
+        [Fact] // CodePlex 2447
+        public void Can_register_an_entity_type_with_non_generic_method()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.RegisterEntityType(typeof(AType1));
+
+            Assert.Same(typeof(AType1), modelBuilder.ModelConfiguration.Entities.Single());
+        }
+
         [Fact]
         public void Can_set_default_schema()
         {
@@ -70,7 +80,7 @@ namespace System.Data.Entity.ModelConfiguration
         public void Build_should_validate_and_throw_with_invalid_model()
         {
             var modelConfiguration = new ModelConfiguration();
-            modelConfiguration.Entity(new MockType(), true);
+            modelConfiguration.Entity(typeof(Random), true);
 
             Assert.Throws<ModelValidationException>(
                 () => new DbModelBuilder(modelConfiguration).Build(ProviderRegistry.Sql2008_ProviderInfo));
@@ -110,7 +120,7 @@ namespace System.Data.Entity.ModelConfiguration
         public void Build_should_not_throw_when_complex_type_ignored_then_configured()
         {
             var modelConfiguration = new ModelConfiguration();
-            var mockType = new MockType();
+            var mockType = typeof(AType1);
             modelConfiguration.Ignore(mockType);
             modelConfiguration.ComplexType(mockType);
             var modelBuilder = new DbModelBuilder();
@@ -124,9 +134,8 @@ namespace System.Data.Entity.ModelConfiguration
         public void Build_should_map_types()
         {
             var modelConfiguration = new ModelConfiguration();
-            var mockType = new MockType("T").Property<int>("Id");
-            modelConfiguration.Entity(mockType).Key(mockType.GetProperty("Id"));
-            modelConfiguration.ComplexType(new MockType("C"));
+            modelConfiguration.Entity(typeof(AType2)).Key(typeof(AType2).GetInstanceProperty("Id"));
+            modelConfiguration.ComplexType(typeof(CType2));
             var modelBuilder = new DbModelBuilder(modelConfiguration);
 
             var databaseMapping = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo).DatabaseMapping;
@@ -137,13 +146,21 @@ namespace System.Data.Entity.ModelConfiguration
             Assert.Equal(1, databaseMapping.Model.ComplexTypes.Count());
         }
 
+        public class AType2
+        {
+            public int Id { get; set; }
+        }
+
+        public class CType2
+        {
+        }
+
         [Fact]
         public void Build_should_apply_model_configuration()
         {
             var modelConfiguration = new ModelConfiguration();
-            var mockType = new MockType("T").Property<int>("Id");
-            modelConfiguration.Entity(mockType)
-                .Property(new PropertyPath(mockType.GetProperty("Id")))
+            modelConfiguration.Entity(typeof(AType1))
+                .Property(new PropertyPath(typeof(AType1).GetInstanceProperty("Id")))
                 .ConcurrencyMode = ConcurrencyMode.Fixed;
 
             var databaseMapping = new DbModelBuilder(modelConfiguration).Build(ProviderRegistry.Sql2008_ProviderInfo).DatabaseMapping;
@@ -154,17 +171,26 @@ namespace System.Data.Entity.ModelConfiguration
                 databaseMapping.Model.EntityTypes.Single().DeclaredProperties.Single().ConcurrencyMode);
         }
 
+        public class AType1
+        {
+            public int Id { get; set; }
+        }
+
         [Fact]
         public void Mapping_a_single_abstract_type_should_not_throw()
         {
             var modelConfiguration = new ModelConfiguration();
-            var mockType = new MockType("T").TypeAttributes(TypeAttributes.Abstract).Property<int>("Id");
-            modelConfiguration.Entity(mockType).Key(mockType.GetProperty("Id"));
+            modelConfiguration.Entity(typeof(AType1)).Key(typeof(AType1).GetDeclaredProperty("Id"));
             var modelBuilder = new DbModelBuilder();
 
             var databaseMapping = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo);
 
             Assert.NotNull(databaseMapping);
+        }
+
+        public abstract class AType3
+        {
+            public int Id { get; set; }
         }
 
         #region Model builder cloning tests
@@ -173,7 +199,7 @@ namespace System.Data.Entity.ModelConfiguration
         public void Cloning_the_model_builder_clones_contained_types()
         {
             var builder = new DbModelBuilder(DbModelBuilderVersion.V4_1);
-            builder.ModelConfiguration.Entity(new MockType(), true);
+            builder.ModelConfiguration.Entity(typeof(AType1), true);
 
             Assert.Same(builder.ModelConfiguration, builder.ModelConfiguration);
             Assert.Same(builder.Conventions, builder.Conventions);
@@ -197,10 +223,8 @@ namespace System.Data.Entity.ModelConfiguration
 
         private void VerifyFieldCount<T>(int expectedCount)
         {
-            const BindingFlags bindingFlags =
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
+            var actualCount = typeof(T).GetRuntimeFields().Count(f => !f.IsStatic);
 
-            var actualCount = typeof(T).GetFields(bindingFlags).Count();
             if (expectedCount != actualCount)
             {
                 Assert.True(
@@ -281,7 +305,7 @@ namespace System.Data.Entity.ModelConfiguration
         [Fact]
         public void EntityTypeConfiguration_has_expected_number_of_fields()
         {
-            VerifyFieldCount<EntityTypeConfiguration>(11);
+            VerifyFieldCount<EntityTypeConfiguration>(12);
         }
 
         [Fact]
@@ -350,7 +374,7 @@ namespace System.Data.Entity.ModelConfiguration
         {
             var configuration = new EntityTypeConfiguration(typeof(object));
 
-            var mockNavProp1 = new MockPropertyInfo(new MockType(), "Nav1");
+            var mockNavProp1 = new MockPropertyInfo(typeof(AType1), "Nav1");
             var navConfig1 = configuration.Navigation(mockNavProp1);
 
             var clone = configuration.Clone();
@@ -358,7 +382,7 @@ namespace System.Data.Entity.ModelConfiguration
             Assert.True(clone.ConfiguredProperties.Contains(mockNavProp1));
             Assert.NotSame(navConfig1, clone.Navigation(mockNavProp1));
 
-            var mockNavProp2 = new MockPropertyInfo(new MockType(), "Nav2");
+            var mockNavProp2 = new MockPropertyInfo(typeof(AType1), "Nav2");
             configuration.Navigation(mockNavProp2);
 
             Assert.False(clone.ConfiguredProperties.Contains(mockNavProp2));
@@ -407,13 +431,19 @@ namespace System.Data.Entity.ModelConfiguration
             var configuration = new EntityTypeConfiguration(typeof(object));
 
             configuration.ToTable("Table");
+            configuration.SetAnnotation("A1", "V1");
 
             var clone = configuration.Clone();
             Assert.Equal("Table", clone.GetTableName().Name);
+            Assert.Equal("A1", clone.Annotations.Single().Key);
+            Assert.Equal("V1", clone.Annotations.Single().Value);
 
             configuration.ToTable("AnotherTable");
+            configuration.SetAnnotation("A2", "V2");
 
             Assert.Equal("Table", clone.GetTableName().Name);
+            Assert.Equal("A1", clone.Annotations.Single().Key);
+            Assert.Equal("V1", clone.Annotations.Single().Value);
         }
 
         [Fact]
@@ -515,7 +545,7 @@ namespace System.Data.Entity.ModelConfiguration
         [Fact]
         public void PrimitivePropertyConfiguration_has_expected_number_of_fields()
         {
-            VerifyFieldCount<PrimitivePropertyConfiguration>(9);
+            VerifyFieldCount<PrimitivePropertyConfiguration>(10);
         }
 
         [Fact]
@@ -625,6 +655,11 @@ namespace System.Data.Entity.ModelConfiguration
             configuration.ColumnName = "ColumnName";
             configuration.ColumnOrder = 1;
             configuration.OverridableConfigurationParts = OverridableConfigurationParts.OverridableInCSpace;
+            configuration.SetAnnotation("A1", "V1");
+            configuration.SetAnnotation("A2", "V2");
+            configuration.SetAnnotation("A3", "V3");
+            configuration.SetAnnotation("A1", "V4");
+            configuration.SetAnnotation("A2", null);
 
             var clone = configuration.Clone();
 
@@ -635,6 +670,9 @@ namespace System.Data.Entity.ModelConfiguration
             Assert.Equal("ColumnName", clone.ColumnName);
             Assert.Equal(1, clone.ColumnOrder);
             Assert.Equal(OverridableConfigurationParts.OverridableInCSpace, clone.OverridableConfigurationParts);
+            Assert.Equal("V4", clone.Annotations["A1"]);
+            Assert.Null(clone.Annotations["A2"]);
+            Assert.Equal("V3", clone.Annotations["A3"]);
 
             return clone;
         }
@@ -642,7 +680,7 @@ namespace System.Data.Entity.ModelConfiguration
         [Fact]
         public void Cloning_a_navigation_property_configuration_clones_its_property_information()
         {
-            var navProp = new MockPropertyInfo(new MockType(), "P1");
+            var navProp = new MockPropertyInfo(typeof(AType1), "P1");
             var configuration = new NavigationPropertyConfiguration(navProp);
 
             configuration.RelationshipMultiplicity = RelationshipMultiplicity.Many;
@@ -674,7 +712,7 @@ namespace System.Data.Entity.ModelConfiguration
         [Fact]
         public void Cloning_a_navigation_property_configuration_clones_its_constraint_information()
         {
-            var navProp = new MockPropertyInfo(new MockType(), "P1");
+            var navProp = new MockPropertyInfo(typeof(AType1), "P1");
             var configuration = new NavigationPropertyConfiguration(navProp);
 
             configuration.Constraint =
@@ -693,7 +731,7 @@ namespace System.Data.Entity.ModelConfiguration
         [Fact]
         public void Cloning_a_navigation_property_configuration_clones_its_association_mapping_configuration()
         {
-            var navProp = new MockPropertyInfo(new MockType(), "P1");
+            var navProp = new MockPropertyInfo(typeof(AType1), "P1");
             var configuration = new NavigationPropertyConfiguration(navProp);
 
             var mappingConfiguration = new ForeignKeyAssociationMappingConfiguration();
@@ -709,7 +747,7 @@ namespace System.Data.Entity.ModelConfiguration
         [Fact]
         public void Cloning_a_navigation_property_configuration_clones_its_function_mapping_configuration()
         {
-            var navProp = new MockPropertyInfo(new MockType(), "P1");
+            var navProp = new MockPropertyInfo(typeof(AType1), "P1");
             var configuration = new NavigationPropertyConfiguration(navProp);
 
             var functionsConfiguration = new ModificationStoredProceduresConfiguration();
@@ -783,32 +821,60 @@ namespace System.Data.Entity.ModelConfiguration
         }
 
         [Fact]
-        public void ForeignKeyAssociationMappingConfiguration_has_expected_number_of_fields()
+        public void Cloning_an_foreign_key_mapping_configuration_clones_its_annotation_information()
         {
-            VerifyFieldCount<ForeignKeyAssociationMappingConfiguration>(2);
+            var configuration = new ForeignKeyAssociationMappingConfiguration();
+            configuration.MapKey("C1", "C2");
+            configuration.HasColumnAnnotation("C1", "A1", "V1");
+            configuration.HasColumnAnnotation("C2", "A2", "V2");
+
+            var clone = (ForeignKeyAssociationMappingConfiguration)configuration.Clone();
+
+            Assert.Equal(configuration, clone);
+
+            configuration.HasColumnAnnotation("C2", "A2", "V3");
+
+            Assert.NotEqual(configuration, clone);
         }
 
         [Fact]
-        public void Cloning_a_many_to_many_foreign_key_mapping_configuration_clones_its_table_and_column_information()
+        public void ForeignKeyAssociationMappingConfiguration_has_expected_number_of_fields()
+        {
+            VerifyFieldCount<ForeignKeyAssociationMappingConfiguration>(3);
+        }
+
+        [Fact]
+        public void Cloning_a_many_to_many_foreign_key_mapping_configuration_clones_its_table_column_and_annotation_information()
         {
             var configuration = new ManyToManyAssociationMappingConfiguration();
             configuration.MapLeftKey("C1");
             configuration.MapRightKey("C2");
             configuration.ToTable("T", "S");
+            configuration.HasTableAnnotation("A1", "V1");
 
             var clone = (ManyToManyAssociationMappingConfiguration)configuration.Clone();
-
             Assert.Equal(configuration, clone);
 
-            configuration.MapLeftKey("C3");
+            clone.MapLeftKey("C3");
+            Assert.NotEqual(configuration, clone);
 
+            clone = (ManyToManyAssociationMappingConfiguration)configuration.Clone();
+            clone.MapRightKey("C3");
+            Assert.NotEqual(configuration, clone);
+
+            clone = (ManyToManyAssociationMappingConfiguration)configuration.Clone();
+            clone.ToTable("T", "S2");
+            Assert.NotEqual(configuration, clone);
+
+            clone = (ManyToManyAssociationMappingConfiguration)configuration.Clone();
+            clone.HasTableAnnotation("A1", "V2");
             Assert.NotEqual(configuration, clone);
         }
 
         [Fact]
         public void ManyToManyAssociationMappingConfiguration_has_expected_number_of_fields()
         {
-            VerifyFieldCount<ManyToManyAssociationMappingConfiguration>(3);
+            VerifyFieldCount<ManyToManyAssociationMappingConfiguration>(4);
         }
 
         [Fact]
@@ -818,7 +884,7 @@ namespace System.Data.Entity.ModelConfiguration
         }
 
         [Fact]
-        public void Cloning_an_entity_mapping_configuration_clones_its_table_property_and_condition_information()
+        public void Cloning_an_entity_mapping_configuration_clones_its_table_property_condition_and_annotation_information()
         {
             var configuration = new EntityMappingConfiguration();
 
@@ -835,6 +901,8 @@ namespace System.Data.Entity.ModelConfiguration
 
             configuration.MapInheritedProperties = true;
 
+            configuration.SetAnnotation("A1", "V1");
+
             var clone = configuration.Clone();
 
             Assert.True(clone.Properties.Any(p => p[0].Name == "P1"));
@@ -845,22 +913,29 @@ namespace System.Data.Entity.ModelConfiguration
             Assert.True(clone.ValueConditions.Any(c => c.Discriminator == "D"));
             Assert.True(clone.NullabilityConditions.Any(c => c.PropertyPath[0].Name == "P1"));
 
+            Assert.Equal("A1", clone.Annotations.Single().Key);
+            Assert.Equal("V1", clone.Annotations.Single().Value);
+
             configuration.AddValueCondition(new ValueConditionConfiguration(configuration, "D2"));
             configuration.AddNullabilityCondition(
                 new NotNullConditionConfiguration(
                     configuration,
                     new PropertyPath(new MockPropertyInfo(typeof(int), "P2"))));
+            configuration.SetAnnotation("A2", "V2");
 
             Assert.False(clone.ValueConditions.Any(c => c.Discriminator == "D2"));
             Assert.False(clone.NullabilityConditions.Any(c => c.PropertyPath[0].Name == "P2"));
 
             Assert.True(clone.MapInheritedProperties);
+
+            Assert.Equal("A1", clone.Annotations.Single().Key);
+            Assert.Equal("V1", clone.Annotations.Single().Value);
         }
 
         [Fact]
         public void EntityMappingConfiguration_has_expected_number_of_fields()
         {
-            VerifyFieldCount<EntityMappingConfiguration>(6);
+            VerifyFieldCount<EntityMappingConfiguration>(7);
         }
 
         [Fact]
@@ -966,6 +1041,17 @@ namespace System.Data.Entity.ModelConfiguration
             Assert.Equal(
                 Strings.ModelBuilder_PropertyFilterTypeMustBePrimitive(typeof(object)),
                 ex.Message);
+        }
+
+        [Fact]
+        public void Build_adds_the_UseClrTypes_annotation_to_the_container()
+        {
+            var databaseMapping = new DbModelBuilder().Build(ProviderRegistry.Sql2008_ProviderInfo).DatabaseMapping;
+
+            Assert.Equal(
+                1,
+                databaseMapping.Model.Container.Annotations.Count(
+                    a => a.Name == XmlConstants.UseClrTypesAnnotationWithPrefix && a.Value.Equals("true")));
         }
     }
 }

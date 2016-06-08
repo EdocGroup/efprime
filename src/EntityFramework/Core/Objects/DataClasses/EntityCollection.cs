@@ -22,6 +22,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
     /// which can either be all entities of a particular type or
     /// entities participating in a particular relationship.
     /// </summary>
+    /// <typeparam name="TEntity">The type of entities in this collection.</typeparam>
     [Serializable]
     public class EntityCollection<TEntity> : RelatedEnd, ICollection<TEntity>, IListSource
         where TEntity : class
@@ -63,9 +64,9 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         // Events
         // ---------
 
-        /// <summary>
-        /// internal Event to notify changes in the collection.
-        /// </summary>
+        // <summary>
+        // internal Event to notify changes in the collection.
+        // </summary>
         // Dev notes -2
         // following statement is valid on current existing CLR: 
         // lets say Customer is an Entity, Array[Customer] is not Array[Entity]; it is not supported
@@ -88,7 +89,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             {
                 if (null == _wrappedRelatedEntities)
                 {
-                    _wrappedRelatedEntities = new Dictionary<TEntity, IEntityWrapper>(new ObjectReferenceEqualityComparer());
+                    _wrappedRelatedEntities = new Dictionary<TEntity, IEntityWrapper>(ObjectReferenceEqualityComparer.Default);
                 }
                 return _wrappedRelatedEntities;
             }
@@ -235,6 +236,8 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         {
             CheckOwnerNull();
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             //Pass in null to indicate the CreateSourceQuery method should be used.
             return LoadAsync(null, mergeOption, cancellationToken);
             // do not fire the AssociationChanged event here,
@@ -288,11 +291,11 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             Attach(new[] { EntityWrapperFactory.WrapEntityUsingContext(entity, ObjectContext) }, false);
         }
 
-        /// <summary>
-        /// Requires: collection is null or contains related entities.
-        /// Loads related entities into the local collection.
-        /// </summary>
-        /// <param name="collection"> If null, retrieves entities from the server through a query; otherwise, loads the given collection </param>
+        // <summary>
+        // Requires: collection is null or contains related entities.
+        // Loads related entities into the local collection.
+        // </summary>
+        // <param name="collection"> If null, retrieves entities from the server through a query; otherwise, loads the given collection </param>
         internal virtual void Load(List<IEntityWrapper> collection, MergeOption mergeOption)
         {
             // Validate that the Load is possible
@@ -334,6 +337,8 @@ namespace System.Data.Entity.Core.Objects.DataClasses
 
         internal virtual async Task LoadAsync(List<IEntityWrapper> collection, MergeOption mergeOption, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // Validate that the Load is possible
             bool hasResults;
             var sourceQuery = ValidateLoad<TEntity>(mergeOption, "EntityCollection", out hasResults);
@@ -349,9 +354,8 @@ namespace System.Data.Entity.Core.Objects.DataClasses
                     {
                         var queryResult =
                             await
-                            sourceQuery.ExecuteAsync(sourceQuery.MergeOption, cancellationToken).ConfigureAwait(
-                                continueOnCapturedContext: false);
-                        refreshedValues = await queryResult.ToListAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                            sourceQuery.ExecuteAsync(sourceQuery.MergeOption, cancellationToken).WithCurrentCulture();
+                        refreshedValues = await queryResult.ToListAsync(cancellationToken).WithCurrentCulture();
                     }
                     else
                     {
@@ -390,9 +394,9 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             Add(EntityWrapperFactory.WrapEntityUsingContext(item, ObjectContext));
         }
 
-        /// <summary>
-        /// Add the item to the underlying collection
-        /// </summary>
+        // <summary>
+        // Add the item to the underlying collection
+        // </summary>
         internal override void DisconnectedAdd(IEntityWrapper wrappedEntity)
         {
             DebugCheck.NotNull(wrappedEntity);
@@ -411,9 +415,9 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             OnAssociationChanged(CollectionChangeAction.Add, wrappedEntity.Entity);
         }
 
-        /// <summary>
-        /// Remove the item from the underlying collection
-        /// </summary>
+        // <summary>
+        // Remove the item from the underlying collection
+        // </summary>
         internal override bool DisconnectedRemove(IEntityWrapper wrappedEntity)
         {
             DebugCheck.NotNull(wrappedEntity);
@@ -565,22 +569,6 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             }
         }
 
-        /// <returns> True if the verify succeeded, False if the Add should no-op </returns>
-        internal override bool VerifyEntityForAdd(IEntityWrapper wrappedEntity, bool relationshipAlreadyExists)
-        {
-            DebugCheck.NotNull(wrappedEntity);
-
-            if (!relationshipAlreadyExists
-                && ContainsEntity(wrappedEntity))
-            {
-                return false;
-            }
-
-            VerifyType(wrappedEntity);
-
-            return true;
-        }
-
         internal override bool CanSetEntityType(IEntityWrapper wrappedEntity)
         {
             DebugCheck.NotNull(wrappedEntity);
@@ -599,9 +587,9 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             }
         }
 
-        /// <summary>
-        /// Remove from the RelatedEnd
-        /// </summary>
+        // <summary>
+        // Remove from the RelatedEnd
+        // </summary>
         internal override bool RemoveFromLocalCache(IEntityWrapper wrappedEntity, bool resetIsLoaded, bool preserveForeignKey)
         {
             DebugCheck.NotNull(wrappedEntity);
@@ -618,9 +606,9 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             return false;
         }
 
-        /// <summary>
-        /// Remove from the POCO collection
-        /// </summary>
+        // <summary>
+        // Remove from the POCO collection
+        // </summary>
         internal override bool RemoveFromObjectCache(IEntityWrapper wrappedEntity)
         {
             DebugCheck.NotNull(wrappedEntity);
@@ -665,10 +653,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
         {
             DebugCheck.NotNull(wrappedEntity);
 
-            // Using operator 'as' instead of () allows calling ContainsEntity
-            // with entity of different type than TEntity.
-            var entity = wrappedEntity.Entity as TEntity;
-            return _wrappedRelatedEntities == null ? false : _wrappedRelatedEntities.ContainsKey(entity);
+            return _wrappedRelatedEntities != null && _wrappedRelatedEntities.ContainsKey((TEntity)wrappedEntity.Entity);
         }
 
         // -------------------
@@ -825,35 +810,50 @@ namespace System.Data.Entity.Core.Objects.DataClasses
                 return false;
             }
 
-            var value = WrappedOwner.GetNavigationPropertyValue(this);
-
-            if (value != null)
+            var loadingState = DisableLazyLoading();
+            try
             {
-                // It would be good to be able to always use ICollection<T>.Contains here. The problem
-                // is if the entity has overridden Equals/GetHashcode such that it makes use of the
-                // primary key value then this will break when an Added object with an Identity key that
-                // is contained in a navigation collection has its primary key set after it is saved.
-                // Therefore, we only use this optimization if we know for sure that the nav prop is
-                // using reference equality or if neither Equals or GetHashCode are overridden.
+                var value = WrappedOwner.GetNavigationPropertyValue(this);
 
-                var collection = value as ICollection<TEntity>;
-                if (collection == null)
+                if (value != null)
                 {
-                    throw new EntityException(
-                        Strings.ObjectStateEntry_UnableToEnumerateCollection(
-                            TargetAccessor.PropertyName, WrappedOwner.Entity.GetType().FullName));
-                }
+                    // It would be good to be able to always use ICollection<T>.Contains here. The problem
+                    // is if the entity has overridden Equals/GetHashcode such that it makes use of the
+                    // primary key value then this will break when an Added object with an Identity key that
+                    // is contained in a navigation collection has its primary key set after it is saved.
+                    // Therefore, we only use this optimization if we know for sure that the nav prop is
+                    // using reference equality or if neither Equals or GetHashCode are overridden.
+                    //
+                    // Also, note that for most EF code to work the navigation property must be an ICollection.
+                    // However, some limited code paths work with IEnumerable, so we check for IEnumerable here
+                    // instead of ICollection to avoid breaking those code paths. If it's not IEnumerable, then
+                    // the message still tells people to use ICollection since pointing them to use IEnumerable
+                    // will likely cause more confusion and other errors as they continue development.
+                    var enumerable = value as IEnumerable<TEntity>;
+                    if (enumerable == null)
+                    {
+                        throw new EntityException(
+                            Strings.ObjectStateEntry_UnableToEnumerateCollection(
+                                TargetAccessor.PropertyName, WrappedOwner.Entity.GetType().FullName));
+                    }
 
-                var hashSet = value as HashSet<TEntity>;
-                if (!wrapper.OverridesEqualsOrGetHashCode
-                    || (hashSet != null
-                        && hashSet.Comparer is ObjectReferenceEqualityComparer))
-                {
-                    return collection.Contains((TEntity)wrapper.Entity);
-                }
+                    var hashSet = value as HashSet<TEntity>;
+                    if (!wrapper.OverridesEqualsOrGetHashCode
+                        || (hashSet != null
+                            && hashSet.Comparer is ObjectReferenceEqualityComparer))
+                    {
+                        // Contains extension method will short-circuit to ICollection.Contains if possible
+                        return enumerable.Contains((TEntity)wrapper.Entity);
+                    }
 
-                return collection.Any(o => ReferenceEquals(o, wrapper.Entity));
+                    return enumerable.Any(o => ReferenceEquals(o, wrapper.Entity));
+                }
             }
+            finally
+            {
+                ResetLazyLoading(loadingState);
+            }
+
             return false;
         }
 
@@ -879,7 +879,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             {
                 throw new InvalidOperationException(Strings.RelatedEnd_CannotSerialize("EntityCollection"));
             }
-            _relatedEntities = _wrappedRelatedEntities == null ? null : new HashSet<TEntity>(_wrappedRelatedEntities.Keys, new ObjectReferenceEqualityComparer());
+            _relatedEntities = _wrappedRelatedEntities == null ? null : new HashSet<TEntity>(_wrappedRelatedEntities.Keys, ObjectReferenceEqualityComparer.Default);
         }
 
         // This method is required to maintain compatibility with the v1 binary serialization format. 
@@ -900,7 +900,7 @@ namespace System.Data.Entity.Core.Objects.DataClasses
                 // We need to call this here so that the hash set will be fully constructed
                 // ready for access.  Normally, this would happen later in the process.
                 _relatedEntities.OnDeserialization(null);
-                _wrappedRelatedEntities = new Dictionary<TEntity, IEntityWrapper>(new ObjectReferenceEqualityComparer());
+                _wrappedRelatedEntities = new Dictionary<TEntity, IEntityWrapper>(ObjectReferenceEqualityComparer.Default);
                 foreach (var entity in _relatedEntities)
                 {
                     _wrappedRelatedEntities.Add(entity, EntityWrapperFactory.WrapEntityUsingContext(entity, ObjectContext));

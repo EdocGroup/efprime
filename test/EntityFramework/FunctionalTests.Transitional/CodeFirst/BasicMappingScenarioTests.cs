@@ -83,10 +83,10 @@ namespace FunctionalTests
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertValid();
-            databaseMapping.Assert<TypeClass>(t => t.StringProp).FacetEqual(true, f => f.IsUnicode);
-            databaseMapping.Assert<TypeClass>(t => t.StringProp).FacetEqual(false, f => f.IsFixedLength);
-            databaseMapping.Assert<TypeClass>(t => t.StringProp).FacetEqual(42, f => f.MaxLength);
+            databaseMapping.Assert<TypeClass>(t => t.StringProp).DbEqual(true, f => f.IsUnicode);
+            databaseMapping.Assert<TypeClass>(t => t.StringProp).DbEqual(false, f => f.IsFixedLength);
             databaseMapping.Assert<TypeClass>(t => t.StringProp).DbEqual(42, f => f.MaxLength);
+            databaseMapping.Assert<TypeClass>(t => t.StringProp).FacetEqual(42, f => f.MaxLength);
         }
 
         public class TypeClass
@@ -479,11 +479,40 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<SalesPerson>().ToTable("tbl_sp");
+            modelBuilder.Entity<SalesPerson>()
+                .ToTable("tbl_sp")
+                .HasTableAnnotation("A1", "V1")
+                .HasTableAnnotation("A2", "V2")
+                .HasTableAnnotation("A3", "V3")
+                .HasTableAnnotation("A1", "V4")
+                .HasTableAnnotation("A3", null);
 
             var databaseMapping = BuildMapping(modelBuilder);
 
-            databaseMapping.Assert<SalesPerson>("tbl_sp");
+            databaseMapping.Assert<SalesPerson>("tbl_sp")
+                .HasAnnotation("A1", "V4")
+                .HasAnnotation("A2", "V2")
+                .HasNoAnnotation("A3");
+        }
+
+        [Fact]
+        public void Annotations_can_be_added_to_table_even_without_ToTable_call()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<SalesPerson>()
+                .HasTableAnnotation("A1", "V1")
+                .HasTableAnnotation("A2", "V2")
+                .HasTableAnnotation("A3", "V3")
+                .HasTableAnnotation("A1", "V4")
+                .HasTableAnnotation("A3", null);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<SalesPerson>()
+                .HasAnnotation("A1", "V4")
+                .HasAnnotation("A2", "V2")
+                .HasNoAnnotation("A3");
         }
 
         [Fact]
@@ -592,27 +621,52 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<TPHBase>()
-                .Map(mc => { mc.Requires("MyDisc").HasValue("a"); })
-                .Map<TPHDerived>(mc => { mc.Requires("MyDisc").HasValue("b"); })
-                .Map<TPHLeaf>(mc => { mc.Requires("MyDisc").HasValue("c"); });
+                .Map(mc => mc.HasTableAnnotation("A1", "V1").Requires("MyDisc").HasValue("a"))
+                .Map<TPHDerived>(mc => mc.HasTableAnnotation("A2", "V2").Requires("MyDisc").HasValue("b"))
+                .Map<TPHLeaf>(mc => mc.HasTableAnnotation("A3", "V3").Requires("MyDisc").HasValue("c"))
+                .HasTableAnnotation("A4", "V4");
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             Assert.Equal(1, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
+            
             databaseMapping.Assert<TPHBase>()
+                .HasAnnotation("A1", "V1")
+                .HasAnnotation("A2", "V2")
+                .HasAnnotation("A3", "V3")
+                .HasAnnotation("A4", "V4")
                 .HasColumns("Id", "BaseData", "IntProp", "NullableIntProp", "DerivedData", "LeafData", "MyDisc");
+            
             databaseMapping.Assert<TPHBase>("TPHBases")
                 .Column("MyDisc")
                 .DbEqual(DatabaseMappingGenerator.DiscriminatorMaxLength, f => f.MaxLength);
+            
             databaseMapping.AssertMapping<TPHBase>("TPHBases", false)
                 .HasNoPropertyConditions()
                 .HasColumnCondition("MyDisc", "a");
+            
             databaseMapping.AssertMapping<TPHDerived>("TPHBases")
                 .HasNoPropertyConditions()
                 .HasColumnCondition("MyDisc", "b");
+            
             databaseMapping.AssertMapping<TPHLeaf>("TPHBases")
                 .HasNoPropertyConditions()
                 .HasColumnCondition("MyDisc", "c");
+        }
+
+        [Fact]
+        public void TPH_with_conflicting_annotations_to_same_table_throws()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<TPHBase>()
+                .Map(mc => mc.HasTableAnnotation("A1", "V1"))
+                .Map<TPHDerived>(mc => mc.HasTableAnnotation("A2", "V2"))
+                .Map<TPHLeaf>(mc => mc.HasTableAnnotation("A1", "V3"));
+
+            Assert.Throws<InvalidOperationException>(
+                () => BuildMapping(modelBuilder))
+                .ValidateMessage("ConflictingTypeAnnotation", "A1", "V3", "V1", "TPHBase");
         }
 
         [Fact]
@@ -1124,40 +1178,50 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<TPHRoot>()
+                .HasTableAnnotation("A0", "V0")
                 .Map(
                     mc =>
                         {
                             mc.Requires("MyDisc").HasValue("a");
-                            mc.ToTable("Woof");
+                            mc.ToTable("Woof").HasTableAnnotation("A1", "V1");
                         })
                 .Map<TPHNodeA>(
                     mc =>
                         {
                             mc.Requires("MyDisc").HasValue("b");
-                            mc.ToTable("Woof");
+                            mc.ToTable("Woof").HasTableAnnotation("A2", "V2");
                         })
                 .Map<TPHNodeB>(
                     mc =>
                         {
                             mc.Requires("MyDisc").HasValue("c");
-                            mc.ToTable("Woof");
+                            mc.ToTable("Woof").HasTableAnnotation("A3", "V3");
                         });
             modelBuilder.Ignore<TPHNodeC>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             Assert.Equal(1, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
+            
             databaseMapping.Assert<TPHRoot>("Woof")
+                .HasAnnotation("A0", "V0")
+                .HasAnnotation("A1", "V1")
+                .HasAnnotation("A2", "V2")
+                .HasAnnotation("A3", "V3")
                 .HasColumns("Id", "RootData", "AData", "BData", "MyDisc");
+
             databaseMapping.Assert<TPHRoot>("Woof")
                 .Column("MyDisc")
                 .DbEqual(DatabaseMappingGenerator.DiscriminatorMaxLength, f => f.MaxLength);
+            
             databaseMapping.AssertMapping<TPHRoot>("Woof", false)
                 .HasNoPropertyConditions()
                 .HasColumnCondition("MyDisc", "a");
+            
             databaseMapping.AssertMapping<TPHNodeA>("Woof")
                 .HasNoPropertyConditions()
                 .HasColumnCondition("MyDisc", "b");
+            
             databaseMapping.AssertMapping<TPHNodeB>("Woof")
                 .HasNoPropertyConditions()
                 .HasColumnCondition("MyDisc", "c");
@@ -1272,6 +1336,56 @@ namespace FunctionalTests
         {
             public int Id { get; set; }
             public string Name { get; set; }
+        }
+        
+        [Fact]
+        public void TPH_with_discriminator_column_named_Discriminator()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<TPHRoot>()
+                        .Map<TPHNodeA>(m => m.Requires("Discriminator").HasValue(1).HasColumnType("int"))
+                        .Map<TPHNodeB>(m => m.Requires("Discriminator").HasValue(2).HasColumnType("int"))
+                        .Map<TPHNodeC>(m => m.Requires("Discriminator").HasValue(3).HasColumnType("int"));
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<TPHNodeA>()
+                           .HasColumns("Id", "RootData", "AData", "BData", "CData", "Discriminator");
+        }
+
+
+        [Fact]
+        public void TPH_with_discriminator_column_named_Discriminator_and_the_default_discriminator()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<TPHRoot>()
+                        .Map<TPHNodeA>(m => m.Requires("Discriminator").HasValue(1).HasColumnType("int"))
+                        .Map<TPHNodeB>(m => m.Requires("Discriminator").HasValue(2).HasColumnType("int"))
+                        .Map<TPHNodeC>(m => { });
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<TPHNodeA>()
+                           .HasColumns("Id", "RootData", "AData", "BData", "CData", "Discriminator1", "Discriminator");
+
+            databaseMapping.Assert<TPHNodeA>().Column("Discriminator").DbEqual("int", p => p.TypeName);
+        }
+
+        [Fact]
+        public void TPH_with_discriminator_column_named_Discriminator_and_mapped_abstract_base()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<AbsAtBase>()
+                        .Map<AbsAtBaseL1>(m => m.Requires("Discriminator").HasValue(1).HasColumnType("int"))
+                        .Map<AbsAtBaseL2>(m => m.Requires("Discriminator").HasValue(2).HasColumnType("int"));
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<AbsAtBaseL1>()
+                           .HasColumns("Id", "Data", "L1Data", "L2Data", "Discriminator");
         }
 
         [Fact]
@@ -1844,12 +1958,19 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<AssocBase>().ToTable("Bases");
-            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBase);
-            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
-            modelBuilder.Entity<AssocDerived>().ToTable("Deriveds");
-            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelated);
-            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
+            modelBuilder.Entity<AssocBase>()
+                .ToTable("Bases")
+                .HasTableAnnotation("A1", "V1")
+                .Ignore(b => b.AssocRelatedBase)
+                .Ignore(b => b.AssocRelatedBaseId);
+
+            modelBuilder.Entity<AssocDerived>()
+                .ToTable("Deriveds")
+                .HasTableAnnotation("A1", "V2")
+                .Ignore(b => b.AssocRelated)
+                .Ignore(b => b.AssocRelatedId);
+
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -1859,8 +1980,11 @@ namespace FunctionalTests
                 databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.
                     Count());
 
-            databaseMapping.Assert<AssocBase>("Bases");
-            databaseMapping.Assert<AssocDerived>("Deriveds");
+            databaseMapping.Assert<AssocBase>("Bases")
+                .HasAnnotation("A1", "V1");
+
+            databaseMapping.Assert<AssocDerived>("Deriveds")
+                .HasAnnotation("A1", "V2");
         }
 
         [Fact]
@@ -1868,8 +1992,8 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<AbsAtBaseL1>().ToTable("L1");
-            modelBuilder.Entity<AbsAtBaseL2>().ToTable("L2");
+            modelBuilder.Entity<AbsAtBaseL1>().ToTable("L1").HasTableAnnotation("A1", "V1");
+            modelBuilder.Entity<AbsAtBaseL2>().ToTable("L2").HasTableAnnotation("A1", "V2");
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -1878,8 +2002,8 @@ namespace FunctionalTests
                 2,
                 databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.
                     Count());
-            databaseMapping.Assert<AbsAtBaseL1>("L1");
-            databaseMapping.Assert<AbsAtBaseL2>("L2");
+            databaseMapping.Assert<AbsAtBaseL1>("L1").HasAnnotation("A1", "V1");
+            databaseMapping.Assert<AbsAtBaseL2>("L2").HasAnnotation("A1", "V2");
         }
 
         [Fact]
@@ -1887,9 +2011,9 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<AbsAtBase>().ToTable("Bases");
-            modelBuilder.Entity<AbsAtBaseL1>().ToTable("L1");
-            modelBuilder.Entity<AbsAtBaseL2>().ToTable("L2");
+            modelBuilder.Entity<AbsAtBase>().ToTable("Bases").HasTableAnnotation("A1", "V1");
+            modelBuilder.Entity<AbsAtBaseL1>().ToTable("L1").HasTableAnnotation("A1", "V2");
+            modelBuilder.Entity<AbsAtBaseL2>().ToTable("L2").HasTableAnnotation("A1", "V3");
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -1899,9 +2023,9 @@ namespace FunctionalTests
                 databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.
                     Count());
 
-            databaseMapping.Assert<AbsAtBase>("Bases");
-            databaseMapping.Assert<AbsAtBaseL1>("L1");
-            databaseMapping.Assert<AbsAtBaseL2>("L2");
+            databaseMapping.Assert<AbsAtBase>("Bases").HasAnnotation("A1", "V1");
+            databaseMapping.Assert<AbsAtBaseL1>("L1").HasAnnotation("A1", "V2");
+            databaseMapping.Assert<AbsAtBaseL2>("L2").HasAnnotation("A1", "V3");
         }
 
         [Fact]
@@ -1909,10 +2033,10 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<AssocBase>().ToTable("Bases");
+            modelBuilder.Entity<AssocBase>().ToTable("Bases").HasTableAnnotation("A1", "V1");
             modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelated);
             modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
-            modelBuilder.Entity<AssocDerived>().ToTable("Derived");
+            modelBuilder.Entity<AssocDerived>().ToTable("Derived").HasTableAnnotation("A1", "V2");
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.Deriveds);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefBase);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefDerived);
@@ -1920,8 +2044,8 @@ namespace FunctionalTests
             var databaseMapping = BuildMapping(modelBuilder);
 
             Assert.Equal(2, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
-            databaseMapping.Assert<AssocBase>("Bases");
-            databaseMapping.Assert<AssocDerived>("Derived");
+            databaseMapping.Assert<AssocBase>("Bases").HasAnnotation("A1", "V1");
+            databaseMapping.Assert<AssocDerived>("Derived").HasAnnotation("A1", "V2");
             databaseMapping.Assert<AssocBase>().HasForeignKeyColumn("AssocRelatedBaseId");
         }
 
@@ -2023,15 +2147,23 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<TPHBase>().ToTable("A");
-            modelBuilder.Entity<TPHDerived>().ToTable("B");
-            modelBuilder.Entity<TPHLeaf>().ToTable("C");
+            modelBuilder.Entity<TPHBase>().ToTable("A").HasTableAnnotation("A1", "V1");
+            modelBuilder.Entity<TPHDerived>().ToTable("B").HasTableAnnotation("A1", "V2");
+            modelBuilder.Entity<TPHLeaf>().ToTable("C").HasTableAnnotation("A1", "V3");
 
             var databaseMapping = BuildMapping(modelBuilder);
 
-            databaseMapping.Assert<TPHDerived>("B").HasForeignKeyColumn("Id", "A")
+            databaseMapping.Assert<TPHBase>("A")
+                .HasAnnotation("A1", "V1");
+
+            databaseMapping.Assert<TPHDerived>("B")
+                .HasAnnotation("A1", "V2")
+                .HasForeignKeyColumn("Id", "A")
                 .DbEqual(1, t => t.ForeignKeyBuilders.Count());
-            databaseMapping.Assert<TPHLeaf>("C").HasForeignKeyColumn("Id", "B")
+            
+            databaseMapping.Assert<TPHLeaf>("C")
+                .HasAnnotation("A1", "V3")
+                .HasForeignKeyColumn("Id", "B")
                 .DbEqual(1, t => t.ForeignKeyBuilders.Count());
         }
 
@@ -2041,52 +2173,54 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<CKCategory>().Property(p => p.Key1).HasColumnType("uniqueidentifier");
-            modelBuilder.Entity<CKCategory>().Map(mapping => { mapping.ToTable("Principal"); });
-            modelBuilder.Entity<CKCategory>().HasKey(
-                e => new
-                         {
-                             e.Key1,
-                             e.Key2,
-                         });
+            modelBuilder.Entity<CKCategory>().Map(m => m.ToTable("Principal").HasTableAnnotation("A1", "V1"));
+            modelBuilder.Entity<CKCategory>().HasKey(e => new { e.Key1, e.Key2 });
+            modelBuilder.Entity<CKCategory>().HasTableAnnotation("A0", "V01");
 
             modelBuilder.Entity<CKImage>().Property(p => p.Key1).HasColumnType("uniqueidentifier");
-            modelBuilder.Entity<CKImage>().Map(mapping => { mapping.ToTable("Images"); });
-            modelBuilder.Entity<CKImage>().HasKey(
-                e => new
-                         {
-                             e.Key1,
-                             e.Key2,
-                         });
+            modelBuilder.Entity<CKImage>().Map(m => m.ToTable("Images").HasTableAnnotation("A1", "V2"));
+            modelBuilder.Entity<CKImage>().HasKey(e => new { e.Key1, e.Key2 });
+            modelBuilder.Entity<CKImage>().HasTableAnnotation("A0", "V02");
 
             modelBuilder.Entity<CKProduct>().HasRequired(e => e.CKCategory).WithOptional().WillCascadeOnDelete(true);
-            modelBuilder.Entity<CKProduct>().Map(mapping => { mapping.ToTable("Dependent"); });
-            modelBuilder.Entity<CKProduct>().HasKey(
-                e => new
-                         {
-                             e.CKCategoryKey1,
-                             e.CKCategoryKey2,
-                         });
+            modelBuilder.Entity<CKProduct>().Map(m => m.ToTable("Dependent").HasTableAnnotation("A1", "V3"));
+            modelBuilder.Entity<CKProduct>().HasKey(e => new { e.CKCategoryKey1, e.CKCategoryKey2 });
+            modelBuilder.Entity<CKProduct>().HasTableAnnotation("A0", "V03");
 
-            modelBuilder.Entity<CKDerivedProduct>().Map(mapping => { mapping.ToTable("DerivedDependent"); });
+            modelBuilder.Entity<CKDerivedProduct>().Map(m => m.ToTable("DerivedDependent").HasTableAnnotation("A1", "V4"));
             modelBuilder.Entity<CKDerivedProduct>().HasRequired(dp => dp.Image).WithOptional();
+            modelBuilder.Entity<CKDerivedProduct>().HasTableAnnotation("A0", "V04");
 
-            modelBuilder.Entity<CKDerivedProduct2>().Map(mapping => { mapping.ToTable("DerivedDependent2"); });
+            modelBuilder.Entity<CKDerivedProduct2>().Map(m => m.ToTable("DerivedDependent2").HasTableAnnotation("A1", "V5"));
+            modelBuilder.Entity<CKDerivedProduct2>().HasTableAnnotation("A0", "V05");
 
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.Assert<CKCategory>()
+                .HasAnnotation("A1", "V1")
+                .HasAnnotation("A0", "V01")
                 .DbEqual(0, t => t.ForeignKeyBuilders.Count());
 
+            databaseMapping.Assert<CKImage>()
+                .HasAnnotation("A1", "V2")
+                .HasAnnotation("A0", "V02");
+
             databaseMapping.Assert<CKProduct>()
+                .HasAnnotation("A1", "V3")
+                .HasAnnotation("A0", "V03")
                 .DbEqual(1, t => t.ForeignKeyBuilders.Count())
                 .HasForeignKey(new[] { "CKCategoryKey1", "CKCategoryKey2" }, "Principal");
 
             databaseMapping.Assert<CKDerivedProduct>()
+                .HasAnnotation("A1", "V4")
+                .HasAnnotation("A0", "V04")
                 .DbEqual(2, t => t.ForeignKeyBuilders.Count())
                 .HasForeignKey(new[] { "CKCategoryKey1", "CKCategoryKey2" }, "Dependent")
                 .HasForeignKey(new[] { "CKCategoryKey1", "CKCategoryKey2" }, "Images");
 
             databaseMapping.Assert<CKDerivedProduct2>()
+                .HasAnnotation("A1", "V5")
+                .HasAnnotation("A0", "V05")
                 .DbEqual(1, t => t.ForeignKeyBuilders.Count())
                 .HasForeignKey(new[] { "CKCategoryKey1", "CKCategoryKey2" }, "DerivedDependent");
         }
@@ -2330,14 +2464,20 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<Repro137329_A1>().ToTable("A1");
-            modelBuilder.Entity<Repro137329_A2>().ToTable("A1");
-            modelBuilder.Entity<Repro137329_A3>().ToTable("A1");
-            modelBuilder.Entity<Repro137329_A4>().ToTable("A1");
+            modelBuilder.Entity<Repro137329_A1>().ToTable("A1").HasTableAnnotation("A1", "V1");
+            modelBuilder.Entity<Repro137329_A2>().ToTable("A1").HasTableAnnotation("A2", "V2");
+            modelBuilder.Entity<Repro137329_A3>().ToTable("A1").HasTableAnnotation("A3", "V3");
+            modelBuilder.Entity<Repro137329_A4>().ToTable("A1").HasTableAnnotation("A4", "V4");
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertMapping<Repro137329_A1>("A1", false)
                 .HasColumnCondition("Discriminator", "Repro137329_A1");
+
+            databaseMapping.Assert<Repro137329_A1>("A1")
+                .HasAnnotation("A1", "V1")
+                .HasAnnotation("A2", "V2")
+                .HasAnnotation("A3", "V3")
+                .HasAnnotation("A4", "V4");
         }
 
         [Fact]
@@ -2740,18 +2880,18 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<AssocBase>()
-                .Map(mc => mc.ToTable("Bases"));
+                .HasTableAnnotation("A0", "V01")
+                .Map(mc => mc.ToTable("Bases").HasTableAnnotation("A1", "V1"));
+            
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBase);
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
             modelBuilder.Entity<AssocDerived>()
-                .Map(
-                    mc =>
-                        {
-                            mc.MapInheritedProperties();
-                            mc.ToTable("Deriveds");
-                        });
+                .HasTableAnnotation("A0", "V02")
+                .Map(mc => mc.MapInheritedProperties().ToTable("Deriveds").HasTableAnnotation("A1", "V2"));
+            
             modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelated);
             modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -2760,11 +2900,58 @@ namespace FunctionalTests
                 2,
                 databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.
                     Count());
-            databaseMapping.Assert<AssocBase>("Bases").HasColumns("Id", "Name", "BaseData");
+            databaseMapping.Assert<AssocBase>("Bases")
+                .HasAnnotation("A0", "V01")
+                .HasAnnotation("A1", "V1")
+                .HasColumns("Id", "Name", "BaseData");
+            
             databaseMapping.AssertMapping<AssocBase>("Bases", false);
-            databaseMapping.Assert<AssocDerived>("Deriveds").HasColumns(
-                "Id", "Name", "BaseData", "DerivedData1",
-                "DerivedData2");
+            
+            databaseMapping.Assert<AssocDerived>("Deriveds")
+                .HasAnnotation("A0", "V02")
+                .HasAnnotation("A1", "V2")
+                .HasColumns("Id", "Name", "BaseData", "DerivedData1", "DerivedData2");
+            
+            databaseMapping.AssertMapping<AssocDerived>("Deriveds", false);
+        }
+
+        [Fact]
+        public void Two_entity_TPC_derived_first()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Ignore<AssocExtraDerived>();
+            modelBuilder.Entity<AssocDerived>()
+                .HasTableAnnotation("A0", "V02")
+                .Map(mc => mc.MapInheritedProperties().ToTable("Deriveds").HasTableAnnotation("A1", "V2"));
+            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelated);
+            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
+
+            modelBuilder.Entity<AssocBase>()
+                .HasTableAnnotation("A0", "V01")
+                .Map(mc => mc.ToTable("Bases").HasTableAnnotation("A1", "V1"));
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBase);
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            Assert.Equal(1, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
+            Assert.Equal(
+                2,
+                databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.
+                    Count());
+            databaseMapping.Assert<AssocBase>("Bases")
+                .HasAnnotation("A0", "V01")
+                .HasAnnotation("A1", "V1")
+                .HasColumns("Id", "Name", "BaseData");
+
+            databaseMapping.AssertMapping<AssocBase>("Bases", false);
+
+            databaseMapping.Assert<AssocDerived>("Deriveds")
+                .HasAnnotation("A0", "V02")
+                .HasAnnotation("A1", "V2")
+                .HasColumns("Id", "Name", "BaseData", "DerivedData1", "DerivedData2");
+
             databaseMapping.AssertMapping<AssocDerived>("Deriveds", false);
         }
 
@@ -2806,6 +2993,7 @@ namespace FunctionalTests
                         });
             modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelated);
             modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -2827,40 +3015,6 @@ namespace FunctionalTests
                 x.Properties.Single(c => c.Name == "Name").TypeName);
         }
 
-        //[Fact]
-        //public void ToTable_configures_TPT_with_unmapped_abstract_base_type()
-        //{
-        //    var modelBuilder = new AdventureWorksModelBuilder();
-
-        //    modelBuilder.Entity<AbsAtBaseL1>().ToTable("L1");
-        //    modelBuilder.Entity<AbsAtBaseL2>().ToTable("L2");
-
-        //    var databaseMapping = BuildMapping(modelBuilder).DatabaseMapping;
-
-        //    Assert.Equal(1, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
-        //    Assert.Equal(2, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.Count);
-        //    Assert.True(databaseMapping.Database.Schemas.Single().Tables.Any(t => t.Name == "L1"));
-        //    Assert.True(databaseMapping.Database.Schemas.Single().Tables.Any(t => t.Name == "L2"));
-        //}
-
-        //[Fact]
-        //public void ToTable_configures_TPT_with_mapped_abstract_base_type()
-        //{
-        //    var modelBuilder = new AdventureWorksModelBuilder();
-
-        //    modelBuilder.Entity<AbsAtBase>().ToTable("Bases");
-        //    modelBuilder.Entity<AbsAtBaseL1>().ToTable("L1");
-        //    modelBuilder.Entity<AbsAtBaseL2>().ToTable("L2");
-
-        //    var databaseMapping = BuildMapping(modelBuilder).DatabaseMapping;
-
-        //    Assert.Equal(1, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
-        //    Assert.Equal(3, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.Count);
-        //    Assert.True(databaseMapping.Database.Schemas.Single().Tables.Any(t => t.Name == "Bases"));
-        //    Assert.True(databaseMapping.Database.Schemas.Single().Tables.Any(t => t.Name == "L1"));
-        //    Assert.True(databaseMapping.Database.Schemas.Single().Tables.Any(t => t.Name == "L2"));
-        //}
-
         [Fact]
         public void ToTable_configures_TPC_with_FK_on_base_type()
         {
@@ -2879,6 +3033,7 @@ namespace FunctionalTests
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.Deriveds);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefBase);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefDerived);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -2910,6 +3065,7 @@ namespace FunctionalTests
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.Bases);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefBase);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefDerived);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -2941,6 +3097,7 @@ namespace FunctionalTests
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.Bases);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefBase);
             modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefDerived);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -2951,6 +3108,127 @@ namespace FunctionalTests
                 "Id", "AssocRelated_Id", "Name", "BaseData",
                 "DerivedData1", "DerivedData2");
             databaseMapping.Assert<AssocDerived>("Deriveds").HasForeignKeyColumn("AssocRelated_Id");
+        }
+
+        [Fact]
+        public void ToTable_configures_TPC_with_IA_to_non_most_derived_type()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<AssocBase>().ToTable("Bases");
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBase);
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
+            modelBuilder.Entity<AssocDerived>()
+                .Map(
+                    mc =>
+                    {
+                        mc.MapInheritedProperties();
+                        mc.ToTable("Deriveds");
+                    });
+            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
+            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelated);
+            modelBuilder.Entity<AssocExtraDerived>()
+                .Map(
+                    mc =>
+                    {
+                        mc.MapInheritedProperties();
+                        mc.ToTable("Extras");
+                    });
+
+            modelBuilder.Entity<AssocExtraDerived>().Ignore(e => e.ExtraAssocRelated);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.Bases);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefBase);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.Deriveds);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            Assert.Equal(2, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
+            
+            databaseMapping.Assert<AssocBase>("Bases").HasColumns("Id", "Name", "BaseData");
+            databaseMapping.Assert<AssocDerived>("Deriveds").HasColumns(
+                "Id", "Name", "BaseData", "DerivedData1", "DerivedData2");
+
+            databaseMapping.Assert<AssocRelated>("AssocRelateds").HasColumns(
+                "Id", "Name", "RefDerived_Id");
+            databaseMapping.Assert<AssocRelated>("AssocRelateds").HasNoForeignKeyColumns();
+            Assert.Equal("RefDerived_Id", databaseMapping.GetAssociationSetMappings().Single().Conditions.Single().Column.Name);
+        }
+
+        [Fact]
+        public void ToTable_throws_when_TPC_with_IA_on_non_most_derived_type()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<AssocBase>().ToTable("Bases");
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBase);
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
+            modelBuilder.Entity<AssocDerived>()
+                .Map(
+                    mc =>
+                    {
+                        mc.MapInheritedProperties();
+                        mc.ToTable("Deriveds");
+                    });
+            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.Bases);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefBase);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefDerived);
+            
+            modelBuilder.Entity<AssocExtraDerived>()
+                .Map(
+                    mc =>
+                    {
+                        mc.MapInheritedProperties();
+                        mc.ToTable("Extras");
+                    });
+
+            Assert.Throws<InvalidOperationException>(() => BuildMapping(modelBuilder))
+                .ValidateMessage("EntityMappingConfiguration_TPCWithIAsOnNonLeafType", "AssocRelated_Deriveds", "AssocRelated", "AssocDerived");
+        }
+
+        [Fact]
+        public void ToTable_configures_TPC_with_IA_on_double_derived_type()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<AssocBase>().ToTable("Bases");
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBase);
+            modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
+
+            modelBuilder.Entity<AssocDerived>()
+                .Map(
+                    mc =>
+                    {
+                        mc.MapInheritedProperties();
+                        mc.ToTable("Deriveds");
+                    });
+            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelatedId);
+            modelBuilder.Entity<AssocDerived>().Ignore(b => b.AssocRelated);
+
+            modelBuilder.Entity<AssocExtraDerived>()
+                .Map(
+                    mc =>
+                    {
+                        mc.MapInheritedProperties();
+                        mc.ToTable("Extras");
+                    });
+
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.Bases);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefBase);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.RefDerived);
+            modelBuilder.Entity<AssocRelated>().Ignore(r => r.Deriveds);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            Assert.Equal(2, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
+
+            databaseMapping.Assert<AssocBase>("Bases").HasColumns("Id", "Name", "BaseData");
+            databaseMapping.Assert<AssocDerived>("Deriveds").HasColumns(
+                "Id", "Name", "BaseData", "DerivedData1", "DerivedData2");
+
+            databaseMapping.Assert<AssocExtraDerived>("Extras").HasColumns(
+                "Id", "ExtraAssocRelated_Id", "Name", "BaseData", "DerivedData1", "DerivedData2", "ExtraData");
+            databaseMapping.Assert<AssocExtraDerived>("Extras").HasForeignKeyColumn("ExtraAssocRelated_Id");
         }
 
         [Fact]
@@ -3043,28 +3321,40 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<ByteBase>();
-            modelBuilder.Entity<ByteDerived>().Property(x => x.DerivedData).HasColumnType("image");
+            modelBuilder.Entity<ByteDerived>()
+                .Property(x => x.DerivedData)
+                .HasColumnType("image")
+                .HasColumnAnnotation("A1", "V1");
+
             modelBuilder.Entity<ByteDerived>()
                 .Map(
                     mc =>
-                        {
-                            mc.ToTable("Derived");
-                            mc.MapInheritedProperties();
-                        });
+                    {
+                        mc.ToTable("Derived");
+                        mc.MapInheritedProperties();
+                    });
             modelBuilder.Entity<ByteDerived2>()
                 .Map(
                     mc =>
-                        {
-                            mc.ToTable("Derived2");
-                            mc.MapInheritedProperties();
-                        });
+                    {
+                        mc.ToTable("Derived2");
+                        mc.MapInheritedProperties();
+                    });
             var databaseMapping = BuildMapping(modelBuilder);
-            databaseMapping.Assert<ByteDerived>().DbEqual(
-                "image",
-                t => t.Properties.Single(c => c.Name == "DerivedData").TypeName);
-            databaseMapping.Assert<ByteDerived2>().DbEqual(
-                "image",
-                t => t.Properties.Single(c => c.Name == "DerivedData").TypeName);
+
+            databaseMapping.Assert<ByteDerived>()
+                .DbEqual("image", t => t.Properties.Single(c => c.Name == "DerivedData").TypeName);
+
+            databaseMapping.Assert<ByteDerived2>()
+                .DbEqual("image", t => t.Properties.Single(c => c.Name == "DerivedData").TypeName);
+
+            databaseMapping.Assert<ByteDerived>()
+                .Column("DerivedData")
+                .HasAnnotation("A1", "V1");
+
+            databaseMapping.Assert<ByteDerived2>()
+                .Column("DerivedData")
+                .HasAnnotation("A1", "V1");
         }
 
         public class ByteBase
@@ -3338,7 +3628,11 @@ namespace FunctionalTests
         {
             var modelBuilder = new AdventureWorksModelBuilder();
 
-            modelBuilder.Entity<Repro144459_Product>().Property(e => e.Name).HasColumnName("NameOfProduct");
+            modelBuilder.Entity<Repro144459_Product>()
+                .Property(e => e.Name)
+                .HasColumnName("NameOfProduct")
+                .HasColumnAnnotation("Fish", "Blub");
+
             modelBuilder.Entity<Repro144459_Product>().ToTable("Products");
             modelBuilder.Entity<Repro144459_ClearanceProduct>().Map(mapping => { mapping.MapInheritedProperties(); }).
                 ToTable("ClearanceProduct");
@@ -3353,6 +3647,18 @@ namespace FunctionalTests
                 .DbEqual(true, t => t.Properties.Any(c => c.Name == "NameOfProduct"));
             databaseMapping.Assert<Repro144459_ClearanceProduct>("ClearanceProduct")
                 .DbEqual(true, t => t.Properties.Any(c => c.Name == "NameOfProduct"));
+
+            databaseMapping.Assert<Repro144459_Product>("Products")
+                .Column("NameOfProduct")
+                .HasAnnotation("Fish", "Blub");
+
+            databaseMapping.Assert<Repro144459_ClearanceProduct>("ClearanceProduct")
+                .Column("NameOfProduct")
+                .HasAnnotation("Fish", "Blub");
+
+            databaseMapping.Assert<Repro144459_DiscontinuedProduct>("DiscontinuedProduct")
+                .Column("NameOfProduct")
+                .HasAnnotation("Fish", "Blub");
         }
 
         public class Repro144459_Product
@@ -4064,28 +4370,10 @@ namespace FunctionalTests
             var modelBuilder = new AdventureWorksModelBuilder();
 
             modelBuilder.Entity<AssocBase>()
-                .Map(
-                    mc =>
-                        {
-                            mc.Properties(
-                                a => new
-                                         {
-                                             a.Id,
-                                             a.Name
-                                         });
-                            mc.ToTable("NameTbl");
-                        })
-                .Map(
-                    mc =>
-                        {
-                            mc.Properties(
-                                a => new
-                                         {
-                                             a.Id,
-                                             a.BaseData
-                                         });
-                            mc.ToTable("DataTbl");
-                        });
+                .HasTableAnnotation("A0", "V0")
+                .Map(mc => mc.ToTable("NameTbl").HasTableAnnotation("A1", "V1").Properties(a => new { a.Id, a.Name }))
+                .Map(mc => mc.ToTable("DataTbl").HasTableAnnotation("A2", "V2").Properties(a => new { a.Id, a.BaseData }));
+            
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBase);
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
             modelBuilder.Ignore<AssocDerived>();
@@ -4094,11 +4382,16 @@ namespace FunctionalTests
 
             Assert.Equal(1, databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Count());
             databaseMapping.Assert<AssocBase>("NameTbl")
+                .HasAnnotation("A0", "V0")
+                .HasAnnotation("A1", "V1")
                 .HasColumns("Id", "Name")
                 .DbEqual(
                     StoreGeneratedPattern.Identity,
                     t => t.Properties.Single(c => c.Name == "Id").StoreGeneratedPattern);
+
             databaseMapping.Assert<AssocBase>("DataTbl")
+                .HasAnnotation("A0", "V0")
+                .HasAnnotation("A2", "V2")
                 .HasColumns("Id", "BaseData")
                 .HasForeignKeyColumn("Id", "NameTbl")
                 .DbEqual(StoreGeneratedPattern.None, t => t.Properties.Single(c => c.Name == "Id").StoreGeneratedPattern);
@@ -4547,6 +4840,7 @@ namespace FunctionalTests
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelated);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelatedId);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -4589,6 +4883,7 @@ namespace FunctionalTests
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelated);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelatedId);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -4632,6 +4927,7 @@ namespace FunctionalTests
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelated);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelatedId);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -4680,6 +4976,7 @@ namespace FunctionalTests
             modelBuilder.Entity<AssocBase>().Ignore(b => b.AssocRelatedBaseId);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelated);
             modelBuilder.Entity<AssocDerived>().Ignore(d => d.AssocRelatedId);
+            modelBuilder.Ignore<AssocExtraDerived>();
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -4704,6 +5001,12 @@ namespace FunctionalTests
             public string DerivedData1 { get; set; }
             public string DerivedData2 { get; set; }
             public AssocRelated AssocRelated { get; set; }
+        }
+
+        public class AssocExtraDerived : AssocDerived
+        {
+            public string ExtraData { get; set; }
+            public AssocRelated ExtraAssocRelated { get; set; }
         }
 
         public class AssocRelated
@@ -5574,6 +5877,36 @@ namespace FunctionalTests
         }
 
         [Fact]
+        public void Table_split_first_base_on_TPH()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<TSBaseDetail>().Map(mc => mc.ToTable("TS"));
+            modelBuilder.Entity<TSBase>()
+                .HasRequired(i => i.BaseDetail).WithRequiredPrincipal();
+
+            modelBuilder.Entity<TSBase>()
+                .Map(
+                    mc =>
+                    {
+                        mc.ToTable("TS");
+                        mc.Requires("disc").HasValue("TSBase");
+                    });
+            modelBuilder.Entity<TSDerived>().Map(
+                mc =>
+                {
+                    mc.ToTable("TS");
+                    mc.Requires("disc").HasValue("TSDerived");
+                });
+            modelBuilder.Entity<TSDerived>().Ignore(x => x.Detail);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+            databaseMapping.Assert<TSBase>("TS").HasColumns("Id", "BaseDetail", "BaseData", "disc", "DerivedData");
+            databaseMapping.Assert<TSDerived>("TS").HasColumns("Id", "BaseDetail", "BaseData", "disc", "DerivedData");
+            databaseMapping.Assert<TSBaseDetail>("TS").HasColumns("Id", "BaseDetail", "BaseData", "disc", "DerivedData");
+        }
+
+        [Fact]
         public void Table_split_base_on_default_TPH()
         {
             var modelBuilder = new AdventureWorksModelBuilder();
@@ -6418,13 +6751,21 @@ namespace FunctionalTests
 
                     Map<FirstEntity>(m =>
                     {
-                        m.Property(t => t.Value).HasColumnName("Int1");
+                        m.Property(t => t.Value)
+                            .HasColumnName("Int1")
+                            .HasColumnAnnotation("Elephant", "Toot")
+                            .HasColumnAnnotation("Fish", "Blub");
+                        
                         m.Requires("TypeID").HasValue(1);
                     });
 
                     Map<SecondEntity>(m =>
                     {
-                        m.Property(t => t.Height).HasColumnName("Int1");
+                        m.Property(t => t.Height)
+                            .HasColumnName("Int1")
+                            .HasColumnAnnotation("Seal", "Ow ow ow")
+                            .HasColumnAnnotation("Fox", "No one knows...");
+                        
                         m.Requires("TypeID").HasValue(2);
                     });
                 }
@@ -6443,8 +6784,23 @@ namespace FunctionalTests
 
                 databaseMapping.Assert<FirstEntity>("Entities")
                     .HasColumns("ID", "ShortName", "Int1", "TypeID");
+                
                 databaseMapping.Assert<SecondEntity>("Entities")
                     .HasColumns("ID", "ShortName", "Int1", "TypeID");
+
+                databaseMapping.Assert<FirstEntity>("Entities")
+                    .Column("Int1")
+                    .HasAnnotation("Elephant", "Toot")
+                    .HasAnnotation("Fish", "Blub")
+                    .HasAnnotation("Seal", "Ow ow ow")
+                    .HasAnnotation("Fox", "No one knows...");
+
+                databaseMapping.Assert<SecondEntity>("Entities")
+                    .Column("Int1")
+                    .HasAnnotation("Elephant", "Toot")
+                    .HasAnnotation("Fish", "Blub")
+                    .HasAnnotation("Seal", "Ow ow ow")
+                    .HasAnnotation("Fox", "No one knows...");
             }
 
             [Fact]
@@ -6460,8 +6816,23 @@ namespace FunctionalTests
 
                 databaseMapping.Assert<FirstEntity>("MyEntity")
                     .HasColumns("ID", "ShortName", "Int1", "TypeID");
+
                 databaseMapping.Assert<SecondEntity>("MyEntity")
                     .HasColumns("ID", "ShortName", "Int1", "TypeID");
+
+                databaseMapping.Assert<FirstEntity>("MyEntity")
+                    .Column("Int1")
+                    .HasAnnotation("Elephant", "Toot")
+                    .HasAnnotation("Fish", "Blub")
+                    .HasAnnotation("Seal", "Ow ow ow")
+                    .HasAnnotation("Fox", "No one knows...");
+
+                databaseMapping.Assert<SecondEntity>("MyEntity")
+                    .Column("Int1")
+                    .HasAnnotation("Elephant", "Toot")
+                    .HasAnnotation("Fish", "Blub")
+                    .HasAnnotation("Seal", "Ow ow ow")
+                    .HasAnnotation("Fox", "No one knows...");
             }
         }
     }

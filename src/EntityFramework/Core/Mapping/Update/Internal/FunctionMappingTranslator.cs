@@ -3,6 +3,7 @@
 namespace System.Data.Entity.Core.Mapping.Update.Internal
 {
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Data.Common;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects;
@@ -11,57 +12,57 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
     using System.Diagnostics;
     using System.Linq;
 
-    /// <summary>
-    /// Modification function mapping translators are defined per extent (entity set
-    /// or association set) and manage the creation of function commands.
-    /// </summary>
+    // <summary>
+    // Modification function mapping translators are defined per extent (entity set
+    // or association set) and manage the creation of function commands.
+    // </summary>
     internal abstract class ModificationFunctionMappingTranslator
     {
-        /// <summary>
-        /// Requires: this translator must be registered to handle the entity set
-        /// for the given state entry.
-        /// Translates the given state entry to a command.
-        /// </summary>
-        /// <param name="translator"> Parent update translator (global state for the workload) </param>
-        /// <param name="stateEntry"> State entry to translate. Must belong to the entity/association set handled by this translator </param>
-        /// <returns> Command corresponding to the given state entry </returns>
+        // <summary>
+        // Requires: this translator must be registered to handle the entity set
+        // for the given state entry.
+        // Translates the given state entry to a command.
+        // </summary>
+        // <param name="translator"> Parent update translator (global state for the workload) </param>
+        // <param name="stateEntry"> State entry to translate. Must belong to the entity/association set handled by this translator </param>
+        // <returns> Command corresponding to the given state entry </returns>
         internal abstract FunctionUpdateCommand Translate(
             UpdateTranslator translator,
             ExtractedStateEntry stateEntry);
 
-        /// <summary>
-        /// Initialize a translator for the given entity set mapping.
-        /// </summary>
-        /// <param name="setMapping"> Entity set mapping. </param>
-        /// <returns> Translator. </returns>
+        // <summary>
+        // Initialize a translator for the given entity set mapping.
+        // </summary>
+        // <param name="setMapping"> Entity set mapping. </param>
+        // <returns> Translator. </returns>
         internal static ModificationFunctionMappingTranslator CreateEntitySetTranslator(
-            StorageEntitySetMapping setMapping)
+            EntitySetMapping setMapping)
         {
             return new EntitySetTranslator(setMapping);
         }
 
-        /// <summary>
-        /// Initialize a translator for the given association set mapping.
-        /// </summary>
-        /// <param name="setMapping"> Association set mapping. </param>
-        /// <returns> Translator. </returns>
+        // <summary>
+        // Initialize a translator for the given association set mapping.
+        // </summary>
+        // <param name="setMapping"> Association set mapping. </param>
+        // <returns> Translator. </returns>
         internal static ModificationFunctionMappingTranslator CreateAssociationSetTranslator(
-            StorageAssociationSetMapping setMapping)
+            AssociationSetMapping setMapping)
         {
             return new AssociationSetTranslator(setMapping);
         }
 
         private sealed class EntitySetTranslator : ModificationFunctionMappingTranslator
         {
-            private readonly Dictionary<EntityType, StorageEntityTypeModificationFunctionMapping> m_typeMappings;
+            private readonly Dictionary<EntityType, EntityTypeModificationFunctionMapping> m_typeMappings;
 
-            internal EntitySetTranslator(StorageEntitySetMapping setMapping)
+            internal EntitySetTranslator(EntitySetMapping setMapping)
             {
                 DebugCheck.NotNull(setMapping);
                 DebugCheck.NotNull(setMapping.ModificationFunctionMappings);
 
                 Debug.Assert(0 < setMapping.ModificationFunctionMappings.Count, "set mapping must exist and must specify function mappings");
-                m_typeMappings = new Dictionary<EntityType, StorageEntityTypeModificationFunctionMapping>();
+                m_typeMappings = new Dictionary<EntityType, EntityTypeModificationFunctionMapping>();
                 foreach (var typeMapping in setMapping.ModificationFunctionMappings)
                 {
                     m_typeMappings.Add(typeMapping.EntityType, typeMapping);
@@ -113,7 +114,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 }
                 else
                 {
-                    command = new FunctionUpdateCommand(functionMapping, translator, stateEntries.ToList().AsReadOnly(), stateEntry);
+                    command = new FunctionUpdateCommand(functionMapping, translator, new ReadOnlyCollection<IEntityStateEntry>(stateEntries.ToList()), stateEntry);
 
                     // bind all function parameters
                     BindFunctionParameters(translator, stateEntry, functionMapping, command, currentReferenceEnds, originalReferenceEnds);
@@ -185,11 +186,11 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 }
             }
 
-            private Tuple<StorageEntityTypeModificationFunctionMapping, StorageModificationFunctionMapping> GetFunctionMapping(
+            private Tuple<EntityTypeModificationFunctionMapping, ModificationFunctionMapping> GetFunctionMapping(
                 ExtractedStateEntry stateEntry)
             {
                 // choose mapping based on type and operation
-                StorageModificationFunctionMapping functionMapping;
+                ModificationFunctionMapping functionMapping;
                 EntityType entityType;
                 if (null != stateEntry.Current)
                 {
@@ -229,7 +230,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             // Walks through all parameter bindings in the function mapping and binds the parameters to the
             // requested properties of the given state entry.
             private static void BindFunctionParameters(
-                UpdateTranslator translator, ExtractedStateEntry stateEntry, StorageModificationFunctionMapping functionMapping,
+                UpdateTranslator translator, ExtractedStateEntry stateEntry, ModificationFunctionMapping functionMapping,
                 FunctionUpdateCommand command, Dictionary<AssociationEndMember, IEntityStateEntry> currentReferenceEnds,
                 Dictionary<AssociationEndMember, IEntityStateEntry> originalReferenceEnds)
             {
@@ -300,9 +301,9 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
         {
             // If this value is null, it indicates that the association set is
             // only implicitly mapped as part of an entity set
-            private readonly StorageAssociationSetModificationFunctionMapping m_mapping;
+            private readonly AssociationSetModificationFunctionMapping m_mapping;
 
-            internal AssociationSetTranslator(StorageAssociationSetMapping setMapping)
+            internal AssociationSetTranslator(AssociationSetMapping setMapping)
             {
                 if (null != setMapping)
                 {
@@ -329,7 +330,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 // initialize a new command
                 var functionMapping = isInsert ? m_mapping.InsertFunctionMapping : m_mapping.DeleteFunctionMapping;
                 var command = new FunctionUpdateCommand(
-                    functionMapping, translator, new[] { stateEntry.Source }.ToList().AsReadOnly(), stateEntry);
+                    functionMapping, translator, new ReadOnlyCollection<IEntityStateEntry>(new[] { stateEntry.Source }.ToList()), stateEntry);
 
                 // extract the relationship values from the state entry
                 PropagatorResult recordResult;

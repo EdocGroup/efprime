@@ -18,24 +18,24 @@ namespace System.Data.Entity.Core.Metadata.Edm
     {
         private ReadOnlyMetadataCollection<EdmProperty> _properties;
 
-        /// <summary>
-        /// Initializes a new instance of Entity Type
-        /// </summary>
-        /// <param name="name"> name of the entity type </param>
-        /// <param name="namespaceName"> namespace of the entity type </param>
-        /// <param name="dataSpace"> dataspace in which the EntityType belongs to </param>
-        /// <exception cref="System.ArgumentNullException">Thrown if either name, namespace or version arguments are null</exception>
+        // <summary>
+        // Initializes a new instance of Entity Type
+        // </summary>
+        // <param name="name"> name of the entity type </param>
+        // <param name="namespaceName"> namespace of the entity type </param>
+        // <param name="dataSpace"> dataspace in which the EntityType belongs to </param>
+        // <exception cref="System.ArgumentNullException">Thrown if either name, namespace or version arguments are null</exception>
         internal EntityType(string name, string namespaceName, DataSpace dataSpace)
             : base(name, namespaceName, dataSpace)
         {
         }
 
-        /// <param name="name"> name of the entity type </param>
-        /// <param name="namespaceName"> namespace of the entity type </param>
-        /// <param name="dataSpace"> dataspace in which the EntityType belongs to </param>
-        /// <param name="keyMemberNames"> key members for the type </param>
-        /// <param name="members"> members of the entity type [property and navigational property] </param>
-        /// <exception cref="System.ArgumentNullException">Thrown if either name, namespace or version arguments are null</exception>
+        // <param name="name"> name of the entity type </param>
+        // <param name="namespaceName"> namespace of the entity type </param>
+        // <param name="dataSpace"> dataspace in which the EntityType belongs to </param>
+        // <param name="keyMemberNames"> key members for the type </param>
+        // <param name="members"> members of the entity type [property and navigational property] </param>
+        // <exception cref="System.ArgumentNullException">Thrown if either name, namespace or version arguments are null</exception>
         internal EntityType(
             string name,
             string namespaceName,
@@ -57,9 +57,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// cached dynamic method to construct a CLR instance
-        /// </summary>
+        // <summary>
+        // cached dynamic method to construct a CLR instance
+        // </summary>
         private RefType _referenceType;
 
         private RowType _keyRow;
@@ -105,13 +105,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return BuiltInTypeKind.EntityType; }
         }
 
-        /// <summary>
-        /// Validates a EdmMember object to determine if it can be added to this type's
-        /// Members collection. If this method returns without throwing, it is assumed
-        /// the member is valid.
-        /// </summary>
-        /// <param name="member"> The member to validate </param>
-        /// <exception cref="System.ArgumentException">Thrown if the member is not a EdmProperty</exception>
+        // <summary>
+        // Validates a EdmMember object to determine if it can be added to this type's
+        // Members collection. If this method returns without throwing, it is assumed
+        // the member is valid.
+        // </summary>
+        // <param name="member"> The member to validate </param>
+        // <exception cref="System.ArgumentException">Thrown if the member is not a EdmProperty</exception>
         internal override void ValidateMemberForAdd(EdmMember member)
         {
             Debug.Assert(
@@ -126,6 +126,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return GetDeclaredOnlyMembers<NavigationProperty>(); }
         }
 
+        private readonly object _navigationPropertiesCacheLock = new object();
+        private ReadOnlyMetadataCollection<NavigationProperty> _navigationPropertiesCache;
+
         /// <summary>
         /// Gets the navigation properties of this <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntityType" />.
         /// </summary>
@@ -139,8 +142,38 @@ namespace System.Data.Entity.Core.Metadata.Edm
         {
             get
             {
-                return new FilteredReadOnlyMetadataCollection<NavigationProperty, EdmMember>(
-                    Members, Helper.IsNavigationProperty);
+                // PERF: this code written this way since it's part of a hotpath, consider its performance when refactoring
+                var navigationProperties = _navigationPropertiesCache;
+                if (navigationProperties == null)
+                {
+                    lock (_navigationPropertiesCacheLock)
+                    {
+                        if (_navigationPropertiesCache == null)
+                        {
+                            Members.SourceAccessed += ResetNavigationProperties;
+                            _navigationPropertiesCache = new FilteredReadOnlyMetadataCollection
+                                <NavigationProperty, EdmMember>(
+                                Members, Helper.IsNavigationProperty);
+                        }
+                        navigationProperties = _navigationPropertiesCache;
+                    }
+                }
+                return navigationProperties;
+            }
+        }
+
+        private void ResetNavigationProperties(object sender, EventArgs e)
+        {
+            if (_navigationPropertiesCache != null)
+            {
+                lock (_navigationPropertiesCacheLock)
+                {
+                    if (_navigationPropertiesCache != null)
+                    {
+                        _navigationPropertiesCache = null;
+                        Members.SourceAccessed -= ResetNavigationProperties;
+                    }
+                }
             }
         }
 
@@ -221,16 +254,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return _keyRow;
         }
 
-        /// <summary>
-        /// Attempts to get the property name for the assoication between the two given end
-        /// names.  Note that this property may not exist if a navigation property is defined
-        /// in one direction but not in the other.
-        /// </summary>
-        /// <param name="relationshipType"> the relationship for which a nav property is required </param>
-        /// <param name="fromName"> the 'from' end of the association </param>
-        /// <param name="toName"> the 'to' end of the association </param>
-        /// <param name="navigationProperty"> the property name, or null if none was found </param>
-        /// <returns> true if a property was found, false otherwise </returns>
+        // <summary>
+        // Attempts to get the property name for the assoication between the two given end
+        // names.  Note that this property may not exist if a navigation property is defined
+        // in one direction but not in the other.
+        // </summary>
+        // <param name="relationshipType"> the relationship for which a nav property is required </param>
+        // <param name="fromName"> the 'from' end of the association </param>
+        // <param name="toName"> the 'to' end of the association </param>
+        // <param name="navigationProperty"> the property name, or null if none was found </param>
+        // <returns> true if a property was found, false otherwise </returns>
         internal bool TryGetNavigationProperty(
             string relationshipType, string fromName, string toName, out NavigationProperty navigationProperty)
         {
@@ -262,8 +295,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <param name="keyMemberNames">Name of key members for the type.</param>
         /// <param name="members">Members of the entity type (primitive and navigation properties).</param>
         /// <param name="metadataProperties">Metadata properties to be associated with the instance.</param>
+        /// <returns>The EntityType object.</returns>
         /// <exception cref="System.ArgumentException">Thrown if either name, namespace arguments are null.</exception>
-        /// <notes>The newly created EntityType will be read only.</notes>
+        /// <remarks>The newly created EntityType will be read only.</remarks>
         public static EntityType Create(
             string name,
             string namespaceName,
@@ -276,6 +310,43 @@ namespace System.Data.Entity.Core.Metadata.Edm
             Check.NotEmpty(namespaceName, "namespaceName");
 
             var entity = new EntityType(name, namespaceName, dataSpace, keyMemberNames, members);
+
+            if (metadataProperties != null)
+            {
+                entity.AddMetadataProperties(metadataProperties.ToList());
+            }
+
+            entity.SetReadOnly();
+            return entity;
+        }
+
+        /// <summary>
+        /// The factory method for constructing the EntityType object.
+        /// </summary>
+        /// <param name="name">The name of the entity type.</param>
+        /// <param name="namespaceName">The namespace of the entity type.</param>
+        /// <param name="dataSpace">The dataspace in which the EntityType belongs to.</param>
+        /// <param name="baseType">The base type.</param>
+        /// <param name="keyMemberNames">Name of key members for the type.</param>
+        /// <param name="members">Members of the entity type (primitive and navigation properties).</param>
+        /// <param name="metadataProperties">Metadata properties to be associated with the instance.</param>
+        /// <returns>The EntityType object.</returns>
+        /// <exception cref="System.ArgumentException">Thrown if either name, namespace arguments are null.</exception>
+        /// <remarks>The newly created EntityType will be read only.</remarks>
+        public static EntityType Create(
+            string name,
+            string namespaceName,
+            DataSpace dataSpace,
+            EntityType baseType,
+            IEnumerable<string> keyMemberNames,
+            IEnumerable<EdmMember> members,
+            IEnumerable<MetadataProperty> metadataProperties)
+        {
+            Check.NotEmpty(name, "name");
+            Check.NotEmpty(namespaceName, "namespaceName");
+            Check.NotNull(baseType, "baseType");
+
+            var entity = new EntityType(name, namespaceName, dataSpace, keyMemberNames, members) { BaseType = baseType };
 
             if (metadataProperties != null)
             {

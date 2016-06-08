@@ -3,9 +3,12 @@
 namespace System.Data.Entity.Core.EntityClient
 {
     using System.Data.Common;
+    using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
 
     /// <summary>
     /// Class representing a transaction for the conceptual layer
@@ -19,11 +22,11 @@ namespace System.Data.Entity.Core.EntityClient
         {
         }
 
-        /// <summary>
-        /// Constructs the EntityTransaction object with an associated connection and the underlying store transaction
-        /// </summary>
-        /// <param name="connection"> The EntityConnetion object owning this transaction </param>
-        /// <param name="storeTransaction"> The underlying transaction object </param>
+        // <summary>
+        // Constructs the EntityTransaction object with an associated connection and the underlying store transaction
+        // </summary>
+        // <param name="connection"> The EntityConnetion object owning this transaction </param>
+        // <param name="storeTransaction"> The underlying transaction object </param>
         [SuppressMessage("Microsoft.Reliability", "CA2000:DisposeObjectsBeforeLosingScope",
             Justification = "Object is in fact passed to property of the class and gets Disposed properly in the Dispose() method.")]
         internal EntityTransaction(EntityConnection connection, DbTransaction storeTransaction)
@@ -55,7 +58,14 @@ namespace System.Data.Entity.Core.EntityClient
         protected override DbConnection DbConnection
         {
             // follow the store transaction behavior
-            get { return (((_storeTransaction != null ? _storeTransaction.Connection : null) != null) ? _connection : null); }
+            get
+            {
+                return (_storeTransaction != null
+                    ? DbInterception.Dispatch.Transaction.GetConnection(_storeTransaction, InterceptionContext)
+                    : null) != null
+                    ? _connection
+                    : null;
+            }
         }
 
         /// <summary>
@@ -69,17 +79,25 @@ namespace System.Data.Entity.Core.EntityClient
             get
             {
                 return _storeTransaction != null
-                           ? _storeTransaction.IsolationLevel
+                           ? DbInterception.Dispatch.Transaction.GetIsolationLevel(_storeTransaction, InterceptionContext)
                            : default(IsolationLevel);
             }
         }
 
         /// <summary>
-        /// Gets the DbTransaction for the underlying provider transaction
+        /// Gets the DbTransaction for the underlying provider transaction.
         /// </summary>
-        internal virtual DbTransaction StoreTransaction
+        public virtual DbTransaction StoreTransaction
         {
             get { return _storeTransaction; }
+        }
+
+        private DbInterceptionContext InterceptionContext
+        {
+            get
+            {
+                return DbInterceptionContext.Combine(_connection.AssociatedContexts.Select(c => c.InterceptionContext));
+            }
         }
 
         /// <summary>Commits the underlying transaction.</summary>
@@ -89,12 +107,13 @@ namespace System.Data.Entity.Core.EntityClient
             {
                 if (_storeTransaction != null)
                 {
-                    _storeTransaction.Commit();
+                    DbInterception.Dispatch.Transaction.Commit(_storeTransaction, InterceptionContext);
                 }
             }
             catch (Exception e)
             {
-                if (e.IsCatchableExceptionType())
+                if (e.IsCatchableExceptionType()
+                    && !(e is CommitFailedException))
                 {
                     throw new EntityException(Strings.EntityClient_ProviderSpecificError(@"Commit"), e);
                 }
@@ -112,7 +131,7 @@ namespace System.Data.Entity.Core.EntityClient
             {
                 if (_storeTransaction != null)
                 {
-                    _storeTransaction.Rollback();
+                    DbInterception.Dispatch.Transaction.Rollback(_storeTransaction, InterceptionContext);
                 }
             }
             catch (Exception e)
@@ -140,15 +159,15 @@ namespace System.Data.Entity.Core.EntityClient
 
                 if (_storeTransaction != null)
                 {
-                    _storeTransaction.Dispose();
+                    DbInterception.Dispatch.Transaction.Dispose(_storeTransaction, InterceptionContext);
                 }
             }
             base.Dispose(disposing);
         }
 
-        /// <summary>
-        /// Helper method to wrap EntityConnection.ClearCurrentTransaction()
-        /// </summary>
+        // <summary>
+        // Helper method to wrap EntityConnection.ClearCurrentTransaction()
+        // </summary>
         private void ClearCurrentTransaction()
         {
             if ((_connection != null)

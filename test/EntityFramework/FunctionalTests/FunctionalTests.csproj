@@ -21,7 +21,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;EF_FUNCTIONALS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
@@ -33,7 +33,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;EF_FUNCTIONALS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
@@ -46,7 +46,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\DebugNet40\</OutputPath>
-    <DefineConstants>DEBUG;TRACE;NET40</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;NET40;EF_FUNCTIONALS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
@@ -58,7 +58,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\ReleaseNet40\</OutputPath>
-    <DefineConstants>TRACE;NET40</DefineConstants>
+    <DefineConstants>TRACE;NET40;EF_FUNCTIONALS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <NoWarn>0169</NoWarn>
@@ -97,13 +97,13 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />
-    <Reference Include="xunit, Version=1.9.1.1600, Culture=neutral, PublicKeyToken=8d05b1bb7a6fdb6c, processorArchitecture=MSIL">
+    <Reference Include="xunit, Version=1.9.2.1705, Culture=neutral, PublicKeyToken=8d05b1bb7a6fdb6c, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\xunit.1.9.1\lib\net20\xunit.dll</HintPath>
+      <HintPath>..\..\..\packages\xunit.1.9.2\lib\net20\xunit.dll</HintPath>
     </Reference>
-    <Reference Include="xunit.extensions, Version=1.9.1.1600, Culture=neutral, PublicKeyToken=8d05b1bb7a6fdb6c, processorArchitecture=MSIL">
+    <Reference Include="xunit.extensions, Version=1.9.2.1705, Culture=neutral, PublicKeyToken=8d05b1bb7a6fdb6c, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\xunit.extensions.1.9.1\lib\net20\xunit.extensions.dll</HintPath>
+      <HintPath>..\..\..\packages\xunit.extensions.1.9.2\lib\net20\xunit.extensions.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -113,6 +113,9 @@
     <EmbeddedResource Include="Objects\TransactionsModel.csdl" />
     <EmbeddedResource Include="Objects\TransactionsModel.msl" />
     <EmbeddedResource Include="Objects\TransactionsModel.ssdl" />
+    <EmbeddedResource Include="Metadata\MetadataCachingModel.csdl" />
+    <EmbeddedResource Include="Metadata\MetadataCachingModel.msl" />
+    <EmbeddedResource Include="Metadata\MetadataCachingModel.ssdl" />
     <None Include="packages.config" />
     <None Include="App.config">
       <SubType>Designer</SubType>
@@ -129,11 +132,45 @@
     <EmbeddedResource Include="Query\StoredProcedures\IceAndFireModel.csdl" />
     <EmbeddedResource Include="Query\StoredProcedures\IceAndFireModel.msl" />
     <EmbeddedResource Include="Query\StoredProcedures\IceAndFireModel.ssdl" />
+    <None Include="TestModels\TemplateModels\CsAdvancedPatterns\CsAdvancedPatterns.Context.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>CsAdvancedPatterns.Context.cs</LastGenOutput>
+      <CustomToolNamespace>FunctionalTests.ProductivityApi.TemplateModels.CsAdvancedPatterns</CustomToolNamespace>
+    </None>
+    <None Include="TestModels\TemplateModels\CsAdvancedPatterns\CsAdvancedPatterns.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>CsAdvancedPatterns.cs</LastGenOutput>
+      <CustomToolNamespace>FunctionalTests.ProductivityApi.TemplateModels.CsAdvancedPatterns</CustomToolNamespace>
+    </None>
+    <None Include="TestModels\TemplateModels\CsMonsterModel\CsMonsterModel.Context.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>CsMonsterModel.Context.cs</LastGenOutput>
+      <CustomToolNamespace>FunctionalTests.ProductivityApi.TemplateModels.CsMonsterModel</CustomToolNamespace>
+    </None>
+    <None Include="TestModels\TemplateModels\CsMonsterModel\CsMonsterModel.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>CsMonsterModel.cs</LastGenOutput>
+      <CustomToolNamespace>FunctionalTests.ProductivityApi.TemplateModels.CsMonsterModel</CustomToolNamespace>
+    </None>
+    <None Include="TestModels\TemplateModels\ProcessCsTemplate.bat" />
+    <None Include="TestModels\TemplateModels\ProcessTemplates.bat" />
+    <None Include="TestModels\TemplateModels\ProcessVbTemplate.bat" />
+    <EmbeddedResource Include="TestModels\TemplateModels\Schemas\AdvancedPatterns.edmx">
+      <Generator>EntityModelCodeGenerator</Generator>
+      <LastGenOutput>AdvancedPatterns.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="TestModels\TemplateModels\Schemas\MonsterModel.csdl" />
+    <EmbeddedResource Include="TestModels\TemplateModels\Schemas\MonsterModel.msl" />
+    <EmbeddedResource Include="TestModels\TemplateModels\Schemas\MonsterModel.ssdl" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\EntityFramework.SqlServerCompact\EntityFramework.SqlServerCompact.csproj">
       <Project>{1ef9c524-7122-4677-b111-dd14bb2a9ea2}</Project>
       <Name>EntityFramework.SqlServerCompact</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\src\EntityFramework.SqlServerCompact\EntityFramework.SqlServerCompact.Legacy.csproj">
+      <Project>{54bfa36b-8105-468e-aa22-f2e1d3b28b54}</Project>
+      <Name>EntityFramework.SqlServerCompact.Legacy</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\..\src\EntityFramework.SqlServer\EntityFramework.SqlServer.csproj">
       <Project>{6f4bb80b-5f74-44d3-a77f-0025dfa48c1a}</Project>
@@ -149,14 +186,40 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\..\src\Common\TypeExtensions.cs">
+      <Link>Utilities\TypeExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\src\Common\DebugCheck.cs">
+      <Link>Utilities\DebugCheck.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\src\Common\MemberInfoExtensions.cs">
+      <Link>Utilities\MemberInfoExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\src\Common\AssemblyExtensions.cs">
+      <Link>Utilities\AssemblyExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\src\Common\PropertyInfoExtensions.cs">
+      <Link>Utilities\PropertyInfoExtensions.cs</Link>
+    </Compile>
+    <Compile Include="CodeFirst\CodePlex2169.cs" />
     <Compile Include="CodeFirst\ConfigurationScenarioTests.cs" />
-    <Compile Include="CodeFirst\EntitySplittingTests.cs" />
-    <Compile Include="CodeFirst\NameUniquificationTests.cs" />
-    <Compile Include="CodeFirst\NonPublicPropertyTests.cs" />
+    <Compile Include="CodeFirst\FunctionsScenarioTests.cs" />
     <Compile Include="CodeFirst\QueryCachingTests.cs" />
     <Compile Include="CodeFirst\ModificationFunctionsEndToEndTests.cs" />
+    <Compile Include="CodeFirst\SpecialCharacterTests.cs" />
     <Compile Include="Interception\BlogContextNoInit.cs" />
+    <Compile Include="Interception\CommitFailureTests.cs" />
     <Compile Include="Interception\DatabaseLogFormatterTests.cs" />
+    <Compile Include="Interception\DatabaseLoggerTests.cs" />
+    <Compile Include="Metadata\MetadataAnnotationTests.cs" />
+    <Compile Include="Metadata\MetadataCachingTests.cs" />
+    <Compile Include="Metadata\MetadataCollectionTests.cs" />
+    <Compile Include="Metadata\MetadataEnumTests.cs" />
+    <Compile Include="Metadata\MetadataFunctionsTests.cs" />
+    <Compile Include="Metadata\MetadataSpatialTests.cs" />
+    <Compile Include="Migrations\AlterTableAnnotationsScenarios.cs" />
+    <Compile Include="Migrations\BasicMigrationScenarios.cs" />
+    <Compile Include="Migrations\CustomHistoryScenarios.cs" />
     <Compile Include="Migrations\LoggingScenarios.cs" />
     <Compile Include="Migrations\CreateStoredProcedureScenarios.cs" />
     <Compile Include="Migrations\ModificationFunctionsScenarios.cs" />
@@ -164,16 +227,47 @@
     <Compile Include="Interception\CommandInterceptionTests.cs" />
     <Compile Include="Interception\CommandTreeInterceptionTests.cs" />
     <Compile Include="Migrations\InitializerScenarios.cs" />
+    <Compile Include="Migrations\TestHelpers\DatabaseProviderFixture.cs" />
+    <Compile Include="Migrations\TestHelpers\DbMigratorExtensions.cs" />
+    <Compile Include="Migrations\TestHelpers\DbTestCase.cs" />
+    <Compile Include="Migrations\TestHelpers\MigrationCompiler.cs" />
+    <Compile Include="Migrations\TestHelpers\MigrationsTheoryAttribute.cs" />
+    <Compile Include="Migrations\TestHelpers\MigrationsTheoryCommand.cs" />
+    <Compile Include="Migrations\TestHelpers\TestDatabase.cs" />
+    <Compile Include="Migrations\TestHelpers\VariantAttribute.cs" />
+    <Compile Include="Migrations\UpgradeScenarios.cs" />
+    <Compile Include="Objects\AttributeBasedOCLoading.cs" />
     <Compile Include="Objects\TransactionsTests.cs" />
     <Compile Include="Migrations\SpatialScenarios.cs" />
     <Compile Include="PlanCompiler\AnonymousTypeTests.cs" />
     <Compile Include="PlanCompiler\LimitExpressionTests.cs" />
     <Compile Include="PlanCompiler\LinqGroupByTests.cs" />
+    <Compile Include="ProductivityApi\DbContextTests.cs" />
     <Compile Include="ProductivityApi\DbFunctionScenarios.cs" />
     <Compile Include="ProductivityApi\DeadlockTests.cs" />
-    <Compile Include="ProductivityApi\GetHashCodeTests.cs" />
-    <Compile Include="ProductivityApi\HasChangesTests.cs" />
+    <Compile Include="ProductivityApi\SimpleScenariosForSqlCe35.cs" />
+    <Compile Include="ProductivityApi\TemplateTests.cs" />
+    <Compile Include="Query\Bug2612.cs" />
+    <Compile Include="Query\Bug952621.cs" />
+    <Compile Include="Query\ComparisonTestst.cs" />
+    <Compile Include="Query\ConditionalTranslatorTests.cs" />
+    <Compile Include="Query\FilterOpRulesTests.cs" />
+    <Compile Include="Query\LinqToEntities\ConvertEliminationTests.cs" />
+    <Compile Include="Query\LinqToEntities\ExpressionTests.cs" />
+    <Compile Include="Query\LinqToEntities\JoinTests.cs" />
+    <Compile Include="Query\LinqToEntities\OrderByTests.cs" />
+    <Compile Include="Query\PredicateScalarizationTests.cs" />
+    <Compile Include="Query\LinqToEntities\HasFlagTests.cs" />
     <Compile Include="Query\LinqToEntities\ProjectionTests.cs" />
+    <Compile Include="Query\NullSemanticsTests.cs" />
+    <Compile Include="Query\LinqToEntities\StringConcatTests.cs" />
+    <Compile Include="Query\LinqToEntities\ToStringTests.cs" />
+    <Compile Include="Query\QueryTestHelpers.cs" />
+    <Compile Include="Query\SqlCeCanonicalFunctionsTests.cs" />
+    <Compile Include="SqlClient\DatabaseExistsInInitializerTests.cs" />
+    <Compile Include="SqlClient\DatabaseExistsTests.cs" />
+    <Compile Include="SqlServerCompact\CodePlex2197.cs" />
+    <Compile Include="SqlServerCompact\SqlGeneratorTests.cs" />
     <Compile Include="TestDoubles\InMemoryDbSetTests.cs" />
     <Compile Include="TestDoubles\InMemoryNonGenericDbSet.cs" />
     <Compile Include="TestDoubles\InMemoryNonGenericDbSetTests.cs" />
@@ -185,7 +279,6 @@
     <Compile Include="TestDoubles\InMemoryDbAsyncEnumerator.cs" />
     <Compile Include="TestDoubles\InMemoryDbSet.cs" />
     <Compile Include="TestDoubles\MockableDbSetTests.cs" />
-    <Compile Include="ProductivityApi\StreamingTests.cs" />
     <Compile Include="ProductivityApi\NamespaceAndNestingTests.cs" />
     <Compile Include="ProductivityApi\TimeoutTests.cs" />
     <Compile Include="Query\ApplyOpRulesTests.cs" />
@@ -197,7 +290,42 @@
     <Compile Include="Query\StoredProcedures\StoredProceduresTests.cs" />
     <Compile Include="TestDoubles\InMemorySqlQuery.cs" />
     <Compile Include="TestDoubles\UnimplementedNonGenericDbSetTests.cs" />
+    <Compile Include="TestHelpers\IUseDefaultExecutionStrategy.cs" />
+    <Compile Include="TestHelpers\UseDefaultExecutionStrategyAttribute.cs" />
     <Compile Include="TestHelpers\StringExtensions.cs" />
+    <Compile Include="ProductivityApi\TemplateBasedModelnitializer.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\Address.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\AdvancedPatternsInitializer.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\AdvancedPatternsMasterContext.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\AdvancedPatternsModelFirstInitializer.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\Building.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\BuildingDetail.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\CurrentEmployee.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\Employee.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\MailRoom.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\Office.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\PastEmployee.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\SiteInfo.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\UnMappedOffice.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\UnMappedOfficeBase.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\UnMappedPersonBase.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\Whiteboard.cs" />
+    <Compile Include="TestModels\AdvancedPatternsModel\WorkOrder.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\AllTypeKeysContext.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\AllTypeKeysModelInitializer.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\BoolKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\ByteKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\CompositeKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\CompositeKeyEntityWithOrderingAnnotations.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\DateTimeKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\DateTimeOffsetKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\DecimalKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\DoubleKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\FloatKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\GuidKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\LongKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\ShortKeyEntity.cs" />
+    <Compile Include="TestModels\AllTypeKeysModel\TimeSpanKeyEntity.cs" />
     <Compile Include="TestModels\ArubaModel\ArubaAllTypes.cs" />
     <Compile Include="TestModels\ArubaModel\ArubaBaseline.cs" />
     <Compile Include="TestModels\ArubaModel\ArubaBug.cs" />
@@ -249,6 +377,197 @@
     <Compile Include="TestModels\FantasyModel\FantasyStoredProceduresInitializer.cs" />
     <Compile Include="TestModels\FantasyModel\Spell.cs" />
     <Compile Include="TestModels\FantasyModel\Tower.cs" />
+    <Compile Include="TestModels\SimpleMigrationsModel\201112202056275_InitialCreate.cs" />
+    <Compile Include="TestModels\SimpleMigrationsModel\201112202056275_InitialCreate.designer.cs">
+      <DependentUpon>201112202056275_InitialCreate.cs</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\SimpleMigrationsModel\201112202056573_AddUrlToBlog.cs" />
+    <Compile Include="TestModels\SimpleMigrationsModel\201112202056573_AddUrlToBlog.designer.cs">
+      <DependentUpon>201112202056573_AddUrlToBlog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\SimpleMigrationsModel\Blog.cs" />
+    <Compile Include="TestModels\SimpleMigrationsModel\MigrateInitializerConfiguration.cs" />
+    <Compile Include="TestModels\SimpleMigrationsModel\MigrateInitializerContext.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\AddressMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\BuildingDetailMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\BuildingMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\CsAdvancedPatterns.Context.cs">
+      <DependentUpon>CsAdvancedPatterns.Context.tt</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\CsAdvancedPatterns.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\CurrentEmployeeMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\EmployeeMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\MailRoomMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\OfficeMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\AddressMf.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\AdvancedPatternsModelFirstContext.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\BuildingMf.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\CurrentEmployeeMf.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\EmployeeMf.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\OfficeMf.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\PastEmployeeMf.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\Partials\SiteInfoMf.cs" />
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\PastEmployeeMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\SiteInfoMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\WhiteboardMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsAdvancedPatterns\WorkOrderMf.cs">
+      <DependentUpon>CsAdvancedPatterns.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\BackOrderLine2Mm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\BackOrderLineMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\BarcodeDetailMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\BarcodeMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ComplaintMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ComputerDetailMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ComputerMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ConcurrencyInfoMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ContactDetailsMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\CsMonsterModel.Context.cs">
+      <DependentUpon>CsMonsterModel.Context.tt</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\CsMonsterModel.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\CustomerInfoMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\DimensionsMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\DiscontinuedProductMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\DriverMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ExternalTypes\AuditInfoMm.cs" />
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ExternalTypes\CustomerMm.cs" />
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ExternalTypes\LicenseStateMm.cs" />
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ExternalTypes\LoginMm.cs" />
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ExternalTypes\PhoneMm.cs" />
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ExternalTypes\PhoneTypeMm.cs" />
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\IncorrectScanMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\LastLoginMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\LicenseMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\MessageMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\OrderLineMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\OrderMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\OrderNoteMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\OrderQualityCheckMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\PageViewMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\PasswordResetMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ProductDetailMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ProductMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ProductPageViewMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ProductPhotoMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ProductReviewMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ProductWebFeatureMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\ResolutionMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\RSATokenMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\SmartCardMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\SupplierInfoMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\SupplierLogoMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\SupplierMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\CsMonsterModel\SuspiciousActivityMm.cs">
+      <DependentUpon>CsMonsterModel.tt</DependentUpon>
+    </Compile>
+    <Compile Include="TestModels\TemplateModels\Schemas\AdvancedPatterns.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>AdvancedPatterns.edmx</DependentUpon>
+    </Compile>
     <Compile Include="Update\GuidIdentityColumnUpdateTests.cs" />
     <Compile Include="Update\TruncationTests.cs" />
     <Compile Include="Update\UpdateTests.cs" />
@@ -342,7 +661,6 @@
     <Compile Include="TestModels\StoreModel\DatabaseLog.cs" />
     <Compile Include="TestModels\StoreModel\ErrorLog.cs" />
     <Compile Include="TestModels\AdvancedPatternsModel\AdvancedPatternsEmployeeContext.cs" />
-    <Compile Include="ProductivityApi\ChangeTrackingProxyTests.cs" />
     <Compile Include="ProductivityApi\ComplexTypeTests.cs" />
     <Compile Include="ProductivityApi\ConcurrencyTests.cs" />
     <Compile Include="ProductivityApi\ConnectionTests.cs" />
@@ -359,13 +677,6 @@
     <Compile Include="ProductivityApi\DetectChangesTests.cs" />
     <Compile Include="ProductivityApi\DisposeTests.cs" />
     <Compile Include="ProductivityApi\enumtests.cs" />
-    <Compile Include="ProductivityApi\extralazyloadingtests.cs" />
-    <Compile Include="TestModels\ExtraLazyLoading\cachingcollectioninitializer.cs" />
-    <Compile Include="TestModels\ExtraLazyLoading\collectionextensions.cs" />
-    <Compile Include="TestModels\ExtraLazyLoading\ihasisloaded.cs" />
-    <Compile Include="TestModels\ExtraLazyLoading\lazyblogcontext.cs" />
-    <Compile Include="TestModels\ExtraLazyLoading\queryablecollection.cs" />
-    <Compile Include="TestModels\ExtraLazyLoading\queryablecollectioninitializer.cs" />
     <Compile Include="ProductivityApi\FindTests.cs" />
     <Compile Include="ProductivityApi\IncludeTests.cs" />
     <Compile Include="TestModels\InvalidMappingModel\InvalidMappingContext.cs" />

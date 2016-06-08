@@ -1,89 +1,111 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Internal
 {
     using System.Collections.Generic;
-    using System.Data.Common;
-    using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.Core.Objects;
+    using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
-    using System.Text;
     using System.Transactions;
 
     internal class DatabaseTableChecker
     {
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
-        public bool AnyModelTableExists(InternalContext internalContext)
+        public DatabaseExistenceState AnyModelTableExists(InternalContext internalContext)
         {
+            var exists = internalContext.DatabaseOperations.Exists(
+                internalContext.Connection,
+                internalContext.CommandTimeout,
+                new Lazy<StoreItemCollection>(() => CreateStoreItemCollection(internalContext)));
+
+            if (!exists)
+            {
+                return DatabaseExistenceState.DoesNotExist;
+            }
+
             using (var clonedObjectContext = internalContext.CreateObjectContextForDdlOps())
             {
-                var exists = internalContext.DatabaseOperations.Exists(clonedObjectContext.ObjectContext);
-
-                if (!exists)
-                {
-                    return false;
-                }
-
                 try
                 {
                     if (internalContext.CodeFirstModel == null)
                     {
-                        return true;
+                        // If not Code First, then assume tables created in some other way
+                        return DatabaseExistenceState.Exists;
                     }
 
-                    var providerName = internalContext.ProviderName;
-                    IPseudoProvider provider;
+                    var checker = DbConfiguration.DependencyResolver.GetService<TableExistenceChecker>(internalContext.ProviderName);
 
-                    switch (providerName)
+                    if (checker == null)
                     {
-                        case "System.Data.SqlClient":
-                            provider = new SqlPseudoProvider();
-                            break;
-
-                        case "System.Data.SqlServerCe.4.0":
-                            provider = new SqlCePseudoProvider();
-                            break;
-
-                        default:
-                            return true;
+                        // If we can't check for tables, then assume they exist as we did in older versions
+                        return DatabaseExistenceState.Exists;
                     }
 
-                    var modelTables = GetModelTables(internalContext.ObjectContext.MetadataWorkspace).ToList();
+                    var modelTables = GetModelTables(internalContext).ToList();
 
                     if (!modelTables.Any())
                     {
-                        return true;
+                        // If this is an empty model, then all tables that can exist (0) do exist
+                        return DatabaseExistenceState.Exists;
                     }
 
-                    using (new TransactionScope(TransactionScopeOption.Suppress))
+                    if (QueryForTableExistence(checker, clonedObjectContext, modelTables))
                     {
-                        if (provider.AnyModelTableExistsInDatabase(
-                            clonedObjectContext.ObjectContext, clonedObjectContext.Connection, modelTables,
-                            EdmMetadataContext.TableName))
-                        {
-                            return true;
-                        }
+                        // If any table exists, then assume that this is a non-empty database
+                        return DatabaseExistenceState.Exists;
                     }
 
-                    return internalContext.HasHistoryTableEntry();
+                    // At this point we know no model tables exist. If the history table exists and has an entry
+                    // for this context, then treat this as a non-empty database, otherwise treat is as existing
+                    // but empty.
+                    return internalContext.HasHistoryTableEntry()
+                        ? DatabaseExistenceState.Exists
+                        : DatabaseExistenceState.ExistsConsideredEmpty;
                 }
                 catch (Exception ex)
                 {
                     Debug.Fail(ex.Message, ex.ToString());
 
                     // Revert to previous behavior on error
-                    return true;
+                    return DatabaseExistenceState.Exists;
                 }
             }
         }
 
-        private static IEnumerable<EntitySet> GetModelTables(MetadataWorkspace workspace)
+        private static StoreItemCollection CreateStoreItemCollection(InternalContext internalContext)
         {
-            return workspace
+            using (var clonedObjectContext = internalContext.CreateObjectContextForDdlOps())
+            {
+                var entityConnection = ((EntityConnection)clonedObjectContext.ObjectContext.Connection);
+                return (StoreItemCollection)entityConnection.GetMetadataWorkspace().GetItemCollection(DataSpace.SSpace);
+            }
+        }
+
+        public virtual bool QueryForTableExistence(
+            TableExistenceChecker checker, ClonedObjectContext clonedObjectContext, List<EntitySet> modelTables)
+        {
+            using (new TransactionScope(TransactionScopeOption.Suppress))
+            {
+                if (checker.AnyModelTableExistsInDatabase(
+                    clonedObjectContext.ObjectContext,
+                    clonedObjectContext.Connection,
+                    modelTables,
+                    EdmMetadataContext.TableName))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public virtual IEnumerable<EntitySet> GetModelTables(InternalContext internalContext)
+        {
+            return internalContext.ObjectContext.MetadataWorkspace
                 .GetItemCollection(DataSpace.SSpace)
                 .GetItems<EntityContainer>()
                 .Single()
@@ -92,146 +114,6 @@ namespace System.Data.Entity.Internal
                 .Where(
                     s => !s.MetadataProperties.Contains("Type")
                          || (string)s.MetadataProperties["Type"].Value == "Tables");
-        }
-
-        private static string GetTableName(EntitySet modelTable)
-        {
-            return modelTable.MetadataProperties.Contains("Table")
-                   && modelTable.MetadataProperties["Table"].Value != null
-                       ? (string)modelTable.MetadataProperties["Table"].Value
-                       : modelTable.Name;
-        }
-
-        private interface IPseudoProvider
-        {
-            bool AnyModelTableExistsInDatabase(
-                ObjectContext context, DbConnection connection, List<EntitySet> modelTables, string edmMetadataContextTableName);
-        }
-
-        private class SqlPseudoProvider : IPseudoProvider
-        {
-            [SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
-            public bool AnyModelTableExistsInDatabase(
-                ObjectContext context, DbConnection connection, List<EntitySet> modelTables, string edmMetadataContextTableName)
-            {
-                var modelTablesListBuilder = new StringBuilder();
-                foreach (var modelTable in modelTables)
-                {
-                    modelTablesListBuilder.Append("'");
-                    modelTablesListBuilder.Append((string)modelTable.MetadataProperties["Schema"].Value);
-                    modelTablesListBuilder.Append(".");
-                    modelTablesListBuilder.Append(GetTableName(modelTable));
-                    modelTablesListBuilder.Append("',");
-                }
-                modelTablesListBuilder.Remove(modelTablesListBuilder.Length - 1, 1);
-
-                using (var command = new InterceptableDbCommand(
-                    connection.CreateCommand(), context.InterceptionContext))
-                {
-                    command.CommandText = @"
-SELECT Count(*)
-FROM INFORMATION_SCHEMA.TABLES AS t
-WHERE t.TABLE_TYPE = 'BASE TABLE'
-    AND (t.TABLE_SCHEMA + '.' + t.TABLE_NAME IN (" + modelTablesListBuilder + @")
-        OR t.TABLE_NAME = '" + edmMetadataContextTableName + "')";
-
-                    var executionStrategy = DbProviderServices.GetExecutionStrategy(connection);
-                    try
-                    {
-                        return executionStrategy.Execute(
-                            () =>
-                                {
-                                    if (connection.State == ConnectionState.Broken)
-                                    {
-                                        connection.Close();
-                                    }
-
-                                    if (connection.State == ConnectionState.Closed)
-                                    {
-                                        connection.Open();
-                                    }
-
-                                    return (int)command.ExecuteScalar() > 0;
-                                });
-                    }
-                    finally
-                    {
-                        if (connection.State != ConnectionState.Closed)
-                        {
-                            connection.Close();
-                        }
-                    }
-                }
-            }
-        }
-
-        private class SqlCePseudoProvider : IPseudoProvider
-        {
-            public bool AnyModelTableExistsInDatabase(
-                ObjectContext context, DbConnection connection, List<EntitySet> modelTables, string edmMetadataContextTableName)
-            {
-                var modelTablesListBuilder = new StringBuilder();
-                foreach (var modelTable in modelTables)
-                {
-                    modelTablesListBuilder.Append("'");
-                    modelTablesListBuilder.Append(GetTableName(modelTable));
-                    modelTablesListBuilder.Append("',");
-                }
-
-                modelTablesListBuilder.Append("'");
-                modelTablesListBuilder.Append("edmMetadataContextTableName");
-                modelTablesListBuilder.Append("'");
-
-                using (var command = new InterceptableDbCommand(
-                    connection.CreateCommand(), context.InterceptionContext))
-                {
-                    command.CommandText = @"
-SELECT Count(*)
-FROM INFORMATION_SCHEMA.TABLES AS t
-WHERE t.TABLE_TYPE = 'TABLE'
-    AND t.TABLE_NAME IN (" + modelTablesListBuilder + @")";
-
-                    var executionStrategy = DbProviderServices.GetExecutionStrategy(connection);
-                    try
-                    {
-                        return executionStrategy.Execute(
-                            () =>
-                                {
-                                    if (connection.State == ConnectionState.Broken)
-                                    {
-                                        connection.Close();
-                                    }
-
-                                    if (connection.State == ConnectionState.Closed)
-                                    {
-                                        connection.Open();
-                                    }
-
-                                    return (int)command.ExecuteScalar() > 0;
-                                });
-                    }
-                    finally
-                    {
-                        if (connection.State != ConnectionState.Closed)
-                        {
-                            connection.Close();
-                        }
-                    }
-                }
-            }
-        }
-
-        private class IgnoreSchemaComparer : IEqualityComparer<Tuple<string, string>>
-        {
-            public bool Equals(Tuple<string, string> x, Tuple<string, string> y)
-            {
-                return EqualityComparer<string>.Default.Equals(x.Item2, y.Item2);
-            }
-
-            public int GetHashCode(Tuple<string, string> obj)
-            {
-                return EqualityComparer<string>.Default.GetHashCode(obj.Item2);
-            }
         }
     }
 }

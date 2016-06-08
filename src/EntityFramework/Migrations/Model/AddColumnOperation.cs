@@ -4,6 +4,7 @@ namespace System.Data.Entity.Migrations.Model
 {
     using System.Data.Entity.Utilities;
     using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
 
     /// <summary>
     /// Represents a column being added to a table.
@@ -12,7 +13,7 @@ namespace System.Data.Entity.Migrations.Model
     /// (such as the end user of an application). If input is accepted from such sources it should be validated 
     /// before being passed to these APIs to protect against SQL injection attacks etc.
     /// </summary>
-    public class AddColumnOperation : MigrationOperation
+    public class AddColumnOperation : MigrationOperation, IAnnotationTarget
     {
         private readonly string _table;
         private readonly ColumnModel _column;
@@ -59,13 +60,22 @@ namespace System.Data.Entity.Migrations.Model
         /// </summary>
         public override MigrationOperation Inverse
         {
-            get { return new DropColumnOperation(Table, Column.Name); }
+            get
+            {
+                return new DropColumnOperation(
+                    Table, Column.Name, Column.Annotations.ToDictionary(a => a.Key, a => a.Value.NewValue));
+            }
         }
 
         /// <inheritdoc />
         public override bool IsDestructiveChange
         {
             get { return false; }
+        }
+
+        bool IAnnotationTarget.HasAnnotations
+        {
+            get { return Column.Annotations.Any(); }
         }
     }
 }

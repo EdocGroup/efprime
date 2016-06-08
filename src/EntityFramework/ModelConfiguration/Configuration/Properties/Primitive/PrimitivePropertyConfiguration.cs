@@ -7,6 +7,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Data.Entity.Internal;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.ModelConfiguration.Edm;
@@ -17,25 +18,27 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
     using System.Linq;
     using System.Linq.Expressions;
 
-    /// <summary>
-    /// Used to configure a primitive property of an entity type or complex type.
-    /// </summary>
+    // <summary>
+    // Used to configure a primitive property of an entity type or complex type.
+    // </summary>
     internal class PrimitivePropertyConfiguration : PropertyConfiguration
     {
-        /// <summary>
-        /// Initializes a new instance of the PrimitivePropertyConfiguration class.
-        /// </summary>
+        private readonly IDictionary<string, object> _annotations = new Dictionary<string, object>();
+
+        // <summary>
+        // Initializes a new instance of the PrimitivePropertyConfiguration class.
+        // </summary>
         public PrimitivePropertyConfiguration()
         {
             OverridableConfigurationParts = OverridableConfigurationParts.OverridableInCSpace |
                                             OverridableConfigurationParts.OverridableInSSpace;
         }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="T:System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.PrimitivePropertyConfiguration" /> 
-        /// class with the same settings as another configuration.
-        /// </summary>
-        /// <param name="source">The configuration to copy settings from.</param>
+        // <summary>
+        // Initializes a new instance of the <see cref="T:System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive.PrimitivePropertyConfiguration" /> 
+        // class with the same settings as another configuration.
+        // </summary>
+        // <param name="source">The configuration to copy settings from.</param>
         protected PrimitivePropertyConfiguration(PrimitivePropertyConfiguration source)
         {
             Check.NotNull(source, "source");
@@ -49,6 +52,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             ParameterName = source.ParameterName;
             ColumnOrder = source.ColumnOrder;
             OverridableConfigurationParts = source.OverridableConfigurationParts;
+
+            foreach (var annotation in source._annotations)
+            {
+                _annotations.Add(annotation);
+            }
         }
 
         internal virtual PrimitivePropertyConfiguration Clone()
@@ -56,39 +64,57 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             return new PrimitivePropertyConfiguration(this);
         }
 
-        /// <summary>
-        /// Gets a value indicating whether the property is optional.
-        /// </summary>
+        // <summary>
+        // Gets a value indicating whether the property is optional.
+        // </summary>
         public bool? IsNullable { get; set; }
 
-        /// <summary>
-        /// Gets or sets the concurrency mode to use for the property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the concurrency mode to use for the property.
+        // </summary>
         public ConcurrencyMode? ConcurrencyMode { get; set; }
 
-        /// <summary>
-        /// Gets or sets the pattern used to generate values in the database for the
-        /// property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the pattern used to generate values in the database for the
+        // property.
+        // </summary>
         public DatabaseGeneratedOption? DatabaseGeneratedOption { get; set; }
 
-        /// <summary>
-        /// Gets or sets the type of the database column used to store the property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the type of the database column used to store the property.
+        // </summary>
         public string ColumnType { get; set; }
 
-        /// <summary>
-        /// Gets or sets the name of the database column used to store the property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the name of the database column used to store the property.
+        // </summary>
         public string ColumnName { get; set; }
 
-        /// <summary>Gets or sets the name of the parameter used in stored procedures for this property.</summary>
-        /// <returns>The name of the parameter used in stored procedures for this property.</returns>
+        public IDictionary<string, object> Annotations
+        {
+            get { return _annotations; }
+        }
+
+        public virtual void SetAnnotation(string name, object value)
+        {
+            // Technically we could accept some names that are invalid in EDM, but this is not too restrictive
+            // and is an easy way of ensuring that name is valid all places we want to use it--i.e. in the XML
+            // and in the MetadataWorkspace.
+            if (!name.IsValidUndottedName())
+            {
+                throw new ArgumentException(Strings.BadAnnotationName(name));
+            }
+
+            _annotations[name] = value;
+        }
+
+        // <summary>Gets or sets the name of the parameter used in stored procedures for this property.</summary>
+        // <returns>The name of the parameter used in stored procedures for this property.</returns>
         public string ParameterName { get; set; }
 
-        /// <summary>
-        /// Gets or sets the order of the database column used to store the property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the order of the database column used to store the property.
+        // </summary>
         public int? ColumnOrder { get; set; }
 
         internal OverridableConfigurationParts OverridableConfigurationParts { get; set; }
@@ -99,49 +125,69 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             DebugCheck.NotNull(property);
             Debug.Assert(property.TypeUsage != null);
 
+            var clone = Clone();
+            var mergedConfiguration = clone.MergeWithExistingConfiguration(
+                property,
+                errorMessage =>
+                {
+                    var propertyInfo = property.GetClrPropertyInfo();
+                    var declaringTypeName = propertyInfo == null
+                        ? string.Empty
+                        : ObjectContextTypeCache.GetObjectType(propertyInfo.DeclaringType).
+                            FullNameWithNesting();
+                    return Error.ConflictingPropertyConfiguration(property.Name, declaringTypeName, errorMessage);
+                },
+                inCSpace: true,
+                fillFromExistingConfiguration: false);
+
+            mergedConfiguration.ConfigureProperty(property);
+        }
+
+        private PrimitivePropertyConfiguration MergeWithExistingConfiguration(
+            EdmProperty property, Func<string, Exception> getConflictException, bool inCSpace, bool fillFromExistingConfiguration)
+        {
             var existingConfiguration = property.GetConfiguration() as PrimitivePropertyConfiguration;
             if (existingConfiguration != null)
             {
-                string errorMessage;
-                if ((existingConfiguration.OverridableConfigurationParts
-                     & OverridableConfigurationParts.OverridableInCSpace)
-                    != OverridableConfigurationParts.OverridableInCSpace
-                    && !existingConfiguration.IsCompatible(this, inCSpace: true, errorMessage: out errorMessage))
+                var space = inCSpace ? OverridableConfigurationParts.OverridableInCSpace : OverridableConfigurationParts.OverridableInSSpace;
+                if (existingConfiguration.OverridableConfigurationParts.HasFlag(space)
+                    || fillFromExistingConfiguration)
                 {
-                    if (OverridableConfigurationParts.HasFlag(OverridableConfigurationParts.OverridableInCSpace))
-                    {
-                        OverrideFrom(existingConfiguration);
-                    }
-                    else
-                    {
-                        var propertyInfo = property.GetClrPropertyInfo();
-                        var declaringTypeName = propertyInfo == null
-                            ? string.Empty
-                            : ObjectContextTypeCache.GetObjectType(propertyInfo.DeclaringType).
-                                FullNameWithNesting();
-                        throw Error.ConflictingPropertyConfiguration(property.Name, declaringTypeName, errorMessage);
-                    }
+                    return existingConfiguration.OverrideFrom(this, inCSpace);
                 }
 
-                // Choose the more derived type for the merged configuration
-                PrimitivePropertyConfiguration mergedConfiguration;
-                if (existingConfiguration.GetType().IsAssignableFrom(GetType()))
+                string errorMessage;
+                if (OverridableConfigurationParts.HasFlag(space)
+                    || existingConfiguration.IsCompatible(this, inCSpace, errorMessage: out errorMessage))
                 {
-                    mergedConfiguration = (PrimitivePropertyConfiguration)MemberwiseClone();
+                    return OverrideFrom(existingConfiguration, inCSpace);
                 }
-                else
-                {
-                    mergedConfiguration = (PrimitivePropertyConfiguration)existingConfiguration.MemberwiseClone();
-                    mergedConfiguration.CopyFrom(this);
-                }
-                mergedConfiguration.FillFrom(existingConfiguration, inCSpace: true);
-                property.SetConfiguration(mergedConfiguration);
+
+                throw getConflictException(errorMessage);
+            }
+
+            return this;
+        }
+
+        private PrimitivePropertyConfiguration OverrideFrom(PrimitivePropertyConfiguration overridingConfiguration, bool inCSpace)
+        {
+            if (overridingConfiguration.GetType().IsAssignableFrom(GetType()))
+            {
+                MakeCompatibleWith(overridingConfiguration, inCSpace);
+                FillFrom(overridingConfiguration, inCSpace);
+
+                return this;
             }
             else
             {
-                property.SetConfiguration(this);
-            }
+                overridingConfiguration.FillFrom(this, inCSpace);
 
+                return overridingConfiguration;
+            }
+        }
+
+        protected virtual void ConfigureProperty(EdmProperty property)
+        {
             if (IsNullable != null)
             {
                 property.Nullable = IsNullable.Value;
@@ -162,9 +208,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                     property.Nullable = false;
                 }
             }
+
+            property.SetConfiguration(this);
         }
 
-        internal virtual void Configure(
+        internal void Configure(
             IEnumerable<Tuple<ColumnMappingBuilder, EntityType>> propertyMappings,
             DbProviderManifest providerManifest,
             bool allowOverride = false,
@@ -228,7 +276,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             parameter.SetConfiguration(this);
         }
 
-        internal virtual void Configure(
+        internal void Configure(
             EdmProperty column, EntityType table, DbProviderManifest providerManifest,
             bool allowOverride = false,
             bool fillFromExistingConfiguration = false)
@@ -237,35 +285,26 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             DebugCheck.NotNull(table);
             DebugCheck.NotNull(providerManifest);
 
-            var existingConfiguration = column.GetConfiguration() as PrimitivePropertyConfiguration;
-
-            if (existingConfiguration != null)
+            var clone = Clone();
+            if (allowOverride)
             {
-                var overridable = column.GetAllowOverride();
-
-                string errorMessage;
-                if ((existingConfiguration.OverridableConfigurationParts
-                     & OverridableConfigurationParts.OverridableInSSpace)
-                    != OverridableConfigurationParts.OverridableInSSpace
-                    && !overridable
-                    && !allowOverride
-                    && !fillFromExistingConfiguration
-                    && !existingConfiguration.IsCompatible(this, inCSpace: false, errorMessage: out errorMessage))
-                {
-                    if (OverridableConfigurationParts.HasFlag(OverridableConfigurationParts.OverridableInSSpace))
-                    {
-                        OverrideFrom(existingConfiguration);
-                    }
-                    else
-                    {
-                        throw Error.ConflictingColumnConfiguration(column.Name, table.Name, errorMessage);
-                    }
-                }
-
-                FillFrom(existingConfiguration, inCSpace: false);
+                clone.OverridableConfigurationParts |= OverridableConfigurationParts.OverridableInSSpace;
             }
 
+            var mergedConfiguration = clone.MergeWithExistingConfiguration(
+                column,
+                errorMessage => Error.ConflictingColumnConfiguration(column.Name, table.Name, errorMessage),
+                /* inCSpace: */ false,
+                fillFromExistingConfiguration);
+
+            mergedConfiguration.ConfigureColumn(column, table, providerManifest);
+        }
+
+        protected virtual void ConfigureColumn(EdmProperty column, EntityType table, DbProviderManifest providerManifest)
+        {
             ConfigureColumnName(column, table);
+
+            ConfigureAnnotations(column);
 
             if (!string.IsNullOrWhiteSpace(ColumnType))
             {
@@ -287,7 +326,6 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             }
 
             column.SetConfiguration(this);
-            column.SetAllowOverride(allowOverride);
         }
 
         private void ConfigureColumnName(EdmProperty column, EntityType table)
@@ -325,6 +363,14 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                     });
         }
 
+        private void ConfigureAnnotations(EdmProperty column)
+        {
+            foreach (var annotation in _annotations)
+            {
+                column.AddAnnotation(XmlConstants.CustomAnnotationPrefix + annotation.Key, annotation.Value);
+            }
+        }
+
         internal virtual void Configure(EdmProperty column, FacetDescription facetDescription)
         {
             DebugCheck.NotNull(column);
@@ -333,6 +379,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
 
         internal virtual void CopyFrom(PrimitivePropertyConfiguration other)
         {
+            if (ReferenceEquals(this, other))
+            {
+                return;
+            }
+
             ColumnName = other.ColumnName;
             ParameterName = other.ParameterName;
             ColumnOrder = other.ColumnOrder;
@@ -341,78 +392,164 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             DatabaseGeneratedOption = other.DatabaseGeneratedOption;
             IsNullable = other.IsNullable;
             OverridableConfigurationParts = other.OverridableConfigurationParts;
+
+            _annotations.Clear();
+            foreach (var annotation in other._annotations)
+            {
+                _annotations[annotation.Key] = annotation.Value;
+            }
         }
 
         internal virtual void FillFrom(PrimitivePropertyConfiguration other, bool inCSpace)
         {
-            if (ColumnName == null
-                && !inCSpace)
+            if (ReferenceEquals(this, other))
             {
-                ColumnName = other.ColumnName;
-            }
-            if (ParameterName == null
-                && !inCSpace)
-            {
-                ParameterName = other.ParameterName;
-            }
-            if (ColumnOrder == null
-                && !inCSpace)
-            {
-                ColumnOrder = other.ColumnOrder;
-            }
-            if (ColumnType == null
-                && !inCSpace)
-            {
-                ColumnType = other.ColumnType;
-            }
-            if (ConcurrencyMode == null)
-            {
-                ConcurrencyMode = other.ConcurrencyMode;
-            }
-            if (DatabaseGeneratedOption == null)
-            {
-                DatabaseGeneratedOption = other.DatabaseGeneratedOption;
-            }
-            if (IsNullable == null && inCSpace)
-            {
-                IsNullable = other.IsNullable;
+                return;
             }
 
-            OverridableConfigurationParts &= other.OverridableConfigurationParts;
+            if (inCSpace)
+            {
+                if (ConcurrencyMode == null)
+                {
+                    ConcurrencyMode = other.ConcurrencyMode;
+                }
+
+                if (DatabaseGeneratedOption == null)
+                {
+                    DatabaseGeneratedOption = other.DatabaseGeneratedOption;
+                }
+
+                if (IsNullable == null)
+                {
+                    IsNullable = other.IsNullable;
+                }
+
+                if (!other.OverridableConfigurationParts.HasFlag(OverridableConfigurationParts.OverridableInCSpace))
+                {
+                    OverridableConfigurationParts &= ~OverridableConfigurationParts.OverridableInCSpace;
+                }
+            }
+            else
+            {
+                if (ColumnName == null)
+                {
+                    ColumnName = other.ColumnName;
+                }
+
+                if (ParameterName == null)
+                {
+                    ParameterName = other.ParameterName;
+                }
+
+                if (ColumnOrder == null)
+                {
+                    ColumnOrder = other.ColumnOrder;
+                }
+
+                if (ColumnType == null)
+                {
+                    ColumnType = other.ColumnType;
+                }
+
+                foreach (var annotation in other._annotations)
+                {
+                    if (_annotations.ContainsKey(annotation.Key))
+                    {
+                        var mergeableAnnotation = _annotations[annotation.Key] as IMergeableAnnotation;
+                        if (mergeableAnnotation != null)
+                        {
+                            _annotations[annotation.Key] = mergeableAnnotation.MergeWith(annotation.Value);
+                        }
+                    }
+                    else
+                    {
+                        _annotations[annotation.Key] = annotation.Value;
+                    }
+                }
+
+                if (!other.OverridableConfigurationParts.HasFlag(OverridableConfigurationParts.OverridableInSSpace))
+                {
+                    OverridableConfigurationParts &= ~OverridableConfigurationParts.OverridableInSSpace;
+                }
+            }
         }
 
-        internal virtual void OverrideFrom(PrimitivePropertyConfiguration other)
+        internal virtual void MakeCompatibleWith(PrimitivePropertyConfiguration other, bool inCSpace)
         {
             DebugCheck.NotNull(other);
 
-            if (other.ColumnName != null) ColumnName = null;
-            if (other.ParameterName != null) ParameterName = null;
-            if (other.ColumnOrder != null) ColumnOrder = null;
-            if (other.ColumnType != null) ColumnType = null;
-            if (other.ConcurrencyMode != null) ConcurrencyMode = null;
-            if (other.DatabaseGeneratedOption != null) DatabaseGeneratedOption = null;
-            if (other.IsNullable != null) IsNullable = null;
+            if (ReferenceEquals(this, other))
+            {
+                return;
+            }
+
+            if (inCSpace)
+            {
+                if (other.ConcurrencyMode != null)
+                {
+                    ConcurrencyMode = null;
+                }
+                if (other.DatabaseGeneratedOption != null)
+                {
+                    DatabaseGeneratedOption = null;
+                }
+                if (other.IsNullable != null)
+                {
+                    IsNullable = null;
+                }
+            }
+            else
+            {
+                if (other.ColumnName != null)
+                {
+                    ColumnName = null;
+                }
+                if (other.ParameterName != null)
+                {
+                    ParameterName = null;
+                }
+                if (other.ColumnOrder != null)
+                {
+                    ColumnOrder = null;
+                }
+                if (other.ColumnType != null)
+                {
+                    ColumnType = null;
+                }
+
+                foreach (var annotationName in other._annotations.Keys)
+                {
+                    if (_annotations.ContainsKey(annotationName))
+                    {
+                        var mergeableAnnotation = _annotations[annotationName] as IMergeableAnnotation;
+                        if (mergeableAnnotation == null
+                            || !mergeableAnnotation.IsCompatibleWith(other._annotations[annotationName]))
+                        {
+                            _annotations.Remove(annotationName);
+                        }
+                    }
+                }
+            }
         }
 
         [SuppressMessage("Microsoft.Design", "CA1021:AvoidOutParameters", MessageId = "2#")]
         internal virtual bool IsCompatible(PrimitivePropertyConfiguration other, bool inCSpace, out string errorMessage)
         {
             errorMessage = string.Empty;
-            if (other == null)
+            if (other == null
+                || ReferenceEquals(this, other))
             {
                 return true;
             }
 
             var isNullableIsCompatible = !inCSpace || IsCompatible(c => c.IsNullable, other, ref errorMessage);
             var concurrencyModeIsCompatible = !inCSpace || IsCompatible(c => c.ConcurrencyMode, other, ref errorMessage);
-            var databaseGeneratedOptionIsCompatible = !inCSpace
-                                                      ||
-                                                      IsCompatible(
-                                                          c => c.DatabaseGeneratedOption, other, ref errorMessage);
+            var databaseGeneratedOptionIsCompatible = !inCSpace || IsCompatible(c => c.DatabaseGeneratedOption, other, ref errorMessage);
             var columnNameIsCompatible = inCSpace || IsCompatible(c => c.ColumnName, other, ref errorMessage);
             var parameterNameIsCompatible = inCSpace || IsCompatible(c => c.ParameterName, other, ref errorMessage);
             var columnOrderIsCompatible = inCSpace || IsCompatible(c => c.ColumnOrder, other, ref errorMessage);
             var columnTypeIsCompatible = inCSpace || IsCompatible(c => c.ColumnType, other, ref errorMessage);
+            var annotationsAreCompatible = inCSpace || AnnotationsAreCompatible(other, ref errorMessage);
 
             return isNullableIsCompatible &&
                    concurrencyModeIsCompatible &&
@@ -420,16 +557,52 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
                    columnNameIsCompatible &&
                    parameterNameIsCompatible &&
                    columnOrderIsCompatible &&
-                   columnTypeIsCompatible;
+                   columnTypeIsCompatible &&
+                   annotationsAreCompatible;
         }
 
-        /// <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
-        /// <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
-        /// <param name="propertyExpression">The original property expression that specifies the member and instance.</param>
-        /// <param name="other">The property to compare.</param>
-        /// <param name="errorMessage">The error message.</param>
-        /// <typeparam name="TProperty">The type of the property.</typeparam>
-        /// <typeparam name="TConfiguration">The type of the configuration to look for.</typeparam>
+        private bool AnnotationsAreCompatible(PrimitivePropertyConfiguration other, ref string errorMessage)
+        {
+            var annotationsAreCompatible = true;
+
+            foreach (var annotation in Annotations)
+            {
+                if (other.Annotations.ContainsKey(annotation.Key))
+                {
+                    var value = annotation.Value;
+                    var otherValue = other.Annotations[annotation.Key];
+
+                    var mergeableAnnotation = value as IMergeableAnnotation;
+                    if (mergeableAnnotation != null)
+                    {
+                        var isCompatible = mergeableAnnotation.IsCompatibleWith(otherValue);
+                        if (!isCompatible)
+                        {
+                            annotationsAreCompatible = false;
+
+                            errorMessage += Environment.NewLine + "\t" + isCompatible.ErrorMessage;
+                        }
+                    }
+                    else if (!Equals(value, otherValue))
+                    {
+                        annotationsAreCompatible = false;
+
+                        errorMessage += Environment.NewLine + "\t" +
+                                        Strings.ConflictingAnnotationValue(
+                                            annotation.Key, value.ToString(), otherValue.ToString());
+                    }
+                }
+            }
+            return annotationsAreCompatible;
+        }
+
+        // <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
+        // <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
+        // <param name="propertyExpression">The original property expression that specifies the member and instance.</param>
+        // <param name="other">The property to compare.</param>
+        // <param name="errorMessage">The error message.</param>
+        // <typeparam name="TProperty">The type of the property.</typeparam>
+        // <typeparam name="TConfiguration">The type of the configuration to look for.</typeparam>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
         [SuppressMessage("Microsoft.Design", "CA1045:DoNotPassTypesByReference", MessageId = "2#")]
@@ -456,12 +629,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             return false;
         }
 
-        /// <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
-        /// <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
-        /// <param name="propertyExpression">The property expression.</param>
-        /// <param name="other">The property to compare.</param>
-        /// <param name="errorMessage">The error message.</param>
-        /// <typeparam name="TConfiguration">The type of the configuration to look for.</typeparam>
+        // <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
+        // <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
+        // <param name="propertyExpression">The property expression.</param>
+        // <param name="other">The property to compare.</param>
+        // <param name="errorMessage">The error message.</param>
+        // <typeparam name="TConfiguration">The type of the configuration to look for.</typeparam>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
         [SuppressMessage("Microsoft.Design", "CA1045:DoNotPassTypesByReference", MessageId = "2#")]
@@ -487,11 +660,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             return false;
         }
 
-        /// <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
-        /// <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
-        /// <param name="thisConfiguration">The configuration property.</param>
-        /// <param name="other">The property to compare</param>
-        /// <typeparam name="T">The type property.</typeparam>
+        // <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
+        // <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
+        // <param name="thisConfiguration">The configuration property.</param>
+        // <param name="other">The property to compare</param>
+        // <typeparam name="T">The type property.</typeparam>
         protected static bool IsCompatible<T>(T? thisConfiguration, T? other)
             where T : struct
         {
@@ -508,10 +681,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             return true;
         }
 
-        /// <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
-        /// <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
-        /// <param name="thisConfiguration">The configuration property.</param>
-        /// <param name="other">The property to compare.</param>
+        // <summary>Gets a value that indicates whether the provided model is compatible with the current model provider.</summary>
+        // <returns>true if the provided model is compatible with the current model provider; otherwise, false.</returns>
+        // <param name="thisConfiguration">The configuration property.</param>
+        // <param name="other">The property to compare.</param>
         protected static bool IsCompatible(string thisConfiguration, string other)
         {
             if (thisConfiguration != null)

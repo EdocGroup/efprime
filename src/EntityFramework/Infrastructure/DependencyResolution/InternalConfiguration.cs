@@ -2,6 +2,8 @@
 
 namespace System.Data.Entity.Infrastructure.DependencyResolution
 {
+    using System.Collections.Generic;
+    using System.Data.Entity.Core.Common;
     using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Resources;
@@ -9,10 +11,10 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Diagnostics;
     using System.Linq;
 
-    /// <summary>
-    /// Internal implementation for the DbConfiguration class that uses instance methods to facilitate testing
-    /// while allowing use static methods on the public API which require less dotting through.
-    /// </summary>
+    // <summary>
+    // Internal implementation for the DbConfiguration class that uses instance methods to facilitate testing
+    // while allowing use static methods on the public API which require less dotting through.
+    // </summary>
     internal class InternalConfiguration
     {
         private CompositeResolver<ResolverChain, ResolverChain> _resolvers;
@@ -37,11 +39,11 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             _dispatchers = dispatchers ?? (() => DbInterception.Dispatch);
         }
 
-        /// <summary>
-        /// The Singleton instance of <see cref="DbConfiguration" /> for this app domain. This can be
-        /// set at application start before any Entity Framework features have been used and afterwards
-        /// should be treated as read-only.
-        /// </summary>
+        // <summary>
+        // The Singleton instance of <see cref="DbConfiguration" /> for this app domain. This can be
+        // set at application start before any Entity Framework features have been used and afterwards
+        // should be treated as read-only.
+        // </summary>
         public static InternalConfiguration Instance
         {
             // Note that GetConfiguration and SetConfiguration on DbConfigurationManager are thread-safe.
@@ -56,10 +58,21 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
         public virtual void Lock()
         {
+            var beforeLoadedInterceptors = DependencyResolver.GetServices<IDbInterceptor>().ToList();
+            beforeLoadedInterceptors.Each(_dispatchers().AddInterceptor);
+
             DbConfigurationManager.Instance.OnLoaded(this);
             _isLocked = true;
 
-            DependencyResolver.GetServices<IDbInterceptor>().Each(_dispatchers().AddInterceptor);
+            DependencyResolver
+                .GetServices<IDbInterceptor>()
+                .Except(beforeLoadedInterceptors)
+                .Each(_dispatchers().AddInterceptor);
+        }
+
+        public void DispatchLoadedInterceptors(DbConfigurationLoadedEventArgs loadedEventArgs)
+        {
+            _dispatchers().Configuration.Loaded(loadedEventArgs, new DbInterceptionContext());
         }
 
         public virtual void AddAppConfigResolver(IDbDependencyResolver resolver)
@@ -85,6 +98,14 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
             // Default resolvers only kick in if nothing else before the root resolves the dependency.
             _rootResolver.AddDefaultResolver(resolver);
+        }
+
+        public virtual void SetDefaultProviderServices(DbProviderServices provider, string invariantName)
+        {
+            DebugCheck.NotNull(provider);
+            DebugCheck.NotEmpty(invariantName);
+
+            _rootResolver.SetDefaultProviderServices(provider, invariantName);
         }
 
         public virtual void RegisterSingleton<TService>(TService instance)
@@ -129,12 +150,12 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             get { return _rootResolver; }
         }
 
-        /// <summary>
-        /// This method is not thread-safe and should only be used to switch in a different root resolver
-        /// before the configuration is locked and set. It is used for pushing a new configuration by
-        /// DbContextInfo while maintaining legacy settings (such as database initializers) that are
-        /// set on the root resolver.
-        /// </summary>
+        // <summary>
+        // This method is not thread-safe and should only be used to switch in a different root resolver
+        // before the configuration is locked and set. It is used for pushing a new configuration by
+        // DbContextInfo while maintaining legacy settings (such as database initializers) that are
+        // set on the root resolver.
+        // </summary>
         public virtual void SwitchInRootResolver(RootDependencyResolver value)
         {
             DebugCheck.NotNull(value);

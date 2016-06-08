@@ -5,9 +5,11 @@ namespace System.Data.Entity.Migrations
     using System.Collections.Generic;
     using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Model;
     using System.Data.Entity.ModelConfiguration.Conventions;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlServerCe;
     using System.Linq;
     using Xunit;
@@ -72,7 +74,7 @@ namespace System.Data.Entity.Migrations
 
             Assert.True(createTableOperation.PrimaryKey.Columns.Count == 1);
             Assert.Equal("Id", createTableOperation.PrimaryKey.Columns.Single());
-            Assert.Equal(7, createTableOperation.Columns.Count);
+            Assert.Equal(IsSqlCe ? 5 : 7, createTableOperation.Columns.Count);
 
             var idColumn = createTableOperation.Columns.SingleOrDefault(c => c.Name == "Id");
             Assert.NotNull(idColumn);
@@ -87,7 +89,7 @@ namespace System.Data.Entity.Migrations
             Assert.Equal(PrimitiveTypeKind.String, nameColumn.Type);
             Assert.Null(nameColumn.IsNullable);
             Assert.Null(nameColumn.IsFixedLength);
-            Assert.Null(nameColumn.MaxLength);
+            Assert.Equal(IsSqlCe ? (int?)4000 : null, nameColumn.MaxLength);
 
             var addressCityColumn = createTableOperation.Columns.SingleOrDefault(c => c.Name == "Address_City");
             Assert.NotNull(addressCityColumn);
@@ -202,7 +204,7 @@ namespace System.Data.Entity.Migrations
                 migrationOperations.OfType<CreateTableOperation>().SingleOrDefault(o => o.Name == "dbo.MigrationsStores");
             Assert.NotNull(createTableOperation);
 
-            Assert.Equal(7, createTableOperation.Columns.Count);
+            Assert.Equal(IsSqlCe ? 5 : 7, createTableOperation.Columns.Count);
         }
     }
 
@@ -307,7 +309,14 @@ namespace System.Data.Entity.Migrations
                 modelBuilder.Entity<MigrationsStore>();
 
                 // Compensate for convention differences
-                modelBuilder.Entity<MigrationsStore>().Property(s => s.Name).IsRequired().HasMaxLength(128);
+                if (this.IsSqlCe())
+                {
+                    modelBuilder.Entity<MigrationsStore>().Property(s => s.Name).IsRequired().HasMaxLength(4000);
+                }
+                else
+                {
+                    modelBuilder.Entity<MigrationsStore>().Property(s => s.Name).IsRequired().HasMaxLength(128);
+                }
 
                 this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
             }
@@ -340,6 +349,406 @@ namespace System.Data.Entity.Migrations
 
             Assert.True(migrationOperations.First() is DropPrimaryKeyOperation);
             Assert.True(migrationOperations.Last() is AddPrimaryKeyOperation);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_CreateTableWithAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_CreateTableWithAnnotations.V1, AutoAndGenerateScenarios_CreateTableWithAnnotations.V2>
+    {
+        public AutoAndGenerateScenarios_CreateTableWithAnnotations()
+        {
+            IsDownDataLoss = true;
+        }
+
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .HasTableAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"))
+                    .HasTableAnnotation("A2", "V2")
+                    .HasTableAnnotation("A1", "V1");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<CreateTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(3, operation.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"),  operation.Annotations["Collation"]);
+            Assert.Equal("V1", operation.Annotations["A1"]);
+            Assert.Equal("V2", operation.Annotations["A2"]);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<DropTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(3, operation.RemovedAnnotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), operation.RemovedAnnotations["Collation"]);
+            Assert.Equal("V1", operation.RemovedAnnotations["A1"]);
+            Assert.Equal("V2", operation.RemovedAnnotations["A2"]);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_CreateTableWithColumnAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_CreateTableWithColumnAnnotations.V1, AutoAndGenerateScenarios_CreateTableWithColumnAnnotations.V2>
+    {
+        public AutoAndGenerateScenarios_CreateTableWithColumnAnnotations()
+        {
+            IsDownDataLoss = true;
+        }
+
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Address.City)
+                    .HasColumnAnnotation("A2", "V2")
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A3", "V3");
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Name)
+                    .HasColumnAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"));
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<CreateTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(4, operation.Columns.Sum(o => o.Annotations.Count));
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Name").Annotations["Collation"].OldValue);
+            Assert.Equal(
+                new CollationAttribute("Icelandic_CS_AS"),
+                operation.Columns.Single(c => c.Name == "Name").Annotations["Collation"].NewValue);
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Address_City").Annotations["A1"].OldValue);
+            Assert.Equal("V1", operation.Columns.Single(c => c.Name == "Address_City").Annotations["A1"].NewValue);
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Address_City").Annotations["A2"].OldValue);
+            Assert.Equal("V2", operation.Columns.Single(c => c.Name == "Address_City").Annotations["A2"].NewValue);
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Address_City").Annotations["A3"].OldValue);
+            Assert.Equal("V3", operation.Columns.Single(c => c.Name == "Address_City").Annotations["A3"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<DropTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(4, operation.RemovedColumnAnnotations.Sum(o => o.Value.Count));
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), operation.RemovedColumnAnnotations["Name"]["Collation"]);
+
+            Assert.Equal("V1", operation.RemovedColumnAnnotations["Address_City"]["A1"]);
+            Assert.Equal("V2", operation.RemovedColumnAnnotations["Address_City"]["A2"]);
+            Assert.Equal("V3", operation.RemovedColumnAnnotations["Address_City"]["A3"]);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_DropTableWithColumnAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_DropTableWithColumnAnnotations.V1, AutoAndGenerateScenarios_DropTableWithColumnAnnotations.V2>
+    {
+        public AutoAndGenerateScenarios_DropTableWithColumnAnnotations()
+        {
+            UpDataLoss = true;
+        }
+
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Address.City)
+                    .HasColumnAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"));
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Name)
+                    .HasColumnAnnotation("A2", "V2")
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A3", "V3");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<DropTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(4, operation.RemovedColumnAnnotations.Sum(o => o.Value.Count));
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), operation.RemovedColumnAnnotations["Address_City"]["Collation"]);
+
+            Assert.Equal("V1", operation.RemovedColumnAnnotations["Name"]["A1"]);
+            Assert.Equal("V2", operation.RemovedColumnAnnotations["Name"]["A2"]);
+            Assert.Equal("V3", operation.RemovedColumnAnnotations["Name"]["A3"]);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<CreateTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(4, operation.Columns.Sum(o => o.Annotations.Count));
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Address_City").Annotations["Collation"].OldValue);
+            Assert.Equal(
+                new CollationAttribute("Icelandic_CS_AS"),
+                operation.Columns.Single(c => c.Name == "Address_City").Annotations["Collation"].NewValue);
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Name").Annotations["A1"].OldValue);
+            Assert.Equal("V1", operation.Columns.Single(c => c.Name == "Name").Annotations["A1"].NewValue);
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Name").Annotations["A2"].OldValue);
+            Assert.Equal("V2", operation.Columns.Single(c => c.Name == "Name").Annotations["A2"].NewValue);
+
+            Assert.Null(operation.Columns.Single(c => c.Name == "Name").Annotations["A3"].OldValue);
+            Assert.Equal("V3", operation.Columns.Single(c => c.Name == "Name").Annotations["A3"].NewValue);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_DropTableWithAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_DropTableWithAnnotations.V1, AutoAndGenerateScenarios_DropTableWithAnnotations.V2>
+    {
+        public AutoAndGenerateScenarios_DropTableWithAnnotations()
+        {
+            UpDataLoss = true;
+        }
+
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .HasTableAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"))
+                    .HasTableAnnotation("A2", "V2")
+                    .HasTableAnnotation("A1", "V1");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<DropTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(3, operation.RemovedAnnotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), operation.RemovedAnnotations["Collation"]);
+            Assert.Equal("V1", operation.RemovedAnnotations["A1"]);
+            Assert.Equal("V2", operation.RemovedAnnotations["A2"]);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<CreateTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(3, operation.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), operation.Annotations["Collation"]);
+            Assert.Equal("V1", operation.Annotations["A1"]);
+            Assert.Equal("V2", operation.Annotations["A2"]);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AlterTableAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterTableAnnotations.V1, AutoAndGenerateScenarios_AlterTableAnnotations.V2>
+    {
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .HasTableAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"))
+                    .HasTableAnnotation("A2", "V2")
+                    .HasTableAnnotation("A1", "V1");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .HasTableAnnotation("Collation", new CollationAttribute("Finnish_Swedish_CS_AS"))
+                    .HasTableAnnotation("A1", "V1")
+                    .HasTableAnnotation("A3", "V3");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<AlterTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(3, operation.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), operation.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Finnish_Swedish_CS_AS"), operation.Annotations["Collation"].NewValue);
+
+            Assert.Equal("V2", operation.Annotations["A2"].OldValue);
+            Assert.Null(operation.Annotations["A2"].NewValue);
+
+            Assert.Null(operation.Annotations["A3"].OldValue);
+            Assert.Equal("V3", operation.Annotations["A3"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+            var operation = migrationOperations.OfType<AlterTableOperation>().Single(o => o.Name == "dbo.MigrationsStores");
+
+            Assert.Equal(3, operation.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Finnish_Swedish_CS_AS"), operation.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), operation.Annotations["Collation"].NewValue);
+
+            Assert.Null(operation.Annotations["A2"].OldValue);
+            Assert.Equal("V2", operation.Annotations["A2"].NewValue);
+
+            Assert.Equal("V3", operation.Annotations["A3"].OldValue);
+            Assert.Null(operation.Annotations["A3"].NewValue);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_RenameTableWithAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_RenameTableWithAnnotations.V1, AutoAndGenerateScenarios_RenameTableWithAnnotations.V2>
+    {
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .HasTableAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"))
+                    .HasTableAnnotation("A2", "V2")
+                    .HasTableAnnotation("A1", "V1")
+                    .ToTable("EekyBear", "dbo");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .HasTableAnnotation("Collation", new CollationAttribute("Finnish_Swedish_CS_AS"))
+                    .HasTableAnnotation("A1", "V1")
+                    .HasTableAnnotation("A3", "V3")
+                    .ToTable("MrsPandy", "dbo");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var renameOperation = (RenameTableOperation)migrationOperations.First();
+            Assert.Equal("dbo.EekyBear", renameOperation.Name);
+
+            var alterOperation = (AlterTableOperation)migrationOperations.Skip(1).First();
+            Assert.Equal("dbo.MrsPandy", alterOperation.Name);
+
+            Assert.Equal(3, alterOperation.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), alterOperation.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Finnish_Swedish_CS_AS"), alterOperation.Annotations["Collation"].NewValue);
+
+            Assert.Equal("V2", alterOperation.Annotations["A2"].OldValue);
+            Assert.Null(alterOperation.Annotations["A2"].NewValue);
+
+            Assert.Null(alterOperation.Annotations["A3"].OldValue);
+            Assert.Equal("V3", alterOperation.Annotations["A3"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var alterOperation = migrationOperations.OfType<AlterTableOperation>().Single();
+
+            Assert.Equal(3, alterOperation.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Finnish_Swedish_CS_AS"), alterOperation.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), alterOperation.Annotations["Collation"].NewValue);
+
+            Assert.Null(alterOperation.Annotations["A2"].OldValue);
+            Assert.Equal("V2", alterOperation.Annotations["A2"].NewValue);
+
+            Assert.Equal("V3", alterOperation.Annotations["A3"].OldValue);
+            Assert.Null(alterOperation.Annotations["A3"].NewValue);
         }
     }
 
@@ -561,12 +970,7 @@ namespace System.Data.Entity.Migrations
 
         protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
-            Assert.Equal(4, migrationOperations.Count());
-
-            var dropIndexOperation =
-                migrationOperations.OfType<DropIndexOperation>().SingleOrDefault(
-                    o => o.Table == "dbo.OrderLines" && o.Columns.Count == 1 && o.Columns.Single() == "OrderId");
-            Assert.NotNull(dropIndexOperation);
+            Assert.Equal(2, migrationOperations.Count());
 
             var dropForeignKeyOperation =
                 migrationOperations.OfType<DropForeignKeyOperation>().SingleOrDefault(
@@ -574,11 +978,6 @@ namespace System.Data.Entity.Migrations
                     o.PrincipalTable == "dbo.Orders" && o.DependentTable == "dbo.OrderLines" && o.DependentColumns.Count == 1
                     && o.DependentColumns.Single() == "OrderId");
             Assert.NotNull(dropForeignKeyOperation);
-
-            var createIndexOperation =
-                migrationOperations.OfType<CreateIndexOperation>().SingleOrDefault(
-                    o => o.Table == "dbo.OrderLines" && o.Columns.Count == 1 && o.Columns.Single() == "OrderId");
-            Assert.NotNull(createIndexOperation);
 
             var addForeignKeyOperation =
                 migrationOperations.OfType<AddForeignKeyOperation>().SingleOrDefault(
@@ -592,12 +991,7 @@ namespace System.Data.Entity.Migrations
 
         protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
-            Assert.Equal(4, migrationOperations.Count());
-
-            var dropIndexOperation =
-                migrationOperations.OfType<DropIndexOperation>().SingleOrDefault(
-                    o => o.Table == "dbo.OrderLines" && o.Columns.Count == 1 && o.Columns.Single() == "OrderId");
-            Assert.NotNull(dropIndexOperation);
+            Assert.Equal(2, migrationOperations.Count());
 
             var dropForeignKeyOperation =
                 migrationOperations.OfType<DropForeignKeyOperation>().SingleOrDefault(
@@ -605,11 +999,6 @@ namespace System.Data.Entity.Migrations
                     o.PrincipalTable == "dbo.Orders" && o.DependentTable == "dbo.OrderLines" && o.DependentColumns.Count == 1
                     && o.DependentColumns.Single() == "OrderId");
             Assert.NotNull(dropForeignKeyOperation);
-
-            var createIndexOperation =
-                migrationOperations.OfType<CreateIndexOperation>().SingleOrDefault(
-                    o => o.Table == "dbo.OrderLines" && o.Columns.Count == 1 && o.Columns.Single() == "OrderId");
-            Assert.NotNull(createIndexOperation);
 
             var addForeignKeyOperation =
                 migrationOperations.OfType<AddForeignKeyOperation>().SingleOrDefault(
@@ -665,7 +1054,7 @@ namespace System.Data.Entity.Migrations
 
             Assert.Null(addColumnOperation.Column.IsFixedLength);
             Assert.Null(addColumnOperation.Column.IsNullable);
-            Assert.Null(addColumnOperation.Column.MaxLength);
+            Assert.Equal(IsSqlCe ? (int?)4000 : null, addColumnOperation.Column.MaxLength);
             Assert.Null(addColumnOperation.Column.StoreType);
             Assert.Equal(PrimitiveTypeKind.String, addColumnOperation.Column.Type);
         }
@@ -1039,9 +1428,10 @@ namespace System.Data.Entity.Migrations
         {
             protected override void OnModelCreating(DbModelBuilder modelBuilder)
             {
-                modelBuilder.Entity<MigrationsStore>();
-
-                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+                if (!this.IsSqlCe())
+                {
+                    modelBuilder.Entity<MigrationsStore>();
+                }
             }
         }
 
@@ -1049,14 +1439,21 @@ namespace System.Data.Entity.Migrations
         {
             protected override void OnModelCreating(DbModelBuilder modelBuilder)
             {
-                modelBuilder.Entity<MigrationsStore>().Property(s => s.Name).HasColumnName("Renamed");
-
-                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+                if (!this.IsSqlCe())
+                {
+                    modelBuilder.Entity<MigrationsStore>().Property(s => s.Name).HasColumnName("Renamed");
+                }
             }
         }
 
         protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
+            // Renames not supported on SQL CE
+            if (IsSqlCe)
+            {
+                return;
+            }
+
             Assert.Equal(1, migrationOperations.Count());
 
             var renameColumnOperation =
@@ -1069,6 +1466,12 @@ namespace System.Data.Entity.Migrations
 
         protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
+            // Renames not supported on SQL CE
+            if (IsSqlCe)
+            {
+                return;
+            }
+
             Assert.Equal(1, migrationOperations.Count());
 
             var renameColumnOperation =
@@ -1087,9 +1490,11 @@ namespace System.Data.Entity.Migrations
         {
             protected override void OnModelCreating(DbModelBuilder modelBuilder)
             {
-                modelBuilder.Entity<MigrationsStore>();
-
-                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+                // Spatial types not supported on SQL CE
+                if (!this.IsSqlCe())
+                {
+                    modelBuilder.Entity<MigrationsStore>();
+                }
             }
         }
 
@@ -1097,15 +1502,23 @@ namespace System.Data.Entity.Migrations
         {
             protected override void OnModelCreating(DbModelBuilder modelBuilder)
             {
-                modelBuilder.Entity<MigrationsStore>().Property(s => s.Location).HasColumnName("Locomotion");
-                modelBuilder.Entity<MigrationsStore>().Property(s => s.FloorPlan).HasColumnName("PoorPlan");
-
-                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+                // Spatial types not supported on SQL CE
+                if (!this.IsSqlCe())
+                {
+                    modelBuilder.Entity<MigrationsStore>().Property(s => s.Location).HasColumnName("Locomotion");
+                    modelBuilder.Entity<MigrationsStore>().Property(s => s.FloorPlan).HasColumnName("PoorPlan");
+                }
             }
         }
 
         protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
+            // Spatial types not supported on SQL CE
+            if (IsSqlCe)
+            {
+                return;
+            }
+
             Assert.Equal(2, migrationOperations.Count());
 
             Assert.Equal(
@@ -1123,6 +1536,12 @@ namespace System.Data.Entity.Migrations
 
         protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
+            // Spatial types not supported on SQL CE
+            if (IsSqlCe)
+            {
+                return;
+            }
+
             Assert.Equal(2, migrationOperations.Count());
 
             Assert.Equal(
@@ -1609,14 +2028,14 @@ namespace System.Data.Entity.Migrations
     {
         public AutoAndGenerateScenarios_AlterColumnFixedLength()
         {
-            UpDataLoss = true;
+            IsDownDataLoss = true;
         }
 
         public class V1 : AutoAndGenerateContext_v1
         {
             protected override void OnModelCreating(DbModelBuilder modelBuilder)
             {
-                modelBuilder.Entity<MigrationsStore>();
+                modelBuilder.Entity<MigrationsStore>().Property(s => s.Name).HasMaxLength(64);
 
                 this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
             }
@@ -1988,10 +2407,16 @@ namespace System.Data.Entity.Migrations
     public class AutoAndGenerateScenarios_AlterColumnUnicode :
         AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterColumnUnicode.V1, AutoAndGenerateScenarios_AlterColumnUnicode.V2>
     {
-        public AutoAndGenerateScenarios_AlterColumnUnicode()
+        public override void Init(DatabaseProvider provider, ProgrammingLanguage language)
         {
-            IsDownDataLoss = true;
-            UpDataLoss = true;
+            base.Init(provider, language);
+
+            if (!IsSqlCe)
+            {
+                // SQL CE columns are always Unicode
+                IsDownDataLoss = true;
+                UpDataLoss = true;
+            }
         }
 
         public class V1 : AutoAndGenerateContext_v1
@@ -2016,6 +2441,13 @@ namespace System.Data.Entity.Migrations
 
         protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
+            // SQL CE columns are always Unicode
+            if (IsSqlCe)
+            {
+                Assert.Empty(migrationOperations);
+                return;
+            }
+
             Assert.Equal(1, migrationOperations.Count());
 
             var alterColumnOperation =
@@ -2028,6 +2460,13 @@ namespace System.Data.Entity.Migrations
 
         protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
         {
+            // SQL CE columns are always Unicode
+            if (IsSqlCe)
+            {
+                Assert.Empty(migrationOperations);
+                return;
+            }
+
             Assert.Equal(1, migrationOperations.Count());
 
             var alterColumnOperation =
@@ -2036,6 +2475,1353 @@ namespace System.Data.Entity.Migrations
             Assert.NotNull(alterColumnOperation);
 
             Assert.Null(alterColumnOperation.Column.IsUnicode);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AlterColumnChangedAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterColumnChangedAnnotations.V1, AutoAndGenerateScenarios_AlterColumnChangedAnnotations.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Price)
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A2", "V2A")
+                    .HasColumnAnnotation("A3", "V3")
+                    .HasColumnAnnotation("A4", "V4A");
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Price)
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A2", "V2B")
+                    .HasColumnAnnotation("A3", "V3")
+                    .HasColumnAnnotation("A4", "V4B");
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Price");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(2, alterColumnOperation.Column.Annotations.Count);
+            Assert.Equal("V2A", alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Equal("V2B", alterColumnOperation.Column.Annotations["A2"].NewValue);
+            Assert.Equal("V4A", alterColumnOperation.Column.Annotations["A4"].OldValue);
+            Assert.Equal("V4B", alterColumnOperation.Column.Annotations["A4"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Price");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(2, alterColumnOperation.Column.Annotations.Count);
+
+            Assert.Equal("V2B", alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Equal("V2A", alterColumnOperation.Column.Annotations["A2"].NewValue);
+
+            Assert.Equal("V4B", alterColumnOperation.Column.Annotations["A4"].OldValue);
+            Assert.Equal("V4A", alterColumnOperation.Column.Annotations["A4"].NewValue);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AlterColumnAddedAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterColumnAddedAnnotations.V1, AutoAndGenerateScenarios_AlterColumnAddedAnnotations.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>();
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Sku)
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A2", "V2")
+                    .HasColumnAnnotation("A3", "V3");
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Sku");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(3, alterColumnOperation.Column.Annotations.Count);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A1"].OldValue);
+            Assert.Equal("V1", alterColumnOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Equal("V2", alterColumnOperation.Column.Annotations["A2"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A3"].OldValue);
+            Assert.Equal("V3", alterColumnOperation.Column.Annotations["A3"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Sku");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(3, alterColumnOperation.Column.Annotations.Count);
+
+            Assert.Equal("V1", alterColumnOperation.Column.Annotations["A1"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Equal("V2", alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A2"].NewValue);
+
+            Assert.Equal("V3", alterColumnOperation.Column.Annotations["A3"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A3"].NewValue);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AlterColumnRemovedAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterColumnRemovedAnnotations.V1, AutoAndGenerateScenarios_AlterColumnRemovedAnnotations.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Sku)
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A2", "V2")
+                    .HasColumnAnnotation("A3", "V3");
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>();
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Sku");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(3, alterColumnOperation.Column.Annotations.Count);
+
+            Assert.Equal("V1", alterColumnOperation.Column.Annotations["A1"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Equal("V2", alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A2"].NewValue);
+
+            Assert.Equal("V3", alterColumnOperation.Column.Annotations["A3"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A3"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Sku");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(3, alterColumnOperation.Column.Annotations.Count);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A1"].OldValue);
+            Assert.Equal("V1", alterColumnOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Equal("V2", alterColumnOperation.Column.Annotations["A2"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A3"].OldValue);
+            Assert.Equal("V3", alterColumnOperation.Column.Annotations["A3"].NewValue);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AlterColumnEverythingAnnotations :
+    AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterColumnEverythingAnnotations.V1, AutoAndGenerateScenarios_AlterColumnEverythingAnnotations.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Price)
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A2", "V2")
+                    .HasColumnAnnotation("A3", "V3A")
+                    .HasColumnAnnotation("A4", "V4A");
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Price)
+                    .HasColumnAnnotation("A3", "V3B")
+                    .HasColumnAnnotation("A4", "V4B")
+                    .HasColumnAnnotation("A5", "V5")
+                    .HasColumnAnnotation("A6", "V6");
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Price");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(6, alterColumnOperation.Column.Annotations.Count);
+
+            Assert.Equal("V3A", alterColumnOperation.Column.Annotations["A3"].OldValue);
+            Assert.Equal("V3B", alterColumnOperation.Column.Annotations["A3"].NewValue);
+
+            Assert.Equal("V4A", alterColumnOperation.Column.Annotations["A4"].OldValue);
+            Assert.Equal("V4B", alterColumnOperation.Column.Annotations["A4"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A5"].OldValue);
+            Assert.Equal("V5", alterColumnOperation.Column.Annotations["A5"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A6"].OldValue);
+            Assert.Equal("V6", alterColumnOperation.Column.Annotations["A6"].NewValue);
+
+            Assert.Equal("V1", alterColumnOperation.Column.Annotations["A1"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Equal("V2", alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A2"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var alterColumnOperation =
+                migrationOperations.OfType<AlterColumnOperation>().SingleOrDefault(
+                    o => o.Table == "dbo.OrderLines" && o.Column.Name == "Price");
+            Assert.NotNull(alterColumnOperation);
+
+            Assert.Equal(6, alterColumnOperation.Column.Annotations.Count);
+
+            Assert.Equal("V3B", alterColumnOperation.Column.Annotations["A3"].OldValue);
+            Assert.Equal("V3A", alterColumnOperation.Column.Annotations["A3"].NewValue);
+
+            Assert.Equal("V4B", alterColumnOperation.Column.Annotations["A4"].OldValue);
+            Assert.Equal("V4A", alterColumnOperation.Column.Annotations["A4"].NewValue);
+
+            Assert.Equal("V5", alterColumnOperation.Column.Annotations["A5"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A5"].NewValue);
+
+            Assert.Equal("V6", alterColumnOperation.Column.Annotations["A6"].OldValue);
+            Assert.Null(alterColumnOperation.Column.Annotations["A6"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A1"].OldValue);
+            Assert.Equal("V1", alterColumnOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Null(alterColumnOperation.Column.Annotations["A2"].OldValue);
+            Assert.Equal("V2", alterColumnOperation.Column.Annotations["A2"].NewValue);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AlterColumnCustomAnnotation :
+    AutoAndGenerateTestCase<AutoAndGenerateScenarios_AlterColumnCustomAnnotation.V1, AutoAndGenerateScenarios_AlterColumnCustomAnnotation.V2>
+    {
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(ol => ol.Address.City)
+                    .HasColumnAnnotation("Collation", new CollationAttribute("Finnish_Swedish_CS_AS"));
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(ol => ol.Address.City)
+                    .HasColumnAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"));
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(ol => ol.Name)
+                    .HasColumnAnnotation("Collation", new CollationAttribute("Danish_Norwegian_CS_AS"));
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var cityOperation =
+                migrationOperations.OfType<AlterColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Address_City");
+
+            Assert.Equal(1, cityOperation.Column.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Finnish_Swedish_CS_AS"), cityOperation.Column.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), cityOperation.Column.Annotations["Collation"].NewValue);
+
+            var nameOperation =
+                migrationOperations.OfType<AlterColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Name");
+
+            Assert.Equal(1, nameOperation.Column.Annotations.Count);
+
+            Assert.Null(nameOperation.Column.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Danish_Norwegian_CS_AS"), nameOperation.Column.Annotations["Collation"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var cityOperation =
+                migrationOperations.OfType<AlterColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Address_City");
+
+            Assert.Equal(1, cityOperation.Column.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), cityOperation.Column.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Finnish_Swedish_CS_AS"), cityOperation.Column.Annotations["Collation"].NewValue);
+
+            var nameOperation =
+                migrationOperations.OfType<AlterColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Name");
+
+            Assert.Equal(1, nameOperation.Column.Annotations.Count);
+
+            Assert.Equal(new CollationAttribute("Danish_Norwegian_CS_AS"), nameOperation.Column.Annotations["Collation"].OldValue);
+            Assert.Null(nameOperation.Column.Annotations["Collation"].NewValue);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_AddColumnWithAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AddColumnWithAnnotations.V1, AutoAndGenerateScenarios_AddColumnWithAnnotations.V2>
+    {
+        public AutoAndGenerateScenarios_AddColumnWithAnnotations()
+        {
+            IsDownDataLoss = true;
+        }
+
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Ignore(e => e.Address);
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Ignore(e => e.Name);
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Address.City)
+                    .HasColumnAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"));
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Name)
+                    .HasColumnAnnotation("A2", "V2")
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A3", "V3");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var cityOperation =
+                migrationOperations.OfType<AddColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Address_City");
+
+            Assert.Equal(1, cityOperation.Column.Annotations.Count);
+
+            Assert.Null(cityOperation.Column.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), cityOperation.Column.Annotations["Collation"].NewValue);
+
+            var nameOperation =
+                migrationOperations.OfType<AddColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Name");
+
+            Assert.Equal(3, nameOperation.Column.Annotations.Count);
+
+            Assert.Null(nameOperation.Column.Annotations["A1"].OldValue);
+            Assert.Equal("V1", nameOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Null(nameOperation.Column.Annotations["A2"].OldValue);
+            Assert.Equal("V2", nameOperation.Column.Annotations["A2"].NewValue);
+
+            Assert.Null(nameOperation.Column.Annotations["A3"].OldValue);
+            Assert.Equal("V3", nameOperation.Column.Annotations["A3"].NewValue);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var cityOperation =
+                migrationOperations.OfType<DropColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Name == "Address_City");
+
+            Assert.Equal(1, cityOperation.RemovedAnnotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), cityOperation.RemovedAnnotations["Collation"]);
+            
+            var nameOperation =
+                migrationOperations.OfType<DropColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Name == "Name");
+
+            Assert.Equal(3, nameOperation.RemovedAnnotations.Count);
+
+            Assert.Equal("V1", nameOperation.RemovedAnnotations["A1"]);
+            Assert.Equal("V2", nameOperation.RemovedAnnotations["A2"]);
+            Assert.Equal("V3", nameOperation.RemovedAnnotations["A3"]);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_DropColumnWithAnnotations :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_DropColumnWithAnnotations.V1, AutoAndGenerateScenarios_DropColumnWithAnnotations.V2>
+    {
+        public AutoAndGenerateScenarios_DropColumnWithAnnotations()
+        {
+            UpDataLoss = true;
+        }
+
+        protected override void ModifyMigrationsConfiguration(DbMigrationsConfiguration configuration)
+        {
+            configuration.CodeGenerator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Address.City)
+                    .HasColumnAnnotation("Collation", new CollationAttribute("Icelandic_CS_AS"));
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(e => e.Name)
+                    .HasColumnAnnotation("A2", "V2")
+                    .HasColumnAnnotation("A1", "V1")
+                    .HasColumnAnnotation("A3", "V3");
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<MigrationsStore>()
+                    .Ignore(e => e.Address);
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Ignore(e => e.Name);
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var cityOperation =
+                migrationOperations.OfType<DropColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Name == "Address_City");
+
+            Assert.Equal(1, cityOperation.RemovedAnnotations.Count);
+
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), cityOperation.RemovedAnnotations["Collation"]);
+
+            var nameOperation =
+                migrationOperations.OfType<DropColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Name == "Name");
+
+            Assert.Equal(3, nameOperation.RemovedAnnotations.Count);
+
+            Assert.Equal("V1", nameOperation.RemovedAnnotations["A1"]);
+            Assert.Equal("V2", nameOperation.RemovedAnnotations["A2"]);
+            Assert.Equal("V3", nameOperation.RemovedAnnotations["A3"]);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var cityOperation =
+                migrationOperations.OfType<AddColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Address_City");
+
+            Assert.Equal(1, cityOperation.Column.Annotations.Count);
+
+            Assert.Null(cityOperation.Column.Annotations["Collation"].OldValue);
+            Assert.Equal(new CollationAttribute("Icelandic_CS_AS"), cityOperation.Column.Annotations["Collation"].NewValue);
+
+            var nameOperation =
+                migrationOperations.OfType<AddColumnOperation>().Single(
+                    o => o.Table == "dbo.MigrationsStores" && o.Column.Name == "Name");
+
+            Assert.Equal(3, nameOperation.Column.Annotations.Count);
+
+            Assert.Null(nameOperation.Column.Annotations["A1"].OldValue);
+            Assert.Equal("V1", nameOperation.Column.Annotations["A1"].NewValue);
+
+            Assert.Null(nameOperation.Column.Annotations["A2"].OldValue);
+            Assert.Equal("V2", nameOperation.Column.Annotations["A2"].NewValue);
+
+            Assert.Null(nameOperation.Column.Annotations["A3"].OldValue);
+            Assert.Equal("V3", nameOperation.Column.Annotations["A3"].NewValue);
+        }
+    }
+
+    #endregion
+
+    #region IndexScenarios
+
+    public class AutoAndGenerateScenarios_AddIndex :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_AddIndex.V1, AutoAndGenerateScenarios_AddIndex.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("MyIndex") { IsUnique = true }));
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var operation = migrationOperations.OfType<CreateIndexOperation>().Single();
+
+            Assert.Equal("dbo.OrderLines", operation.Table);
+            Assert.Equal("MyIndex", operation.Name);
+            Assert.False(operation.IsClustered);
+            Assert.True(operation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity" }, operation.Columns);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var operation = migrationOperations.OfType<DropIndexOperation>().Single();
+
+            Assert.Equal("dbo.OrderLines", operation.Table);
+            Assert.Equal("MyIndex", operation.Name);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_ChangeIndex :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_ChangeIndex.V1, AutoAndGenerateScenarios_ChangeIndex.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("MyIndex")));
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("MyIndex") { IsUnique = true }));
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var dropOperation = (DropIndexOperation)migrationOperations.First();
+
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+            Assert.Equal("MyIndex", dropOperation.Name);
+            
+            var createOperation = (CreateIndexOperation)migrationOperations.Skip(1).First();
+
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.Equal("MyIndex", createOperation.Name);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity" }, createOperation.Columns);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(2, migrationOperations.Count());
+
+            var dropOperation = (DropIndexOperation)migrationOperations.First();
+
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+            Assert.Equal("MyIndex", dropOperation.Name);
+
+            var createOperation = (CreateIndexOperation)migrationOperations.Skip(1).First();
+
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.Equal("MyIndex", createOperation.Name);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity" }, createOperation.Columns);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_DropIndex :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_DropIndex.V1, AutoAndGenerateScenarios_DropIndex.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("MyIndex") { IsUnique = true }));
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var operation = migrationOperations.OfType<DropIndexOperation>().Single();
+
+            Assert.Equal("dbo.OrderLines", operation.Table);
+            Assert.Equal("MyIndex", operation.Name);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            Assert.Equal(1, migrationOperations.Count());
+
+            var operation = migrationOperations.OfType<CreateIndexOperation>().Single();
+
+            Assert.Equal("dbo.OrderLines", operation.Table);
+            Assert.Equal("MyIndex", operation.Name);
+            Assert.False(operation.IsClustered);
+            Assert.True(operation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity" }, operation.Columns);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_LotsOfIndexStuff :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_LotsOfIndexStuff.V1, AutoAndGenerateScenarios_LotsOfIndexStuff.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity)
+                    .HasColumnAnnotation(
+                        IndexAnnotation.AnnotationName,
+                        new IndexAnnotation(
+                            new[]
+                            {
+                                new IndexAttribute("MyIndex"),
+                                new IndexAttribute("CompositeIndex3") { IsUnique = true, Order = 3 },
+                                new IndexAttribute("CompositeIndex2") { Order = 2 },
+                                new IndexAttribute("CompositeIndex4") { Order = 1 },
+                                new IndexAttribute("CompositeIndex5") { Order = 1 },
+                                new IndexAttribute("CompositeIndex6") { Order = 1 }
+                            }));
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Sku)
+                    .HasColumnAnnotation(
+                        IndexAnnotation.AnnotationName,
+                        new IndexAnnotation(
+                            new[]
+                            {
+                                new IndexAttribute("SkuIndex") { IsUnique = true },
+                                new IndexAttribute("AnotherSkuIndex"),
+                                new IndexAttribute("CompositeIndex3") { Order = 2 },
+                                new IndexAttribute("CompositeIndex2") { IsUnique = true, Order = 1 },
+                                new IndexAttribute("CompositeIndex4") { Order = 2 },
+                                new IndexAttribute("CompositeIndex5") { Order = 2 },
+                                new IndexAttribute("CompositeIndex6") { Order = 2 }
+                            }));
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.OrderId)
+                    .HasColumnAnnotation(
+                        IndexAnnotation.AnnotationName,
+                        new IndexAnnotation(
+                            new[]
+                            {
+                                new IndexAttribute("NewFKIndex") { IsUnique = true },
+                                new IndexAttribute("AnotherFKIndex"),
+                                new IndexAttribute("CompositeIndex2") { IsUnique = true, Order = 3 },
+                                new IndexAttribute("CompositeIndex4") { Order = 3 },
+                                new IndexAttribute("CompositeIndex5") { Order = 3 },
+                                new IndexAttribute("CompositeIndex6") { Order = 3 }
+                            }));
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity)
+                    .HasColumnAnnotation(
+                        IndexAnnotation.AnnotationName,
+                        new IndexAnnotation(
+                            new[]
+                            {
+                                new IndexAttribute("MyIndex"),
+                                new IndexAttribute("MySecondIndex") { IsUnique = true },
+                                new IndexAttribute("CompositeIndex3") { IsUnique = true, Order = 3 },
+                                new IndexAttribute("CompositeIndex1") { IsUnique = true, Order = 1 },
+                                new IndexAttribute("CompositeIndex4") { Order = 1 },
+                                new IndexAttribute("CompositeIndex5") { Order = 1 },
+                                new IndexAttribute("CompositeIndex6") { Order = 3 }
+                            }));
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Sku)
+                    .HasColumnAnnotation(
+                        IndexAnnotation.AnnotationName,
+                        new IndexAnnotation(
+                            new[]
+                            {
+                                new IndexAttribute("SkuIndex") { IsUnique = false },
+                                new IndexAttribute("AnotherSkuIndex"),
+                                new IndexAttribute("CompositeIndex1") { IsUnique = true, Order = 3 },
+                                new IndexAttribute("CompositeIndex4") { IsUnique = true, Order = 2 },
+                                new IndexAttribute("CompositeIndex5") { Order = 2 },
+                                new IndexAttribute("CompositeIndex6") { Order = 2 }
+                            }));
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.OrderId)
+                    .HasColumnAnnotation(
+                        IndexAnnotation.AnnotationName,
+                        new IndexAnnotation(
+                            new[]
+                            {
+                                new IndexAttribute("AnotherFKIndex"),
+                                new IndexAttribute("CompositeIndex1") { IsUnique = true, Order = 2 },
+                                new IndexAttribute("CompositeIndex3") { IsUnique = true, Order = 1 },
+                                new IndexAttribute("CompositeIndex4") { Order = 3 },
+                                new IndexAttribute("CompositeIndex5") { Order = 3 },
+                                new IndexAttribute("CompositeIndex6") { Order = 1 }
+                            }));
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(12, operations.Length);
+
+            for (var i = 0; i < 6; i++)
+            {
+                Assert.IsType<DropIndexOperation>(operations[i]);
+            }
+
+            for (var i = 6; i < 12; i++)
+            {
+                Assert.IsType<CreateIndexOperation>(operations[i]);
+            }
+
+            var dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "SkuIndex");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "NewFKIndex");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex2");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex3");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex4");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex6");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            var createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "SkuIndex");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Sku" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "MySecondIndex");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex1");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity", "OrderId", "Sku" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex3");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "OrderId", "Quantity" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex4");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity", "Sku", "OrderId" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex6");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "OrderId", "Sku", "Quantity" }, createOperation.Columns);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(12, operations.Length);
+
+            for (var i = 0; i < 6; i++)
+            {
+                Assert.IsType<DropIndexOperation>(operations[i]);
+            }
+
+            for (var i = 6; i < 12; i++)
+            {
+                Assert.IsType<CreateIndexOperation>(operations[i]);
+            }
+
+            var dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "SkuIndex");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "MySecondIndex");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex1");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex3");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex4");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "CompositeIndex6");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            var createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "SkuIndex");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Sku" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "NewFKIndex");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "OrderId" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex2");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Sku", "Quantity", "OrderId" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex3");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Sku", "Quantity" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex4");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity", "Sku", "OrderId" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "CompositeIndex6");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity", "Sku", "OrderId" }, createOperation.Columns);
+        }
+    }
+
+    // CodePlex #2382
+    public class AutoAndGenerateScenarios_CompositeKeyAndIndex :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_CompositeKeyAndIndex.V1, AutoAndGenerateScenarios_CompositeKeyAndIndex.V2>
+    {
+        public override void Init(DatabaseProvider provider, ProgrammingLanguage language)
+        {
+            base.Init(provider, language);
+
+            IsDownDataLoss = true;
+            UpDataLoss = false;
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<Parent2382>()
+                    .HasRequired(p => p.GrandParent)
+                    .WithMany(gp => gp.Parents)
+                    .HasForeignKey(p => p.GrandParent2382Id)
+                    .WillCascadeOnDelete(false);
+
+                modelBuilder.Entity<Child2382>()
+                    .HasRequired(c => c.Parent)
+                    .WithMany(p => p.Children)
+                    .HasForeignKey(c => new { c.GrandParent2382Id, c.Parent2382Id })
+                    .WillCascadeOnDelete(false);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(3, operations.OfType<CreateIndexOperation>().Count());
+
+            var createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IX_GrandParent2382Id_Parent2382Id");
+            Assert.Equal("dbo.Child2382", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "GrandParent2382Id", "Parent2382Id" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IX_ParentId_Value");
+            Assert.Equal("dbo.Child2382", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Parent2382Id", "Value" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IX_GrandParent2382Id");
+            Assert.Equal("dbo.Parent2382", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "GrandParent2382Id" }, createOperation.Columns);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(3, operations.OfType<DropIndexOperation>().Count());
+
+            var dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_GrandParent2382Id_Parent2382Id");
+            Assert.Equal("dbo.Child2382", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_ParentId_Value");
+            Assert.Equal("dbo.Child2382", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_GrandParent2382Id");
+            Assert.Equal("dbo.Parent2382", dropOperation.Table);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_ImplicitIndexChanges :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_ImplicitIndexChanges.V1, AutoAndGenerateScenarios_ImplicitIndexChanges.V2>
+    {
+        public override void Init(DatabaseProvider provider, ProgrammingLanguage language)
+        {
+            base.Init(provider, language);
+
+            // Renames not supported on SQL CE
+            if (!IsSqlCe)
+            {
+                IsDownDataLoss = true;
+                UpDataLoss = true;
+            }
+        }
+
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                // Renames not supported on SQL CE
+                if (!this.IsSqlCe())
+                {
+                    modelBuilder.Entity<OrderLine>()
+                        .Ignore(ol => ol.Quantity);
+                
+                    modelBuilder.Entity<OrderLine>()
+                        .Property(ol => ol.Price)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("PriceIndex")));
+
+                    modelBuilder.Entity<OrderLine>()
+                        .Property(ol => ol.Sku)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("SkuIndex")));
+
+                    modelBuilder.Entity<WithGuidKey>()
+                        .Property(ol => ol.Id)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("GuidIndex")));
+
+                    modelBuilder.Entity<MigrationsProduct>()
+                        .Property(p => p.ProductId)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("ProductIdIndex")));
+
+                    modelBuilder.Entity<Order>()
+                        .Property(p => p.OrderId)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("OrderIdIndex")));
+
+                    modelBuilder.Ignore<MigrationsStore>();
+
+                    modelBuilder.Entity<MigrationsProduct>();
+                }
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                // Renames not supported on SQL CE
+                if (!this.IsSqlCe())
+                {
+                    modelBuilder.Entity<OrderLine>()
+                        .Property(ol => ol.Quantity)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("QuantityIndex")));
+            
+                    modelBuilder.Entity<OrderLine>()
+                        .Ignore(ol => ol.Price);
+            
+                    modelBuilder.Entity<OrderLine>()
+                        .Property(ol => ol.Sku)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("SkuIndex")))
+                        .HasColumnName("NuSku");
+            
+                    modelBuilder.Entity<WithGuidKey>()
+                        .ToTable("WithGooieKey")
+                        .Property(ol => ol.Id)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("GuidIndex")));
+            
+                    modelBuilder.Entity<MigrationsStore>()
+                        .Property(s => s.Id)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("IdIndex")));
+            
+                    modelBuilder.Ignore<MigrationsProduct>();
+            
+                    modelBuilder.Entity<Order>()
+                        .ToTable("Oeuvres")
+                        .Property(p => p.OrderId)
+                        .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("OrderIdIndex")))
+                        .HasColumnName("OeuvresId");
+                }
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            // Renames not supported on SQL CE
+            if (IsSqlCe)
+            {
+                return;
+            }
+
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(2, operations.OfType<DropIndexOperation>().Count());
+            Assert.Equal(2, operations.OfType<CreateIndexOperation>().Count());
+
+            var dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "PriceIndex");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "ProductIdIndex");
+            Assert.Equal("dbo.MigrationsProducts", dropOperation.Table);
+
+            var createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "QuantityIndex");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IdIndex");
+            Assert.Equal("dbo.MigrationsStores", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Id" }, createOperation.Columns);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            // Renames not supported on SQL CE
+            if (IsSqlCe)
+            {
+                return;
+            }
+
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(2, operations.OfType<DropIndexOperation>().Count());
+            Assert.Equal(2, operations.OfType<CreateIndexOperation>().Count());
+
+            var dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "QuantityIndex");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IdIndex");
+            Assert.Equal("dbo.MigrationsStores", dropOperation.Table);
+
+            var createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "PriceIndex");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Price" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "ProductIdIndex");
+            Assert.Equal("dbo.MigrationsProducts", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "ProductId" }, createOperation.Columns);
+        }
+    }
+
+    public class AutoAndGenerateScenarios_DefaultNameIndexes :
+        AutoAndGenerateTestCase<AutoAndGenerateScenarios_DefaultNameIndexes.V1, AutoAndGenerateScenarios_DefaultNameIndexes.V2>
+    {
+        public class V1 : AutoAndGenerateContext_v1
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity);
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Price);
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Sku);
+
+                modelBuilder.Entity<WithGuidKey>()
+                    .Property(ol => ol.Id);
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(s => s.Id)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute()));
+
+                modelBuilder.Entity<MigrationsProduct>()
+                    .Property(p => p.ProductId)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute()));
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        public class V2 : AutoAndGenerateContext_v2
+        {
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Quantity)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute()));
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Price)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute()));
+
+                modelBuilder.Entity<OrderLine>()
+                    .Property(ol => ol.Sku)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute("SkuedIndex")));
+
+                modelBuilder.Entity<WithGuidKey>()
+                    .Property(ol => ol.Id)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute()));
+
+                modelBuilder.Entity<MigrationsStore>()
+                    .Property(s => s.Id)
+                    .HasColumnAnnotation(IndexAnnotation.AnnotationName, new IndexAnnotation(new IndexAttribute { IsUnique = true }));
+
+                modelBuilder.Entity<MigrationsProduct>()
+                    .Property(p => p.ProductId);
+
+                this.IgnoreSpatialTypesOnSqlCe(modelBuilder);
+            }
+        }
+
+        protected override void VerifyUpOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(7, operations.Length);
+            Assert.Equal(2, operations.OfType<DropIndexOperation>().Count());
+            Assert.Equal(5, operations.OfType<CreateIndexOperation>().Count());
+
+            var dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_Id");
+            Assert.Equal("dbo.MigrationsStores", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_ProductId");
+            Assert.Equal("dbo.MigrationsProducts", dropOperation.Table);
+
+            var createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IX_Quantity");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Quantity" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IX_Price");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Price" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "SkuedIndex");
+            Assert.Equal("dbo.OrderLines", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Sku" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>()
+                .Single(o => o.Name == "IX_Id" && o.Table == "dbo.WithGuidKeys");
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Id" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>()
+                .Single(o => o.Name == "IX_Id" && o.Table == "dbo.MigrationsStores");
+            Assert.False(createOperation.IsClustered);
+            Assert.True(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Id" }, createOperation.Columns);
+        }
+
+        protected override void VerifyDownOperations(IEnumerable<MigrationOperation> migrationOperations)
+        {
+            var operations = migrationOperations.ToArray();
+
+            Assert.Equal(7, operations.Length);
+            Assert.Equal(5, operations.OfType<DropIndexOperation>().Count());
+            Assert.Equal(2, operations.OfType<CreateIndexOperation>().Count());
+
+            var dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_Quantity");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_Price");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "SkuedIndex");
+            Assert.Equal("dbo.OrderLines", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_Id" && o.Table == "dbo.WithGuidKeys");
+            Assert.Equal("dbo.WithGuidKeys", dropOperation.Table);
+
+            dropOperation = operations.OfType<DropIndexOperation>().Single(o => o.Name == "IX_Id" && o.Table == "dbo.MigrationsStores");
+            Assert.Equal("dbo.MigrationsStores", dropOperation.Table);
+
+            var createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IX_Id");
+            Assert.Equal("dbo.MigrationsStores", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "Id" }, createOperation.Columns);
+
+            createOperation = operations.OfType<CreateIndexOperation>().Single(o => o.Name == "IX_ProductId");
+            Assert.Equal("dbo.MigrationsProducts", createOperation.Table);
+            Assert.False(createOperation.IsClustered);
+            Assert.False(createOperation.IsUnique);
+            Assert.Equal(new List<string> { "ProductId" }, createOperation.Columns);
         }
     }
 

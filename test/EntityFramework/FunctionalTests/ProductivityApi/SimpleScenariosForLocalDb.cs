@@ -1,6 +1,5 @@
 ﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
-
 #if !NET40
 
 namespace ProductivityApiTests
@@ -10,6 +9,7 @@ namespace ProductivityApiTests
     using System.Data.Entity.Infrastructure;
     using System.IO;
     using System.Linq;
+    using System.Transactions;
     using SimpleModel;
     using Xunit;
 
@@ -37,10 +37,17 @@ namespace ProductivityApiTests
                 {
                     context.Database.Delete();
                 }
+
                 using (var context = new LocalDbLoginsContext())
                 {
                     context.Database.Delete();
                 }
+
+                using (var context = new ModelWithWideProperties())
+                {
+                    context.Database.Delete();
+                }
+
                 Database.Delete("Scenario_CodeFirstWithModelBuilder");
                 Database.Delete("Scenario_Use_AppConfig_LocalDb_connection_string");
             }
@@ -55,7 +62,65 @@ namespace ProductivityApiTests
 
         #region Scenarios for SQL Server LocalDb using LocalDbConnectionFactory
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
+        public void SqlServer_Database_can_be_created_with_columns_that_explicitly_total_more_that_8060_bytes_and_data_longer_than_8060_can_be_inserted()
+        {
+            EnsureDatabaseInitialized(() => new ModelWithWideProperties());
+
+            using (new TransactionScope())
+            {
+                using (var context = new ModelWithWideProperties())
+                {
+                    var entity = new EntityWithExplicitWideProperties
+                    {
+                        Property1 = new String('1', 1000),
+                        Property2 = new String('2', 1000),
+                        Property3 = new String('3', 1000),
+                        Property4 = new String('4', 1000),
+                    };
+
+                    context.ExplicitlyWide.Add(entity);
+
+                    context.SaveChanges();
+
+                    entity.Property1 = new String('A', 4000);
+                    entity.Property2 = new String('B', 4000);
+
+                    context.SaveChanges();
+                }
+            }
+        }
+
+        [ExtendedFact(SkipForSqlAzure = true)]
+        public void SqlServer_Database_can_be_created_with_columns_that_implicitly_total_more_that_8060_bytes_and_data_longer_than_8060_can_be_inserted()
+        {
+            EnsureDatabaseInitialized(() => new ModelWithWideProperties());
+
+            using (new TransactionScope())
+            {
+                using (var context = new ModelWithWideProperties())
+                {
+                    var entity = new EntityWithImplicitWideProperties
+                    {
+                        Property1 = new String('1', 1000),
+                        Property2 = new String('2', 1000),
+                        Property3 = new String('3', 1000),
+                        Property4 = new String('4', 1000),
+                    };
+
+                    context.ImplicitlyWide.Add(entity);
+
+                    context.SaveChanges();
+
+                    entity.Property1 = new String('A', 4000);
+                    entity.Property2 = new String('B', 4000);
+
+                    context.SaveChanges();
+                }
+            }
+        }
+
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Find()
         {
             using (var context = new SimpleLocalDbModelContext())
@@ -78,7 +143,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Insert()
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
@@ -100,7 +165,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Update()
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
@@ -119,7 +184,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Query()
         {
             using (var context = new SimpleLocalDbModelContext())
@@ -134,7 +199,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Relate_using_query()
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
@@ -165,7 +230,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Relate_using_FK()
         {
             EnsureDatabaseInitialized(() => new SimpleLocalDbModelContext());
@@ -189,7 +254,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_CodeFirst_with_ModelBuilder()
         {
             Database.Delete("Scenario_CodeFirstWithModelBuilder");
@@ -249,7 +314,7 @@ namespace ProductivityApiTests
             Assert.Equal(@"(localdb)\v11.0", context.Database.Connection.DataSource);
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Using_two_databases()
         {
             EnsureDatabaseInitialized(() => new LocalDbLoginsContext());
@@ -297,7 +362,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Use_AppConfig_connection_string()
         {
             Database.Delete("Scenario_Use_AppConfig_LocalDb_connection_string");
@@ -314,7 +379,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_Include()
         {
             using (var context = new SimpleLocalDbModelContext())
@@ -332,7 +397,7 @@ namespace ProductivityApiTests
             }
         }
 
-        [Fact]
+        [ExtendedFact(SkipForSqlAzure = true)]
         public void Scenario_IncludeWithLambda()
         {
             using (var context = new SimpleLocalDbModelContext())

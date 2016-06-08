@@ -8,9 +8,9 @@ namespace System.Data.Entity.Migrations.Utilities
     using System.Reflection;
     using System.Xml.Linq;
 
-    /// <summary>
-    /// Utility class to prep the user's config file to run in an AppDomain
-    /// </summary>
+    // <summary>
+    // Utility class to prep the user's config file to run in an AppDomain
+    // </summary>
     internal class ConfigurationFileUpdater
     {
         private static readonly XNamespace _asm = "urn:schemas-microsoft-com:asm.v1";
@@ -19,7 +19,7 @@ namespace System.Data.Entity.Migrations.Utilities
         [SuppressMessage("Microsoft.Performance", "CA1810:InitializeReferenceTypeStaticFieldsInline")]
         static ConfigurationFileUpdater()
         {
-            var executingAssemblyName = Assembly.GetExecutingAssembly().GetName();
+            var executingAssemblyName = typeof(ConfigurationFileUpdater).Assembly().GetName();
 
             _dependentAssemblyElement
                 = new XElement(
@@ -35,13 +35,13 @@ namespace System.Data.Entity.Migrations.Utilities
                         new XAttribute("href", executingAssemblyName.CodeBase)));
         }
 
-        /// <summary>
-        /// Updates a config file by adding binding redirects for EntityFramework.dll.
-        /// This ensures that the user's code can be ran in an AppDomain and the exact
-        /// same version of the assembly will be used for both domains.
-        /// </summary>
-        /// <param name="configurationFile"> That path of the user's config file. Can also be null or a path to an non-existent file. </param>
-        /// <returns> The path of the updated config file. It is the caller's responsibility to delete this. </returns>
+        // <summary>
+        // Updates a config file by adding binding redirects for EntityFramework.dll.
+        // This ensures that the user's code can be ran in an AppDomain and the exact
+        // same version of the assembly will be used for both domains.
+        // </summary>
+        // <param name="configurationFile"> That path of the user's config file. Can also be null or a path to an non-existent file. </param>
+        // <returns> The path of the updated config file. It is the caller's responsibility to delete this. </returns>
         public virtual string Update(string configurationFile)
         {
             var fileExists = !string.IsNullOrWhiteSpace(configurationFile) && File.Exists(configurationFile);

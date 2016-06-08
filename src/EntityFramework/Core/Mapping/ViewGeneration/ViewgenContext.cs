@@ -25,7 +25,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
         // Different maps for members
         private readonly MemberMaps m_memberMaps;
         private readonly EdmItemCollection m_edmItemCollection;
-        private readonly StorageEntityContainerMapping m_entityContainerMapping;
+        private readonly EntityContainerMapping m_entityContainerMapping;
 
         // The normalized cells that are created
         private List<LeftCellWrapper> m_cellWrappers;
@@ -44,7 +44,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
         internal ViewgenContext(
             ViewTarget viewTarget, EntitySetBase extent, IList<Cell> extentCells,
             CqlIdentifiers identifiers, ConfigViewGenerator config, MemberDomainMap queryDomainMap,
-            MemberDomainMap updateDomainMap, StorageEntityContainerMapping entityContainerMapping)
+            MemberDomainMap updateDomainMap, EntityContainerMapping entityContainerMapping)
         {
             foreach (var cell in extentCells)
             {
@@ -111,11 +111,11 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             m_cellWrappers.Sort(LeftCellWrapper.Comparer);
         }
 
-        /// <summary>
-        /// Find the Foreign Key Associations that relate EntitySets used in these left cell wrappers and
-        /// add any equivalence facts between sets implied by 1:1 associations.
-        /// We can collect other implication facts but we don't have a scenario that needs them( yet ).
-        /// </summary>
+        // <summary>
+        // Find the Foreign Key Associations that relate EntitySets used in these left cell wrappers and
+        // add any equivalence facts between sets implied by 1:1 associations.
+        // We can collect other implication facts but we don't have a scenario that needs them( yet ).
+        // </summary>
         private void CreateConstraintsForForeignKeyAssociationsAffectingThisWrapper(
             FragmentQueryKB rightKB, MemberDomainMap rightDomainMap)
         {
@@ -198,7 +198,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             get { return m_cellWrappers; }
         }
 
-        internal StorageEntityContainerMapping EntityContainerMapping
+        internal EntityContainerMapping EntityContainerMapping
         {
             get { return m_entityContainerMapping; }
         }
@@ -215,11 +215,11 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             m_rewritingCache[query] = rewriting;
         }
 
-        /// <summary>
-        /// Checks:
-        /// 1) Concurrency token is not defined in this Extent's ElementTypes' derived types
-        /// 2) Members with concurrency token should not have conditions specified
-        /// </summary>
+        // <summary>
+        // Checks:
+        // 1) Concurrency token is not defined in this Extent's ElementTypes' derived types
+        // 2) Members with concurrency token should not have conditions specified
+        // </summary>
         private void CheckConcurrencyControlTokens()
         {
             Debug.Assert(m_viewTarget == ViewTarget.QueryView);

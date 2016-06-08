@@ -29,30 +29,28 @@ namespace System.Data.Entity.TestHelpers
             // the functional test project and set to the DbConfiguration that was set in code when running the unit tests project.
             Loaded +=
                 (s, a) =>
+                {
+                    var currentFactory = a.DependencyResolver.GetService<IDbConnectionFactory>();
+                    if (currentFactory != _originalConnectionFactories.LastOrDefault())
                     {
-                        var currentFactory = a.DependencyResolver.GetService<IDbConnectionFactory>();
-                        if (currentFactory != _originalConnectionFactories.LastOrDefault())
+                        var newList = new List<IDbConnectionFactory>(_originalConnectionFactories)
                         {
-                            var newList = new List<IDbConnectionFactory>(_originalConnectionFactories)
-                                {
-                                    currentFactory
-                                };
-                            _originalConnectionFactories = newList;
-                        }
-                        a.AddDependencyResolver(
-                            new SingletonDependencyResolver<IDbConnectionFactory>(
-                                new SqlConnectionFactory(ModelHelpers.BaseConnectionString)), overrideConfigFile: true);
+                            currentFactory
+                        };
+                        _originalConnectionFactories = newList;
+                    }
+                    a.AddDependencyResolver(
+                        new SingletonDependencyResolver<IDbConnectionFactory>(
+                            new SqlConnectionFactory(ModelHelpers.BaseConnectionString)), overrideConfigFile: true);
 
-                        var currentProviderFactory = a.DependencyResolver.GetService<IDbProviderFactoryResolver>();
-                        a.AddDependencyResolver(
-                            new SingletonDependencyResolver<IDbProviderFactoryResolver>(
-                                new FakeProviderFactoryResolver(currentProviderFactory))
-                            , overrideConfigFile: true);
+                    var currentProviderFactory = a.DependencyResolver.GetService<IDbProviderFactoryResolver>();
+                    a.AddDependencyResolver(
+                        new SingletonDependencyResolver<IDbProviderFactoryResolver>(
+                            new FakeProviderFactoryResolver(currentProviderFactory))
+                        , overrideConfigFile: true);
 
-                        a.AddDependencyResolver(new FakeProviderServicesResolver(), overrideConfigFile: true);
-
-                        a.AddDependencyResolver(MutableResolver.Instance, overrideConfigFile: true);
-                    };
+                    a.AddDependencyResolver(new FakeProviderServicesResolver(), overrideConfigFile: true);
+                };
         }
 
         private static void OnLoaded(object sender, DbConfigurationLoadedEventArgs eventArgs)
@@ -63,10 +61,30 @@ namespace System.Data.Entity.TestHelpers
         public FunctionalTestsConfiguration()
         {
             SetProviderServices(SqlCeProviderServices.ProviderInvariantName, SqlCeProviderServices.Instance);
+            SetProviderServices(SqlServerCompact.Legacy.SqlCeProviderServices.ProviderInvariantName, SqlServerCompact.Legacy.SqlCeProviderServices.Instance);
             SetProviderServices(SqlProviderServices.ProviderInvariantName, SqlProviderServices.Instance);
 
             SetDefaultConnectionFactory(new DefaultUnitTestsConnectionFactory());
-            AddDependencyResolver(new SingletonDependencyResolver<IManifestTokenResolver>(new FunctionalTestsManifestTokenResolver()));
+
+            if (DatabaseTestHelpers.IsSqlAzure(ModelHelpers.BaseConnectionString))
+            {
+                SetExecutionStrategy("System.Data.SqlClient", () => new SuspendableSqlAzureExecutionStrategy());
+            }
+            else
+            {
+                SetExecutionStrategy("System.Data.SqlClient", () => new DefaultExecutionStrategy());
+            }
+
+            SetContextFactory(() => new CodeFirstScaffoldingContext("Foo"));
+            SetContextFactory(() => new CodeFirstScaffoldingContextWithConnection("Bar"));
+
+            SetMetadataAnnotationSerializer(CollationAttribute.AnnotationName, () => new CollationSerializer());
+
+            AddInterceptor(new TestLoadedInterceptor());
+            AddInterceptor(new TestLoadedInterceptor(4102, "1 yraunaJ"));
+            AddInterceptor(new RegisterMutableResolver());
         }
+
+        public static bool SuspendExecutionStrategy { get; set; }
     }
 }

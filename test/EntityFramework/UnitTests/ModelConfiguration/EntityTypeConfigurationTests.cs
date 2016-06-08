@@ -5,6 +5,7 @@ namespace System.Data.Entity.ModelConfiguration
     using System.Data.Entity.ModelConfiguration.Configuration;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using Moq;
     using Xunit;
 
@@ -43,7 +44,7 @@ namespace System.Data.Entity.ModelConfiguration
 
             entityConfiguration.HasKey(f => f.Id);
 
-            mockEntityTypeConfiguration.Verify(e => e.Key(new[] { typeof(Fixture).GetProperty("Id") }));
+            mockEntityTypeConfiguration.Verify(e => e.Key(new[] { typeof(Fixture).GetDeclaredProperty("Id") }));
         }
 
         [Fact]
@@ -126,6 +127,24 @@ namespace System.Data.Entity.ModelConfiguration
 
         private class C : A
         {
+        }
+
+        [Fact]
+        public void HasAnnotation_checks_arguments()
+        {
+            var configuration = new EntityTypeConfiguration<object>();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation(null, null)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation(" ", null)).Message);
+
+            Assert.Equal(
+                Strings.BadAnnotationName("Cheese:Pickle"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation("Cheese:Pickle", null)).Message);
         }
     }
 }

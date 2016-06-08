@@ -4,6 +4,7 @@ namespace System.Data.Entity.Migrations
 {
     using System.CodeDom.Compiler;
     using System.Collections.Generic;
+    using System.Data.Entity.Functionals.Utilities;
     using System.Data.Entity.Migrations.Design;
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.SqlServer;
@@ -172,7 +173,45 @@ namespace System.Data.Entity.Migrations
                 dataDirectory: null,
                 connectionStringInfo: null))
             {
-                Assert.Throws<MigrationsException>(() => facade.GetContextType("MissingContext"));
+                Assert.Throws<ToolingException>(() => facade.GetContextType("MissingContext"));
+            }
+        }
+
+        [MigrationsTheory]
+        public void Can_still_scaffold_generic_context_by_specifying_name_directly()
+        {
+            ResetDatabase();
+
+            using (var facade = new ToolingFacade(
+                "ClassLibrary1",
+                "ContextLibrary1",
+                configurationTypeName: null,
+                workingDirectory: _contextDir,
+                configurationFilePath: null,
+                dataDirectory: null,
+                connectionStringInfo: null))
+            {
+                var result = facade.GetContextType("GenericContext`1");
+                Assert.Equal("ContextLibrary1.GenericContext`1", result);
+            }
+        }
+
+        [MigrationsTheory]
+        public void Can_still_scaffold_abstract_context_by_specifying_name_directly()
+        {
+            ResetDatabase();
+
+            using (var facade = new ToolingFacade(
+                "ClassLibrary1",
+                "ContextLibrary1",
+                configurationTypeName: null,
+                workingDirectory: _contextDir,
+                configurationFilePath: null,
+                dataDirectory: null,
+                connectionStringInfo: null))
+            {
+                var result = facade.GetContextType("AbstractContext");
+                Assert.Equal("ContextLibrary1.AbstractContext", result);
             }
         }
 
@@ -288,7 +327,7 @@ namespace System.Data.Entity.Migrations
                 null,
                 null))
             {
-                Assert.Throws<MigrationsException>(() => facade.GetDatabaseMigrations())
+                Assert.Throws<ToolingException>(() => facade.GetDatabaseMigrations())
                       .ValidateMessage("ToolingFacade_AssemblyNotFound", unknownAssemblyName);
             }
         }
@@ -353,6 +392,26 @@ namespace System.Data.Entity.Migrations
         public DbSet<Entity> Entities { get; set; }
     }
 
+    public class GenericContext<TEntity> : DbContext where TEntity : class
+    {
+        public GenericContext()
+            : base(""Name=ClassLibrary1"")
+        {
+        }
+
+        public DbSet<TEntity> Entities { get; set; }
+    }
+
+    public abstract class AbstractContext : DbContext
+    {
+        public AbstractContext()
+            : base(""Name=ClassLibrary1"")
+        {
+        }
+
+        public DbSet<Entity> Entities { get; set; }
+    } 
+
     public class Entity
     {
         public int Id { get; set; }
@@ -398,10 +457,10 @@ namespace System.Data.Entity.Migrations
             var targetFileName = targetName + ".dll";
             var targetPath = Path.Combine(targetDir, targetFileName);
 
-            var entityFrameworkPath = new Uri(typeof(DbContext).Assembly.CodeBase).LocalPath;
+            var entityFrameworkPath = new Uri(typeof(DbContext).Assembly().CodeBase).LocalPath;
             IOHelpers.CopyToDir(entityFrameworkPath, targetDir);
 
-            var entityFrameworkSqlServerPath = new Uri(typeof(SqlProviderServices).Assembly.CodeBase).LocalPath;
+            var entityFrameworkSqlServerPath = new Uri(typeof(SqlProviderServices).Assembly().CodeBase).LocalPath;
             IOHelpers.CopyToDir(entityFrameworkSqlServerPath, targetDir);
 
             using (var compiler = new CSharpCodeProvider())

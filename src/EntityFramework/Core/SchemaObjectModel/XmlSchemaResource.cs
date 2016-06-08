@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.SchemaObjectModel
 {
@@ -35,10 +35,10 @@ namespace System.Data.Entity.Core.SchemaObjectModel
         internal string ResourceName;
         internal XmlSchemaResource[] ImportedSchemas;
 
-        /// <summary>
-        /// Builds a dictionary from XmlNamespace to XmlSchemaResource of both C and S space schemas
-        /// </summary>
-        /// <returns> The built XmlNamespace to XmlSchemaResource dictionary. </returns>
+        // <summary>
+        // Builds a dictionary from XmlNamespace to XmlSchemaResource of both C and S space schemas
+        // </summary>
+        // <returns> The built XmlNamespace to XmlSchemaResource dictionary. </returns>
         internal static Dictionary<string, XmlSchemaResource> GetMetadataSchemaResourceMap(double schemaVersion)
         {
             var schemaResourceMap = new Dictionary<string, XmlSchemaResource>(StringComparer.Ordinal);
@@ -47,10 +47,10 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return schemaResourceMap;
         }
 
-        /// <summary>
-        /// Adds Store schema resource entries to the given XmlNamespace to XmlSchemaResoure map
-        /// </summary>
-        /// <param name="schemaResourceMap"> The XmlNamespace to XmlSchemaResource map to add entries to. </param>
+        // <summary>
+        // Adds Store schema resource entries to the given XmlNamespace to XmlSchemaResoure map
+        // </summary>
+        // <param name="schemaResourceMap"> The XmlNamespace to XmlSchemaResource map to add entries to. </param>
         internal static void AddStoreSchemaResourceMapEntries(Dictionary<string, XmlSchemaResource> schemaResourceMap, double schemaVersion)
         {
             XmlSchemaResource[] ssdlImports =
@@ -84,35 +84,35 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             schemaResourceMap.Add(providerManifest.NamespaceUri, providerManifest);
         }
 
-        /// <summary>
-        /// Adds Mapping schema resource entries to the given XmlNamespace to XmlSchemaResoure map
-        /// </summary>
-        /// <param name="schemaResourceMap"> The XmlNamespace to XmlSchemaResource map to add entries to. </param>
+        // <summary>
+        // Adds Mapping schema resource entries to the given XmlNamespace to XmlSchemaResoure map
+        // </summary>
+        // <param name="schemaResourceMap"> The XmlNamespace to XmlSchemaResource map to add entries to. </param>
         internal static void AddMappingSchemaResourceMapEntries(
             Dictionary<string, XmlSchemaResource> schemaResourceMap, double schemaVersion)
         {
-            var msl1 = new XmlSchemaResource(StorageMslConstructs.NamespaceUriV1, StorageMslConstructs.ResourceXsdNameV1);
+            var msl1 = new XmlSchemaResource(MslConstructs.NamespaceUriV1, MslConstructs.ResourceXsdNameV1);
             schemaResourceMap.Add(msl1.NamespaceUri, msl1);
 
             if (schemaVersion >= XmlConstants.EdmVersionForV2)
             {
-                var msl2 = new XmlSchemaResource(StorageMslConstructs.NamespaceUriV2, StorageMslConstructs.ResourceXsdNameV2);
+                var msl2 = new XmlSchemaResource(MslConstructs.NamespaceUriV2, MslConstructs.ResourceXsdNameV2);
                 schemaResourceMap.Add(msl2.NamespaceUri, msl2);
             }
 
             if (schemaVersion >= XmlConstants.EdmVersionForV3)
             {
                 Debug.Assert(XmlConstants.SchemaVersionLatest == XmlConstants.EdmVersionForV3, "Did you add a new schema version");
-                var msl3 = new XmlSchemaResource(StorageMslConstructs.NamespaceUriV3, StorageMslConstructs.ResourceXsdNameV3);
+                var msl3 = new XmlSchemaResource(MslConstructs.NamespaceUriV3, MslConstructs.ResourceXsdNameV3);
                 schemaResourceMap.Add(msl3.NamespaceUri, msl3);
             }
         }
 
-        /// <summary>
-        /// Adds Edm schema resource entries to the given XmlNamespace to XmlSchemaResoure map,
-        /// when calling from SomSchemaSetHelper.ComputeSchemaSet(), all the imported xsd will be included
-        /// </summary>
-        /// <param name="schemaResourceMap"> The XmlNamespace to XmlSchemaResource map to add entries to. </param>
+        // <summary>
+        // Adds Edm schema resource entries to the given XmlNamespace to XmlSchemaResoure map,
+        // when calling from SomSchemaSetHelper.ComputeSchemaSet(), all the imported xsd will be included
+        // </summary>
+        // <param name="schemaResourceMap"> The XmlNamespace to XmlSchemaResource map to add entries to. </param>
         internal static void AddEdmSchemaResourceMapEntries(Dictionary<string, XmlSchemaResource> schemaResourceMap, double schemaVersion)
         {
             XmlSchemaResource[] csdlImports =

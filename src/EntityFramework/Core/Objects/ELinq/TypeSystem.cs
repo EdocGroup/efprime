@@ -10,13 +10,12 @@ namespace System.Data.Entity.Core.Objects.ELinq
     using System.Linq.Expressions;
     using System.Reflection;
 
-    /// <summary>
-    /// Static utility class. Replica of query\DLinq\TypeSystem.cs
-    /// </summary>
+    // <summary>
+    // Static utility class. Replica of query\DLinq\TypeSystem.cs
+    // </summary>
     internal static class TypeSystem
     {
-        private static readonly MethodInfo _getDefaultMethod = typeof(TypeSystem).GetMethod(
-            "GetDefault", BindingFlags.Static | BindingFlags.NonPublic);
+        internal static readonly MethodInfo GetDefaultMethod = typeof(TypeSystem).GetOnlyDeclaredMethod("GetDefault");
 
         private static T GetDefault<T>()
         {
@@ -26,13 +25,13 @@ namespace System.Data.Entity.Core.Objects.ELinq
         internal static object GetDefaultValue(Type type)
         {
             // null is always the default for non value types and Nullable<>
-            if (!type.IsValueType
-                || (type.IsGenericType &&
+            if (!type.IsValueType()
+                || (type.IsGenericType() &&
                     typeof(Nullable<>) == type.GetGenericTypeDefinition()))
             {
                 return null;
             }
-            var getDefaultMethod = _getDefaultMethod.MakeGenericMethod(type);
+            var getDefaultMethod = GetDefaultMethod.MakeGenericMethod(type);
             var defaultValue = getDefaultMethod.Invoke(null, new object[] { });
             return defaultValue;
         }
@@ -130,28 +129,26 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return expression;
         }
 
-        /// <summary>
-        /// Resolves MemberInfo to a property or field.
-        /// </summary>
-        /// <param name="member"> Member to test. </param>
-        /// <param name="name"> Name of member. </param>
-        /// <param name="type"> Type of member. </param>
-        /// <returns> Given member normalized as a property or field. </returns>
+        // <summary>
+        // Resolves MemberInfo to a property or field.
+        // </summary>
+        // <param name="member"> Member to test. </param>
+        // <param name="name"> Name of member. </param>
+        // <param name="type"> Type of member. </param>
+        // <returns> Given member normalized as a property or field. </returns>
         internal static MemberInfo PropertyOrField(MemberInfo member, out string name, out Type type)
         {
             name = null;
             type = null;
 
-            if (member.MemberType
-                == MemberTypes.Field)
+            if (member.MemberType == MemberTypes.Field)
             {
                 var field = (FieldInfo)member;
                 name = field.Name;
                 type = field.FieldType;
                 return field;
             }
-            else if (member.MemberType
-                     == MemberTypes.Property)
+            else if (member.MemberType == MemberTypes.Property)
             {
                 var property = (PropertyInfo)member;
                 if (0 != property.GetIndexParameters().Length)
@@ -163,19 +160,17 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 type = property.PropertyType;
                 return property;
             }
-            else if (member.MemberType
-                     == MemberTypes.Method)
+            else if (member.MemberType == MemberTypes.Method)
             {
                 // this may be a property accessor in disguise (if it's a RuntimeMethodHandle)
                 var method = (MethodInfo)member;
                 if (method.IsSpecialName) // property accessor methods must set IsSpecialName
                 {
                     // try to find a property with the given getter
-                    foreach (var property in method.DeclaringType.GetProperties(
-                        BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                    foreach (var property in method.DeclaringType.GetRuntimeProperties())
                     {
                         if (property.CanRead
-                            && (property.GetGetMethod(true) == method))
+                            && (property.Getter() == method))
                         {
                             return PropertyOrField(property, out name, out type);
                         }
@@ -198,7 +193,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             {
                 return typeof(IEnumerable<>).MakeGenericType(seqType.GetElementType());
             }
-            if (seqType.IsGenericType)
+            if (seqType.IsGenericType())
             {
                 foreach (var arg in seqType.GetGenericArguments())
                 {
@@ -222,10 +217,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     }
                 }
             }
-            if (seqType.BaseType != null
-                && seqType.BaseType != typeof(object))
+            if (seqType.BaseType() != null
+                && seqType.BaseType() != typeof(object))
             {
-                return FindIEnumerable(seqType.BaseType);
+                return FindIEnumerable(seqType.BaseType());
             }
             return null;
         }
@@ -257,16 +252,16 @@ namespace System.Data.Entity.Core.Objects.ELinq
             // check requirements for a match
             if (null == test
                 || null == match
-                || !match.IsInterface
-                || !match.IsGenericTypeDefinition
+                || !match.IsInterface()
+                || !match.IsGenericTypeDefinition()
                 || null == test.DeclaringType)
             {
                 return false;
             }
 
             // we might be looking at the interface implementation directly
-            if (test.DeclaringType.IsInterface
-                && test.DeclaringType.IsGenericType
+            if (test.DeclaringType.IsInterface()
+                && test.DeclaringType.IsGenericType()
                 && test.DeclaringType.GetGenericTypeDefinition() == match)
             {
                 return true;
@@ -275,7 +270,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             // figure out if we implement the interface
             foreach (var testInterface in test.DeclaringType.GetInterfaces())
             {
-                if (testInterface.IsGenericType
+                if (testInterface.IsGenericType()
                     && testInterface.GetGenericTypeDefinition() == match)
                 {
                     // check if the method aligns
@@ -293,17 +288,17 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
         internal static bool IsImplementationOf(this PropertyInfo propertyInfo, Type interfaceType)
         {
-            Debug.Assert(interfaceType.IsInterface, "Ensure interfaceType is an interface before calling IsImplementationOf");
+            Debug.Assert(interfaceType.IsInterface(), "Ensure interfaceType is an interface before calling IsImplementationOf");
 
             // Find the property with the corresponding name on the interface, if present
-            var interfaceProp = interfaceType.GetProperty(propertyInfo.Name, BindingFlags.Public | BindingFlags.Instance);
+            var interfaceProp = interfaceType.GetDeclaredProperty(propertyInfo.Name);
             if (null == interfaceProp)
             {
                 return false;
             }
 
             // If the declaring type is an interface, compare directly.
-            if (propertyInfo.DeclaringType.IsInterface)
+            if (propertyInfo.DeclaringType.IsInterface())
             {
                 return interfaceProp.Equals(propertyInfo);
             }
@@ -315,7 +310,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             var result = false;
 
             // Get the get_<Property> method from the interface property.
-            var getInterfaceProp = interfaceProp.GetGetMethod();
+            var getInterfaceProp = interfaceProp.Getter();
 
             // Retrieve the interface mapping for the interface on the candidate property's declaring type.
             var interfaceMap = propertyInfo.DeclaringType.GetInterfaceMap(interfaceType);
@@ -331,7 +326,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             {
                 // If the get method of the referenced property is the target of the get_<Property> method in this interface mapping,
                 // then the property is the implementation of the interface's corresponding property.
-                var getPropertyMethod = propertyInfo.GetGetMethod();
+                var getPropertyMethod = propertyInfo.Getter();
                 if (getPropertyMethod != null)
                 {
                     result = getPropertyMethod.Equals(targetMethods[propIndex]);

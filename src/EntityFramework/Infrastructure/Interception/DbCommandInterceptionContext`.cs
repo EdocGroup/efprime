@@ -12,6 +12,7 @@ namespace System.Data.Entity.Infrastructure.Interception
     /// Represents contextual information associated with calls into <see cref="IDbCommandInterceptor" />
     /// implementations including the result of the operation.
     /// </summary>
+    /// <typeparam name="TResult">The type of the operation's results.</typeparam>
     /// <remarks>
     /// Instances of this class are publicly immutable for contextual information. To add
     /// contextual information use one of the With... or As... methods to create a new
@@ -30,8 +31,8 @@ namespace System.Data.Entity.Infrastructure.Interception
         }
 
         /// <summary>
-        /// Creates a new <see cref="DbCommandInterceptionContext{TResult}" /> by copying state from the given
-        /// interception context. Also see <see cref="DbCommandInterceptionContext{TResult}.Clone" />
+        /// Creates a new <see cref="DbCommandInterceptionContext{TResult}" /> by copying immutable state from the given
+        /// interception context. Also see <see cref="Clone" />
         /// </summary>
         /// <param name="copyFrom">The context from which to copy state.</param>
         public DbCommandInterceptionContext(DbInterceptionContext copyFrom)
@@ -49,7 +50,7 @@ namespace System.Data.Entity.Infrastructure.Interception
             get { return _mutableData; }
         }
 
-        internal InterceptionContextMutableData MutableData
+        internal InterceptionContextMutableData<TResult> MutableData
         {
             get { return _mutableData; }
         }
@@ -91,7 +92,7 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// When true, this flag indicates that that execution of the operation has been suppressed by
         /// one of the interceptors. This can be done before the operation has executed by calling
         /// <see cref="SuppressExecution" />, by setting an <see cref="Exception" /> to be thrown, or
-        /// by setting the operation result using <see cref="DbCommandInterceptionContext{TResult}.Result" />.
+        /// by setting the operation result using <see cref="Result" />.
         /// </summary>
         public bool IsExecutionSuppressed
         {
@@ -99,11 +100,19 @@ namespace System.Data.Entity.Infrastructure.Interception
         }
 
         /// <summary>
+        /// Gets or sets a value containing arbitrary user-specified state information associated with the operation.
+        /// </summary>
+        public object UserState
+        {
+            get { return _mutableData.UserState; }
+            set { _mutableData.UserState = value; }
+        }
+
+        /// <summary>
         /// Prevents the operation from being executed if called before the operation has executed.
         /// </summary>
         /// <exception cref="InvalidOperationException">
-        /// Thrown if this method is called after the
-        /// operation has already executed.
+        /// Thrown if this method is called after the operation has already executed.
         /// </exception>
         public void SuppressExecution()
         {
@@ -112,14 +121,12 @@ namespace System.Data.Entity.Infrastructure.Interception
 
         /// <summary>
         /// If execution of the operation fails, then this property will contain the exception that was
-        /// thrown. If the operation was suppressed or did not fail, then this property will always be
-        /// null.
+        /// thrown. If the operation was suppressed or did not fail, then this property will always be null.
         /// </summary>
         /// <remarks>
         /// When an operation fails both this property and the <see cref="Exception" /> property are set
         /// to the exception that was thrown. However, the <see cref="Exception" /> property can be set or
-        /// changed by interceptors, while this property will always represent the original exception
-        /// thrown.
+        /// changed by interceptors, while this property will always represent the original exception thrown.
         /// </remarks>
         public Exception OriginalException
         {

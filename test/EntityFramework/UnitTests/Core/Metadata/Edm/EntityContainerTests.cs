@@ -2,7 +2,9 @@
 
 namespace System.Data.Entity.Core.Metadata.Edm
 {
+    using System.Collections.Generic;
     using System.Linq;
+    using System.Threading;
     using Xunit;
 
     public class EntityContainerTests
@@ -110,6 +112,197 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 Assert.Throws<ArgumentException>(
                     () =>
                     EntityContainer.Create("Foo", DataSpace.SSpace, null, new[] { function }, null)).Message);
+        }
+
+        [Fact]
+        public void Can_add_function_import_to_container()
+        {
+            var container = new EntityContainer("container", DataSpace.CSpace);
+            var function = new EdmFunction(
+                "foo",
+                "bar",
+                DataSpace.CSpace,
+                new EdmFunctionPayload()
+                {
+                    IsFunctionImport = true
+                });
+
+            container.AddFunctionImport(function);
+
+            Assert.Equal(1, container.FunctionImports.Count);
+            Assert.Same(function, container.FunctionImports.Single());
+        }
+
+        [Fact]
+        public void Cannot_add_null_function_import_to_container()
+        {
+            Assert.Equal(
+                "function",
+                Assert.Throws<ArgumentNullException>(
+                () => new EntityContainer("container", DataSpace.CSpace).AddFunctionImport(null)).ParamName);
+        }
+
+        [Fact]
+        public void Cannot_add_non_function_import_to_container()
+        {
+            var container = new EntityContainer("container", DataSpace.CSpace);
+            var function = new EdmFunction(
+                "foo",
+                "bar",
+                DataSpace.CSpace,
+                new EdmFunctionPayload()
+                {
+                    IsFunctionImport = false
+                });
+
+            Assert.Equal(
+                Resources.Strings.OnlyFunctionImportsCanBeAddedToEntityContainer("foo"),
+                Assert.Throws<ArgumentException>(() => container.AddFunctionImport(function)).Message);
+        }
+
+        [Fact]
+        public void Cannot_add_function_to_readonly_container()
+        {
+            var container = new EntityContainer("container", DataSpace.CSpace);
+            container.SetReadOnly();
+
+            var function = new EdmFunction(
+                "foo",
+                "bar",
+                DataSpace.CSpace,
+                new EdmFunctionPayload()
+                {
+                    IsFunctionImport = false
+                });
+
+            Assert.Equal(
+                Resources.Strings.OperationOnReadOnlyItem,
+                Assert.Throws<InvalidOperationException>(() => container.AddFunctionImport(function)).Message);
+        }
+
+        public void AssociationSets_and_EntitySets_are_thread_safe()
+        {
+            var entityContainer = new EntityContainer("C", DataSpace.CSpace);
+
+            entityContainer.AddEntitySetBase(new AssociationSet("A", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)));
+            entityContainer.AddEntitySetBase(new EntitySet("E", null, null, null, new EntityType("E", "N", DataSpace.CSpace)));
+
+            const int cycles = 200;
+            const int threadCount = 30;
+
+            Action readAssociationSets = () =>
+            {
+                for (var i = 0; i < cycles; ++i)
+                {
+                    var associationSets = entityContainer.AssociationSets;
+
+                    //touching BaseEntitySets.Source triggers a reset to AssociationSets
+                    var sourceCount = entityContainer.BaseEntitySets.Source.Count;
+                    Assert.True(sourceCount == 1);
+
+                    var associationSetsAfterReset = entityContainer.AssociationSets;
+
+                    Assert.True(associationSets != null, "First reference to AssociationSets should not be null");
+                    Assert.True(associationSetsAfterReset != null, "Second reference to AssociationSets should not be null");
+                    Assert.False(ReferenceEquals(associationSets, associationSetsAfterReset), "The AssociationSets instances should be different");
+                }
+            };
+
+            Action readEntitySets = () =>
+            {
+                for (var i = 0; i < cycles; ++i)
+                {
+                    var entitySets = entityContainer.EntitySets;
+
+                    //touching BaseEntitySets.Source triggers a reset to EntitySets
+                    var sourceCount = entityContainer.BaseEntitySets.Source.Count;
+                    Assert.True(sourceCount == 1);
+
+                    var entitySetsAfterReset = entityContainer.EntitySets;
+
+                    Assert.True(entitySets != null, "First reference to EntitySets should not be null");
+                    Assert.True(entitySetsAfterReset != null, "Second reference to EntitySets should not be null");
+                    Assert.False(ReferenceEquals(entitySets, entitySetsAfterReset), "The EntitySets instances should be different");
+                }
+            };
+
+            var tasks = new List<Thread>();
+            for (var i = 0; i < (threadCount/2); ++i)
+            {
+                tasks.Add(new Thread(new ThreadStart(readEntitySets)));
+                tasks.Add(new Thread(new ThreadStart(readAssociationSets)));
+            }
+
+            tasks.ForEach(t => t.Start());
+            tasks.ForEach(t => t.Join());
+        }
+
+        [Fact]
+        public void Can_create_and_initialize_instance()
+        {
+            var container = new EntityContainer("Container", DataSpace.SSpace);
+
+            Assert.Equal("Container", container.Name);
+            Assert.Equal(DataSpace.SSpace, container.DataSpace);
+            Assert.Equal(0, container.EntitySets.Count);
+            Assert.Equal(0, container.AssociationSets.Count);
+            Assert.Equal(0, container.FunctionImports.Count);
+            Assert.False(container.IsReadOnly);
+        }
+
+        [Fact]
+        public void Can_add_entity_set_to_container()
+        {
+            var entityContainer = new EntityContainer("Container", DataSpace.CSpace);
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
+            var typeUsage = TypeUsage.CreateDefaultTypeUsage(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
+            var entitySet = EntitySet.Create("S", "dbo", "T", "Q", entityType, new[] { new MetadataProperty("P", typeUsage, "V") });
+
+            Assert.Equal(0, entityContainer.EntitySets.Count);
+            Assert.Null(entitySet.EntityContainer);
+
+            entityContainer.AddEntitySetBase(entitySet);
+
+            Assert.Equal(1, entityContainer.EntitySets.Count);
+            Assert.Same(entitySet, entityContainer.EntitySets.Single());
+            Assert.Same(entityContainer, entitySet.EntityContainer);
+        }
+
+        [Fact]
+        public void Can_add_association_set_to_container()
+        {
+            var entityContainer = new EntityContainer("Container", DataSpace.CSpace);
+            var associationType
+                = new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)
+                {
+                    SourceEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace)),
+                    TargetEnd = new AssociationEndMember("T", new EntityType("E", "N", DataSpace.CSpace))
+                };
+            var associationSet = new AssociationSet("A", associationType);
+
+            Assert.Equal(0, entityContainer.EntitySets.Count);
+            Assert.Null(associationSet.EntityContainer);
+
+            entityContainer.AddEntitySetBase(associationSet);
+
+            Assert.Equal(1, entityContainer.AssociationSets.Count);
+            Assert.Same(associationSet, entityContainer.AssociationSets.Single());
+            Assert.Same(entityContainer, associationSet.EntityContainer);
+        }
+
+        [Fact]
+        public void Cannot_add_entity_set_to_readonly_container()
+        {
+            var entityContainer = new EntityContainer("Container", DataSpace.CSpace);
+            var entityType = new EntityType("E", "N", DataSpace.CSpace);
+            var typeUsage = TypeUsage.CreateDefaultTypeUsage(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
+            var entitySet = EntitySet.Create("S", "dbo", "T", "Q", entityType, new[] { new MetadataProperty("P", typeUsage, "V") });
+
+            entityContainer.SetReadOnly();
+
+            Assert.Equal(
+                Resources.Strings.OperationOnReadOnlyItem,
+                Assert.Throws<InvalidOperationException>(() => entityContainer.AddEntitySetBase(entitySet)).Message);
         }
     }
 }

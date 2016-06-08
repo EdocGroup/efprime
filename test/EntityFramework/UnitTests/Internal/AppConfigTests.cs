@@ -8,6 +8,8 @@ namespace System.Data.Entity.Internal
     using System.Data.Common;
     using System.Data.Entity;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal.ConfigFile;
     using System.Data.Entity.Resources;
     using Moq;
@@ -266,6 +268,70 @@ namespace System.Data.Entity.Internal
                 mockEFSection.Setup(m => m.DefaultConnectionFactory).Returns(new DefaultConnectionFactoryElement());
 
                 Assert.Null(new AppConfig(new ConnectionStringSettingsCollection(), null, mockEFSection.Object).ConfigurationTypeName);
+            }
+        }
+
+        public class Interceptors : TestBase
+        {
+            [Fact]
+            public void Interceptors_returns_all_registered_interceptors()
+            {
+                var interceptor1 = new Mock<IDbConfigurationInterceptor>().Object;
+                var interceptor2 = new Mock<IDbConfigurationInterceptor>().Object;
+
+                var mockCollection = new Mock<InterceptorsCollection>();
+                mockCollection.Setup(m => m.Interceptors).Returns(new[] { interceptor1, interceptor2 });
+
+                var mockEFSection = new Mock<EntityFrameworkSection>();
+                mockEFSection.Setup(m => m.DefaultConnectionFactory).Returns(new DefaultConnectionFactoryElement());
+                mockEFSection.Setup(m => m.Interceptors).Returns(mockCollection.Object);
+
+                Assert.Equal(
+                    new[] { interceptor1, interceptor2 },
+                    new AppConfig(new ConnectionStringSettingsCollection(), null, mockEFSection.Object).Interceptors);
+            }
+
+            [Fact]
+            public void ConfigLoadedHandlers_returns_empty_if_no_handlers_are_registered()
+            {
+                Assert.Empty(new AppConfig(new ConnectionStringSettingsCollection(), null, null).Interceptors);
+            }
+        }
+
+        public class QueryCache : TestBase
+        {
+            [Fact]
+            public void QueryCache_return_registered_values()
+            {
+                var mockEFSection = new Mock<EntityFrameworkSection>();
+                mockEFSection.Setup(m => m.DefaultConnectionFactory).Returns(new DefaultConnectionFactoryElement());
+                mockEFSection.Setup(m => m.QueryCache)
+                    .Returns(new QueryCacheElement() { Size = 800, CleaningIntervalInSeconds = 10 });
+
+                Assert.Equal(
+                    800,
+                    new AppConfig(new ConnectionStringSettingsCollection(),null,mockEFSection.Object).QueryCache.GetQueryCacheSize());
+
+                Assert.Equal(
+                    10,
+                    new AppConfig(new ConnectionStringSettingsCollection(), null, mockEFSection.Object).QueryCache.GetCleaningIntervalInSeconds());
+            }
+
+            [Fact]
+            public void QueryCache_return_default_values_if_element_is_empty()
+            {
+                var mockEFSection = new Mock<EntityFrameworkSection>();
+                mockEFSection.Setup(m => m.DefaultConnectionFactory).Returns(new DefaultConnectionFactoryElement());
+                mockEFSection.Setup(m => m.QueryCache)
+                    .Returns(new QueryCacheElement());
+
+                Assert.Equal(
+                    1000,
+                    new AppConfig(new ConnectionStringSettingsCollection(), null, mockEFSection.Object).QueryCache.GetQueryCacheSize());
+
+                Assert.Equal(
+                    60,
+                    new AppConfig(new ConnectionStringSettingsCollection(), null, mockEFSection.Object).QueryCache.GetCleaningIntervalInSeconds());
             }
         }
     }

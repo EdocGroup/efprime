@@ -14,6 +14,7 @@ namespace System.Data.Entity
     using System.Data.Entity.Migrations;
     using System.Data.Entity.SqlServer;
     using System.Data.Entity.TestHelpers;
+    using System.Data.Entity.Utilities;
     using System.Data.SqlClient;
     using System.IO;
     using System.Reflection;
@@ -61,7 +62,7 @@ namespace System.Data.Entity
 
         public InfoContext GetInfoContext(DbContext context)
         {
-            var infoContext = new InfoContext(context.Database.Connection);
+            var infoContext = new InfoContext(context.Database.Connection, contextOwnsConnection: false);
             infoContext.Database.Initialize(force: false);
             return infoContext;
         }
@@ -134,7 +135,7 @@ namespace System.Data.Entity
         /// </summary>
         public static Assembly EntityFrameworkAssembly
         {
-            get { return typeof(DbModelBuilder).Assembly; }
+            get { return typeof(DbModelBuilder).Assembly(); }
         }
 
         /// <summary>
@@ -142,7 +143,7 @@ namespace System.Data.Entity
         /// </summary>
         public static Assembly SystemComponentModelDataAnnotationsAssembly
         {
-            get { return typeof(ValidationAttribute).Assembly; }
+            get { return typeof(ValidationAttribute).Assembly(); }
         }
 
         /// <summary>
@@ -150,7 +151,7 @@ namespace System.Data.Entity
         /// </summary>
         public static Assembly EntityFrameworkSqlServerAssembly
         {
-            get { return typeof(SqlProviderServices).Assembly; }
+            get { return typeof(SqlProviderServices).Assembly(); }
         }
 
         /// <summary>
@@ -567,5 +568,22 @@ namespace System.Data.Entity
         }
 
         #endregion
+
+        public static void RunTestInAppDomain(Type testType)
+        {
+            var domain = AppDomain.CreateDomain("TestAppDomain", null, AppDomain.CurrentDomain.SetupInformation);
+            try
+            {
+                domain.CreateInstanceAndUnwrap(
+                    testType.Assembly().FullName,
+                    testType.FullName,
+                    false, BindingFlags.Instance | BindingFlags.Public | BindingFlags.CreateInstance,
+                    null, null, null, null);
+            }
+            finally
+            {
+                AppDomain.Unload(domain);
+            }
+        }
     }
 }

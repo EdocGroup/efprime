@@ -7,7 +7,7 @@ namespace System.Data.Entity.WrappingProvider
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Migrations.Sql;
-    using System.Reflection;
+    using System.Data.Entity.Functionals.Utilities;
 
     public class WrappingEfProvider<TAdoNetBase, TEfBase> : DbProviderServices
         where TAdoNetBase : DbProviderFactory
@@ -19,8 +19,7 @@ namespace System.Data.Entity.WrappingProvider
 
         private WrappingEfProvider()
         {
-            _baseServices =
-                (DbProviderServices)typeof(TEfBase).GetProperty("Instance", BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+            _baseServices = (DbProviderServices)typeof(TEfBase).GetStaticProperty("Instance").GetValue(null, null);
         }
 
         protected override DbCommandDefinition CreateDbCommandDefinition(DbProviderManifest providerManifest, DbCommandTree commandTree)
@@ -46,10 +45,10 @@ namespace System.Data.Entity.WrappingProvider
             _baseServices.CreateDatabase(((WrappingConnection<TAdoNetBase>)connection).BaseConnection, commandTimeout, storeItemCollection);
         }
 
-        protected override bool DbDatabaseExists(DbConnection connection, int? commandTimeout, StoreItemCollection storeItemCollection)
+        protected override bool DbDatabaseExists(DbConnection connection, int? commandTimeout, Lazy<StoreItemCollection> storeItemCollection)
         {
             WrappingAdoNetProvider<TAdoNetBase>.Instance.Log.Add(
-                new LogItem("DbDatabaseExists", connection, new object[] { commandTimeout, storeItemCollection }));
+                new LogItem("DbDatabaseExists", connection, new object[] { commandTimeout, storeItemCollection.Value }));
 
             return _baseServices.DatabaseExists(
                 ((WrappingConnection<TAdoNetBase>)connection).BaseConnection, commandTimeout, storeItemCollection);
@@ -66,6 +65,11 @@ namespace System.Data.Entity.WrappingProvider
                 new LogItem("DbDeleteDatabase", connection, new object[] { commandTimeout, storeItemCollection }));
 
             _baseServices.DeleteDatabase(((WrappingConnection<TAdoNetBase>)connection).BaseConnection, commandTimeout, storeItemCollection);
+        }
+
+        protected override void SetDbParameterValue(DbParameter parameter, TypeUsage parameterType, object value)
+        {
+            _baseServices.SetParameterValue(parameter, parameterType, value);
         }
 
         public override object GetService(Type type, object key)

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Objects.ELinq
 {
@@ -10,18 +10,20 @@ namespace System.Data.Entity.Core.Objects.ELinq
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects.DataClasses;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Globalization;
     using System.Linq;
     using System.Linq.Expressions;
     using System.Reflection;
+    using System.Runtime.CompilerServices;
 
     internal sealed partial class ExpressionConverter
     {
         // Base class supporting the translation of LINQ node type(s) given a LINQ expression
         // of that type, and the "parent" translation context (the ExpressionConverter processor)
-        private abstract class Translator
+        internal abstract class Translator
         {
             private readonly ExpressionType[] _nodeTypes;
 
@@ -47,7 +49,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
         #region Misc
 
         // Typed version of Translator
-        private abstract class TypedTranslator<T_Linq> : Translator
+        internal abstract class TypedTranslator<T_Linq> : Translator
             where T_Linq : Expression
         {
             protected TypedTranslator(params ExpressionType[] nodeTypes)
@@ -116,14 +118,24 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 // "length" in compatibility checks)
                 TypeUsage type;
                 var typeSupported = false;
-                if (parent.TryGetValueLayerType(linq.Type, out type))
+
+                var linqType = linq.Type;
+
+                //unwrap System.Enum
+                if (linqType == typeof(Enum))
+                {
+                    Debug.Assert(linq.Value != null, "null enum constants should have alredy been taken care of");
+
+                    linqType = linq.Value.GetType();
+                }
+
+                if (parent.TryGetValueLayerType(linqType, out type))
                 {
                     // For constant values, support only primitive and enum type (this is all that is supported by CQTs)
                     // For null types, also allow EntityType. Although other types claim to be supported, they
                     // don't work (e.g. complex type, see SQL BU 543956)
                     if (Helper.IsScalarType(type.EdmType)
-                        ||
-                        (isNullValue && Helper.IsEntityType(type.EdmType)))
+                        || (isNullValue && Helper.IsEntityType(type.EdmType)))
                     {
                         typeSupported = true;
                     }
@@ -155,8 +167,8 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     var value = linq.Value;
                     if (Helper.IsPrimitiveType(type.EdmType))
                     {
-                        var nonNullableLinqType = TypeSystem.GetNonNullableType(linq.Type);
-                        if (nonNullableLinqType.IsEnum)
+                        var nonNullableLinqType = TypeSystem.GetNonNullableType(linqType);
+                        if (nonNullableLinqType.IsEnum())
                         {
                             value = System.Convert.ChangeType(
                                 linq.Value, nonNullableLinqType.GetEnumUnderlyingType(), CultureInfo.InvariantCulture);
@@ -168,7 +180,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             }
         }
 
-        private sealed partial class MemberAccessTranslator
+        internal sealed partial class MemberAccessTranslator
             : TypedTranslator<MemberExpression>
         {
             internal MemberAccessTranslator()
@@ -189,6 +201,25 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 // from this one
                 if (linq.Expression != null)
                 {
+                    // Handle special case where the member access is on a closured variable
+                    if (ExpressionType.Constant ==
+                        linq.Expression.NodeType)
+                    {
+                        var constantExpression = (ConstantExpression) linq.Expression;
+                        
+                        // Compiler generated types should have their members accessed locally 
+                        //   and the value returned treated as a constant.
+                        if (constantExpression.Type
+                            .GetCustomAttributes(typeof(CompilerGeneratedAttribute), inherit: false)
+                            .FirstOrDefault() != null)
+                        {
+                            var valueDelegate = Expression.Lambda(linq).Compile();
+
+                            return parent.TranslateExpression(
+                                Expression.Constant(valueDelegate.DynamicInvoke()));
+                        }
+                    }
+
                     var instance = parent.TranslateExpression(linq.Expression);
                     if (TryResolveAsProperty(
                         parent, memberInfo,
@@ -198,8 +229,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     }
                 }
 
-                if (memberInfo.MemberType
-                    == MemberTypes.Property)
+                if (memberInfo.MemberType == MemberTypes.Property)
                 {
                     // Check whether it is one of the special properties that we know how to translate
                     PropertyTranslator propertyTranslator;
@@ -234,21 +264,20 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            /// <summary>
-            /// Tries to get a translator for the given property info.
-            /// If the given property info corresponds to a Visual Basic property,
-            /// it also initializes the Visual Basic translators if they have not been initialized
-            /// </summary>
+            // <summary>
+            // Tries to get a translator for the given property info.
+            // If the given property info corresponds to a Visual Basic property,
+            // it also initializes the Visual Basic translators if they have not been initialized
+            // </summary>
             private static bool TryGetTranslator(PropertyInfo propertyInfo, out PropertyTranslator propertyTranslator)
             {
                 //If the type is generic, we try to match the generic property
                 var nonGenericPropertyInfo = propertyInfo;
-                if (propertyInfo.DeclaringType.IsGenericType)
+                if (propertyInfo.DeclaringType.IsGenericType())
                 {
                     try
                     {
-                        propertyInfo = propertyInfo.DeclaringType.GetGenericTypeDefinition().GetProperty(
-                            propertyInfo.Name, BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public);
+                        propertyInfo = propertyInfo.DeclaringType.GetGenericTypeDefinition().GetDeclaredProperty(propertyInfo.Name);
                     }
                     catch (AmbiguousMatchException)
                     {
@@ -270,13 +299,13 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
 
                 // check if this is the visual basic assembly
-                if (s_visualBasicAssemblyFullName == propertyInfo.DeclaringType.Assembly.FullName)
+                if (s_visualBasicAssemblyFullName == propertyInfo.DeclaringType.Assembly().FullName)
                 {
                     lock (_vbInitializerLock)
                     {
                         if (!_vbPropertiesInitialized)
                         {
-                            InitializeVBProperties(propertyInfo.DeclaringType.Assembly);
+                            InitializeVBProperties(propertyInfo.DeclaringType.Assembly());
                             _vbPropertiesInitialized = true;
                         }
                         // try again
@@ -392,7 +421,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 {
                     Debug.Assert(clrMember is PropertyInfo, "Navigation property was not a property; should not be allowed by metadata.");
                     var propertyType = ((PropertyInfo)clrMember).PropertyType;
-                    if (propertyType.IsGenericType
+                    if (propertyType.IsGenericType()
                         && propertyType.GetGenericTypeDefinition() == typeof(EntityCollection<>))
                     {
                         var collectionColumns =
@@ -437,23 +466,26 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
             private static IEnumerable<PropertyTranslator> GetVisualBasicPropertyTranslators(Assembly vbAssembly)
             {
-                yield return new VBDateAndTimeNowTranslator(vbAssembly);
+                return new PropertyTranslator[] { new VBDateAndTimeNowTranslator(vbAssembly) };
             }
 
             private static IEnumerable<PropertyTranslator> GetPropertyTranslators()
             {
-                yield return new DefaultCanonicalFunctionPropertyTranslator();
-                yield return new RenameCanonicalFunctionPropertyTranslator();
-                yield return new EntityCollectionCountTranslator();
-                yield return new NullableHasValueTranslator();
-                yield return new NullableValueTranslator();
-                yield return new SpatialPropertyTranslator();
+                return new PropertyTranslator[]
+                    {
+                        new DefaultCanonicalFunctionPropertyTranslator(),
+                        new RenameCanonicalFunctionPropertyTranslator(),
+                        new EntityCollectionCountTranslator(),
+                        new NullableHasValueTranslator(),
+                        new NullableValueTranslator(),
+                        new SpatialPropertyTranslator()
+                    };
             }
 
-            /// <summary>
-            /// This method is used to determine whether client side evaluation should be done,
-            /// if the property can be evaluated in the store, it is not being evaluated on the client
-            /// </summary>
+            // <summary>
+            // This method is used to determine whether client side evaluation should be done,
+            // if the property can be evaluated in the store, it is not being evaluated on the client
+            // </summary>
             internal static bool CanFuncletizePropertyInfo(PropertyInfo propertyInfo)
             {
                 PropertyTranslator propertyTranslator;
@@ -494,8 +526,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     // Int32 Count
                     //
                     if (propertyInfo.Name == "Count"
-                        &&
-                        propertyInfo.PropertyType.Equals(typeof(int)))
+                        && propertyInfo.PropertyType.Equals(typeof(int)))
                     {
                         foreach (var implementedCollectionInfo in GetImplementedICollections(propertyInfo.DeclaringType))
                         {
@@ -517,9 +548,8 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
                 private static bool IsICollection(Type candidateType, out Type elementType)
                 {
-                    if (candidateType.IsGenericType
-                        &&
-                        candidateType.GetGenericTypeDefinition().Equals(typeof(ICollection<>)))
+                    if (candidateType.IsGenericType()
+                        && candidateType.GetGenericTypeDefinition().Equals(typeof(ICollection<>)))
                     {
                         elementType = candidateType.GetGenericArguments()[0];
                         return true;
@@ -552,7 +582,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
             #region Signature-based Property Translators
 
-            private abstract class PropertyTranslator
+            internal abstract class PropertyTranslator
             {
                 private readonly IEnumerable<PropertyInfo> _properties;
 
@@ -579,7 +609,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            private sealed class DefaultCanonicalFunctionPropertyTranslator : PropertyTranslator
+            internal sealed class DefaultCanonicalFunctionPropertyTranslator : PropertyTranslator
             {
                 internal DefaultCanonicalFunctionPropertyTranslator()
                     : base(GetProperties())
@@ -588,22 +618,25 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
                 private static IEnumerable<PropertyInfo> GetProperties()
                 {
-                    yield return typeof(String).GetProperty("Length", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTime).GetProperty("Year", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTime).GetProperty("Month", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTime).GetProperty("Day", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTime).GetProperty("Hour", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTime).GetProperty("Minute", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTime).GetProperty("Second", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTime).GetProperty("Millisecond", BindingFlags.Public | BindingFlags.Instance);
+                    return new[]
+                        {
+                            typeof(String).GetDeclaredProperty("Length"),
+                            typeof(DateTime).GetDeclaredProperty("Year"),
+                            typeof(DateTime).GetDeclaredProperty("Month"),
+                            typeof(DateTime).GetDeclaredProperty("Day"),
+                            typeof(DateTime).GetDeclaredProperty("Hour"),
+                            typeof(DateTime).GetDeclaredProperty("Minute"),
+                            typeof(DateTime).GetDeclaredProperty("Second"),
+                            typeof(DateTime).GetDeclaredProperty("Millisecond"),
 
-                    yield return typeof(DateTimeOffset).GetProperty("Year", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTimeOffset).GetProperty("Month", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTimeOffset).GetProperty("Day", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTimeOffset).GetProperty("Hour", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTimeOffset).GetProperty("Minute", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTimeOffset).GetProperty("Second", BindingFlags.Public | BindingFlags.Instance);
-                    yield return typeof(DateTimeOffset).GetProperty("Millisecond", BindingFlags.Public | BindingFlags.Instance);
+                            typeof(DateTimeOffset).GetDeclaredProperty("Year"),
+                            typeof(DateTimeOffset).GetDeclaredProperty("Month"),
+                            typeof(DateTimeOffset).GetDeclaredProperty("Day"),
+                            typeof(DateTimeOffset).GetDeclaredProperty("Hour"),
+                            typeof(DateTimeOffset).GetDeclaredProperty("Minute"),
+                            typeof(DateTimeOffset).GetDeclaredProperty("Second"),
+                            typeof(DateTimeOffset).GetDeclaredProperty("Millisecond")
+                        };
                 }
 
                 // Default translator for method calls into canonical functions.
@@ -615,7 +648,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            private sealed class RenameCanonicalFunctionPropertyTranslator : PropertyTranslator
+            internal sealed class RenameCanonicalFunctionPropertyTranslator : PropertyTranslator
             {
                 private static readonly Dictionary<PropertyInfo, string> _propertyRenameMap = new Dictionary<PropertyInfo, string>(2);
 
@@ -626,27 +659,30 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
                 private static IEnumerable<PropertyInfo> GetProperties()
                 {
-                    yield return GetProperty(typeof(DateTime), "Now", BindingFlags.Public | BindingFlags.Static, CurrentDateTime);
-                    yield return GetProperty(typeof(DateTime), "UtcNow", BindingFlags.Public | BindingFlags.Static, CurrentUtcDateTime);
-                    yield return
-                        GetProperty(typeof(DateTimeOffset), "Now", BindingFlags.Public | BindingFlags.Static, CurrentDateTimeOffset);
+                    return new[]
+                        {
+                            GetProperty(typeof(DateTime), "Now", CurrentDateTime),
+                            GetProperty(typeof(DateTime), "UtcNow", CurrentUtcDateTime),
 
-                    yield return GetProperty(typeof(TimeSpan), "Hours", BindingFlags.Public | BindingFlags.Instance, Hour);
-                    yield return GetProperty(typeof(TimeSpan), "Minutes", BindingFlags.Public | BindingFlags.Instance, Minute);
-                    yield return GetProperty(typeof(TimeSpan), "Seconds", BindingFlags.Public | BindingFlags.Instance, Second);
-                    yield return GetProperty(typeof(TimeSpan), "Milliseconds", BindingFlags.Public | BindingFlags.Instance, Millisecond);
+                            GetProperty(typeof(DateTimeOffset), "Now", CurrentDateTimeOffset),
+
+                            GetProperty(typeof(TimeSpan), "Hours", Hour),
+                            GetProperty(typeof(TimeSpan), "Minutes", Minute),
+                            GetProperty(typeof(TimeSpan), "Seconds", Second),
+                            GetProperty(typeof(TimeSpan), "Milliseconds", Millisecond),
+                        };
                 }
 
                 private static PropertyInfo GetProperty(
-                    Type declaringType, string propertyName, BindingFlags bindingFlages, string canonicalFunctionName)
+                    Type declaringType, string propertyName, string canonicalFunctionName)
                 {
-                    var propertyInfo = declaringType.GetProperty(propertyName, bindingFlages);
-                    _propertyRenameMap.Add(propertyInfo, canonicalFunctionName);
+                    var propertyInfo = declaringType.GetDeclaredProperty(propertyName);
+                    _propertyRenameMap[propertyInfo] = canonicalFunctionName;
                     return propertyInfo;
                 }
 
                 // Translator for static properties into canonical functions when there is a corresponding 
-                // canonical function but with a differnet name
+                // canonical function but with a different name
                 // Translation:
                 //      object.PropertyName  -> CanonicalFunctionName(object)
                 //      Type.PropertyName  -> CanonicalFunctionName()
@@ -667,7 +703,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            private sealed class VBDateAndTimeNowTranslator : PropertyTranslator
+            internal sealed class VBDateAndTimeNowTranslator : PropertyTranslator
             {
                 private const string s_dateAndTimeTypeFullName = "Microsoft.VisualBasic.DateAndTime";
 
@@ -678,7 +714,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
                 private static PropertyInfo GetProperty(Assembly vbAssembly)
                 {
-                    return vbAssembly.GetType(s_dateAndTimeTypeFullName).GetProperty("Now", BindingFlags.Public | BindingFlags.Static);
+                    return vbAssembly.GetType(s_dateAndTimeTypeFullName).GetDeclaredProperty("Now");
                 }
 
                 // Translation:
@@ -689,7 +725,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            private sealed class EntityCollectionCountTranslator : PropertyTranslator
+            internal sealed class EntityCollectionCountTranslator : PropertyTranslator
             {
                 internal EntityCollectionCountTranslator()
                     : base(GetProperty())
@@ -698,8 +734,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
                 private static PropertyInfo GetProperty()
                 {
-                    return typeof(EntityCollection<>).GetProperty(
-                        s_entityCollectionCountPropertyName, BindingFlags.Public | BindingFlags.Instance);
+                    return typeof(EntityCollection<>).GetDeclaredProperty("Count");
                 }
 
                 // Translation:
@@ -712,7 +747,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            private sealed class NullableHasValueTranslator : PropertyTranslator
+            internal sealed class NullableHasValueTranslator : PropertyTranslator
             {
                 internal NullableHasValueTranslator()
                     : base(GetProperty())
@@ -721,7 +756,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
                 private static PropertyInfo GetProperty()
                 {
-                    return typeof(Nullable<>).GetProperty(s_nullableHasValuePropertyName, BindingFlags.Public | BindingFlags.Instance);
+                    return typeof(Nullable<>).GetDeclaredProperty("HasValue");
                 }
 
                 // Translation:
@@ -734,7 +769,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 }
             }
 
-            private sealed class NullableValueTranslator : PropertyTranslator
+            internal sealed class NullableValueTranslator : PropertyTranslator
             {
                 internal NullableValueTranslator()
                     : base(GetProperty())
@@ -743,7 +778,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
                 private static PropertyInfo GetProperty()
                 {
-                    return typeof(Nullable<>).GetProperty(s_nullableValuePropertyName, BindingFlags.Public | BindingFlags.Instance);
+                    return typeof(Nullable<>).GetDeclaredProperty("Value");
                 }
 
                 // Translation:
@@ -966,12 +1001,31 @@ namespace System.Data.Entity.Core.Objects.ELinq
             protected override DbExpression TypedTranslate(ExpressionConverter parent, ConditionalExpression linq)
             {
                 // translate Test ? IfTrue : IfFalse --> CASE WHEN Test THEN IfTrue ELSE IfFalse
-                var whenExpressions = new List<DbExpression>(1);
-                whenExpressions.Add(parent.TranslateExpression(linq.Test));
-                var thenExpressions = new List<DbExpression>(1);
-                thenExpressions.Add(parent.TranslateExpression(linq.IfTrue));
-                var elseExpression = parent.TranslateExpression(linq.IfFalse);
-                return DbExpressionBuilder.Case(whenExpressions, thenExpressions, elseExpression);
+                var whenExpression = parent.TranslateExpression(linq.Test);
+                DbExpression thenExpression;
+                DbExpression elseExpression;
+
+                if (!linq.IfTrue.IsNullConstant())
+                {
+                    thenExpression = parent.TranslateExpression(linq.IfTrue);
+                    elseExpression = !linq.IfFalse.IsNullConstant()
+                        ? parent.TranslateExpression(linq.IfFalse)
+                        : thenExpression.ResultType.Null();
+                }
+                else if (!linq.IfFalse.IsNullConstant())
+                {
+                    elseExpression = parent.TranslateExpression(linq.IfFalse);
+                    thenExpression = elseExpression.ResultType.Null();
+                }
+                else
+                {
+                    throw new NotSupportedException(Strings.ELinq_UnsupportedNullConstant(DescribeClrType(linq.Type)));
+                }
+
+                return DbExpressionBuilder.Case(
+                    new List<DbExpression> {whenExpression},
+                    new List<DbExpression> {thenExpression},
+                    elseExpression);
             }
         }
 
@@ -1154,8 +1208,8 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 var linqLeft = linq.Left;
                 var linqRight = linq.Right;
 
-                var leftIsNull = ExpressionIsNullConstant(linqLeft);
-                var rightIsNull = ExpressionIsNullConstant(linqRight);
+                var leftIsNull = linqLeft.IsNullConstant();
+                var rightIsNull = linqRight.IsNullConstant();
 
                 // if both values are null, short-circuit
                 if (leftIsNull && rightIsNull)
@@ -1186,39 +1240,13 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
             private static DbExpression CreateIsNullExpression(ExpressionConverter parent, Expression input)
             {
-                input = UnwrapConvert(input);
+                input = input.RemoveConvert();
 
                 // translate input
                 var inputCqt = parent.TranslateExpression(input);
 
                 // create IsNull expression
                 return ExpressionConverter.CreateIsNullExpression(inputCqt, input.Type);
-            }
-
-            private static bool ExpressionIsNullConstant(Expression expression)
-            {
-                // convert statements introduced by compiler should not affect nullness
-                expression = UnwrapConvert(expression);
-
-                // check if the unwrapped expression is a null constant
-                if (ExpressionType.Constant
-                    != expression.NodeType)
-                {
-                    return false;
-                }
-                var constant = (ConstantExpression)expression;
-                return null == constant.Value;
-            }
-
-            private static Expression UnwrapConvert(Expression input)
-            {
-                // unwrap all converts
-                while (ExpressionType.Convert
-                       == input.NodeType)
-                {
-                    input = ((UnaryExpression)input).Operand;
-                }
-                return input;
             }
         }
 
@@ -1268,21 +1296,21 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 : base(ExpressionType.Add, ExpressionType.AddChecked)
             {
             }
+            
+            protected override DbExpression TypedTranslate(ExpressionConverter parent, BinaryExpression linq)
+            {
+                if (linq.IsStringAddExpression())
+                {
+                    return StringTranslatorUtil.ConcatArgs(parent, linq);
+                }
+
+                return TranslateBinary(parent, parent.TranslateExpression(linq.Left), parent.TranslateExpression(linq.Right),linq);
+            }
 
             protected override DbExpression TranslateBinary(
                 ExpressionConverter parent, DbExpression left, DbExpression right, BinaryExpression linq)
-            {
-                if (TypeSemantics.IsPrimitiveType(left.ResultType, PrimitiveTypeKind.String)
-                    &&
-                    TypeSemantics.IsPrimitiveType(right.ResultType, PrimitiveTypeKind.String))
-                {
-                    // Add(string, string) => Concat(string, string)
-                    return parent.CreateCanonicalFunction(Concat, linq, left, right);
-                }
-                else
-                {
-                    return left.Plus(right);
-                }
+            {    
+                return left.Plus(right);
             }
         }
 
@@ -1325,6 +1353,21 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 ExpressionConverter parent, DbExpression left, DbExpression right, BinaryExpression linq)
             {
                 return left.Multiply(right);
+            }
+        }
+
+
+        private sealed class PowerTranslator : BinaryTranslator
+        {
+            internal PowerTranslator()
+                : base(ExpressionType.Power)
+            {
+            }
+
+            protected override DbExpression TranslateBinary(
+                ExpressionConverter parent, DbExpression left, DbExpression right, BinaryExpression linq)
+            {
+                return left.Power(right);
             }
         }
 

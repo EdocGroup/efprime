@@ -39,19 +39,19 @@ namespace System.Data.Entity.Core.Mapping
         [Fact]
         public void Setting_column_should_update_property_mapping()
         {
-            var columnProperty1 = new EdmProperty("C1");
+            var columnProperty1 = new EdmProperty("C1", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace }));
             var property = new EdmProperty("P");
             var columnMappingBuilder = new ColumnMappingBuilder(columnProperty1, new[] { property });
-            var scalarPropertyMapping = new StorageScalarPropertyMapping(property, columnProperty1);
+            var scalarPropertyMapping = new ScalarPropertyMapping(property, columnProperty1);
 
             columnMappingBuilder.SetTarget(scalarPropertyMapping);
 
-            var columnProperty2 = new EdmProperty("C2");
+            var columnProperty2 = new EdmProperty("C2", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace }));
 
             columnMappingBuilder.ColumnProperty = columnProperty2;
 
             Assert.Same(columnProperty2, columnMappingBuilder.ColumnProperty);
-            Assert.Same(columnProperty2, scalarPropertyMapping.ColumnProperty);
+            Assert.Same(columnProperty2, scalarPropertyMapping.Column);
         }
     }
 }

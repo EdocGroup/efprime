@@ -2,6 +2,7 @@
 
 namespace System.Data.Entity
 {
+    using System.Collections;
     using System.Collections.Generic;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
@@ -423,8 +424,6 @@ namespace System.Data.Entity
 
         #region Include
 
-        private static readonly Type[] _stringIncludeTypes = new[] { typeof(string) };
-
         /// <summary>
         /// Specifies the related objects to include in the query results.
         /// </summary>
@@ -447,7 +446,7 @@ namespace System.Data.Entity
         /// <returns>
         /// A new <see cref="IQueryable{T}" /> with the defined query path.
         /// </returns>
-        public static IQueryable<T> Include<T>(this IQueryable<T> source, string path) where T : class
+        public static IQueryable<T> Include<T>(this IQueryable<T> source, string path)
         {
             Check.NotNull(source, "source");
             Check.NotEmpty(path, "path");
@@ -517,14 +516,25 @@ namespace System.Data.Entity
             return asDbQuery != null ? asDbQuery.Include(path) : CommonInclude(source, path);
         }
 
-        /// <summary>
-        /// Common code for generic and non-generic string Include.
-        /// </summary>
+        // <summary>
+        // Common code for generic and non-generic string Include.
+        // </summary>
         private static T CommonInclude<T>(T source, string path)
         {
             DebugCheck.NotNull((object)source);
 
-            var includeMethod = source.GetType().GetMethod("Include", _stringIncludeTypes);
+            var includeMethod = source.GetType().GetRuntimeMethod(
+                "Include", 
+                p => p.IsPublic && !p.IsStatic,
+                new[] { typeof(string) },
+                new[] { typeof(IComparable) },
+                new[] { typeof(ICloneable) },
+                new[] { typeof(IComparable<string>) },
+                new[] { typeof(IEnumerable<char>) },
+                new[] { typeof(IEnumerable) },
+                new[] { typeof(IEquatable<string>) },
+                new[] { typeof(object) });
+
             if (includeMethod != null
                 && typeof(T).IsAssignableFrom(includeMethod.ReturnType))
             {
@@ -566,7 +576,7 @@ namespace System.Data.Entity
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
         public static IQueryable<T> Include<T, TProperty>(
-            this IQueryable<T> source, Expression<Func<T, TProperty>> path) where T : class
+            this IQueryable<T> source, Expression<Func<T, TProperty>> path)
         {
             Check.NotNull(source, "source");
             Check.NotNull(path, "path");
@@ -618,9 +628,9 @@ namespace System.Data.Entity
             return asDbQuery != null ? asDbQuery.AsNoTracking() : CommonAsNoTracking(source);
         }
 
-        /// <summary>
-        /// Common code for generic and non-generic AsNoTracking.
-        /// </summary>
+        // <summary>
+        // Common code for generic and non-generic AsNoTracking.
+        // </summary>
         private static T CommonAsNoTracking<T>(T source) where T : class
         {
             DebugCheck.NotNull(source);
@@ -631,7 +641,7 @@ namespace System.Data.Entity
                 return (T)DbHelpers.CreateNoTrackingQuery(asObjectQuery);
             }
 
-            var noTrackingMethod = source.GetType().GetMethod("AsNoTracking", Type.EmptyTypes);
+            var noTrackingMethod = source.GetType().GetPublicInstanceMethod("AsNoTracking");
             if (noTrackingMethod != null
                 && typeof(T).IsAssignableFrom(noTrackingMethod.ReturnType))
             {
@@ -694,11 +704,57 @@ namespace System.Data.Entity
                 return (T)DbHelpers.CreateStreamingQuery(asObjectQuery);
             }
 
-            var asStreamingMethod = source.GetType().GetMethod("AsStreaming", Type.EmptyTypes);
+            var asStreamingMethod = source.GetType().GetPublicInstanceMethod("AsStreaming");
             if (asStreamingMethod != null
                 && typeof(T).IsAssignableFrom(asStreamingMethod.ReturnType))
             {
                 return (T)asStreamingMethod.Invoke(source, null);
+            }
+
+            return source;
+        }
+        
+        #endregion
+
+        #region WithExecutionStrategy
+
+        // These methods allow an internal way to change the execution strategy for a particular query
+        // When making it public all other places where execution strategy is used need to be changed too
+        internal static IQueryable<T> WithExecutionStrategy<T>(this IQueryable<T> source, IDbExecutionStrategy executionStrategy)
+        {
+            Check.NotNull(source, "source");
+
+            var asDbQuery = source as DbQuery<T>;
+            return asDbQuery != null
+                ? asDbQuery.WithExecutionStrategy(executionStrategy)
+                : CommonWithExecutionStrategy(source, executionStrategy);
+        }
+
+        internal static IQueryable WithExecutionStrategy(this IQueryable source, IDbExecutionStrategy executionStrategy)
+        {
+            Check.NotNull(source, "source");
+
+            var asDbQuery = source as DbQuery;
+            return asDbQuery != null
+                ? asDbQuery.WithExecutionStrategy(executionStrategy)
+                : CommonWithExecutionStrategy(source, executionStrategy);
+        }
+
+        private static T CommonWithExecutionStrategy<T>(T source, IDbExecutionStrategy executionStrategy) where T : class
+        {
+            DebugCheck.NotNull(source);
+
+            var asObjectQuery = source as ObjectQuery;
+            if (asObjectQuery != null)
+            {
+                return (T)DbHelpers.CreateQueryWithExecutionStrategy(asObjectQuery, executionStrategy);
+            }
+
+            var asStreamingMethod = source.GetType().GetPublicInstanceMethod("WithExecutionStrategy");
+            if (asStreamingMethod != null
+                && typeof(T).IsAssignableFrom(asStreamingMethod.ReturnType))
+            {
+                return (T)asStreamingMethod.Invoke(source, new object[] { executionStrategy });
             }
 
             return source;
@@ -1438,6 +1494,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -1552,6 +1610,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -1642,6 +1702,8 @@ namespace System.Data.Entity
         public static Task<TSource> FirstOrDefaultAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -1755,6 +1817,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -1851,6 +1915,8 @@ namespace System.Data.Entity
         public static Task<TSource> SingleAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -1978,6 +2044,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -2078,6 +2146,8 @@ namespace System.Data.Entity
         public static Task<TSource> SingleOrDefaultAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -2187,6 +2257,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -2278,6 +2350,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -2366,6 +2440,8 @@ namespace System.Data.Entity
         public static Task<bool> AnyAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -2469,6 +2545,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -2570,6 +2648,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -2673,6 +2753,8 @@ namespace System.Data.Entity
         public static Task<int> CountAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -2792,6 +2874,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -2894,6 +2978,8 @@ namespace System.Data.Entity
         public static Task<long> LongCountAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -3015,6 +3101,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(predicate, "predicate");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -3103,6 +3191,8 @@ namespace System.Data.Entity
         public static Task<TSource> MinAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -3212,6 +3302,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -3300,6 +3392,8 @@ namespace System.Data.Entity
         public static Task<TSource> MaxAsync<TSource>(this IQueryable<TSource> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -3409,6 +3503,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -3505,6 +3601,8 @@ namespace System.Data.Entity
         public static Task<int> SumAsync(this IQueryable<int> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -3605,6 +3703,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -3701,6 +3801,8 @@ namespace System.Data.Entity
         public static Task<long> SumAsync(this IQueryable<long> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -3801,6 +3903,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -3883,6 +3987,8 @@ namespace System.Data.Entity
         public static Task<float> SumAsync(this IQueryable<float> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -3969,6 +4075,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -4051,6 +4159,8 @@ namespace System.Data.Entity
         public static Task<double> SumAsync(this IQueryable<double> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -4137,6 +4247,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -4219,6 +4331,8 @@ namespace System.Data.Entity
         public static Task<decimal> SumAsync(this IQueryable<decimal> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -4311,6 +4425,8 @@ namespace System.Data.Entity
         public static Task<decimal?> SumAsync(this IQueryable<decimal?> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -4430,6 +4546,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -4547,6 +4665,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -4666,6 +4786,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -4784,6 +4906,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -4887,6 +5011,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -4992,6 +5118,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -5096,6 +5224,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -5199,6 +5329,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -5318,6 +5450,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -5436,6 +5570,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -5527,6 +5663,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -5611,6 +5749,8 @@ namespace System.Data.Entity
         public static Task<double?> AverageAsync(this IQueryable<int?> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -5703,6 +5843,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -5787,6 +5929,8 @@ namespace System.Data.Entity
         public static Task<double?> AverageAsync(this IQueryable<long?> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -5879,6 +6023,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -5963,6 +6109,8 @@ namespace System.Data.Entity
         public static Task<float?> AverageAsync(this IQueryable<float?> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -6055,6 +6203,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -6139,6 +6289,8 @@ namespace System.Data.Entity
         public static Task<double?> AverageAsync(this IQueryable<double?> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -6231,6 +6383,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -6315,6 +6469,8 @@ namespace System.Data.Entity
         public static Task<decimal?> AverageAsync(this IQueryable<decimal?> source, CancellationToken cancellationToken)
         {
             Check.NotNull(source, "source");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -6424,6 +6580,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -6523,6 +6681,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -6632,6 +6792,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -6731,6 +6893,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -6840,6 +7004,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -6939,6 +7105,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -7048,6 +7216,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -7147,6 +7317,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -7256,6 +7428,8 @@ namespace System.Data.Entity
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
             {
@@ -7355,6 +7529,8 @@ namespace System.Data.Entity
         {
             Check.NotNull(source, "source");
             Check.NotNull(selector, "selector");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             var provider = source.Provider as IDbAsyncQueryProvider;
             if (provider != null)
@@ -7496,30 +7672,30 @@ namespace System.Data.Entity
 
         private static MethodInfo GetMethod(string methodName, Func<Type[]> getParameterTypes)
         {
-            return GetMethod(methodName, getParameterTypes.Method, 0);
+            return GetMethod(methodName, getParameterTypes, 0);
         }
 
         private static MethodInfo GetMethod(string methodName, Func<Type, Type, Type[]> getParameterTypes)
         {
-            return GetMethod(methodName, getParameterTypes.Method, 2);
+            return GetMethod(methodName, getParameterTypes, 2);
         }
 
 #endif
 
         private static MethodInfo GetMethod(string methodName, Func<Type, Type[]> getParameterTypes)
         {
-            return GetMethod(methodName, getParameterTypes.Method, 1);
+            return GetMethod(methodName, getParameterTypes, 1);
         }
 
-        private static MethodInfo GetMethod(string methodName, MethodInfo getParameterTypesMethod, int genericArgumentsCount)
+        private static MethodInfo GetMethod(string methodName, Delegate getParameterTypesDelegate, int genericArgumentsCount)
         {
-            var candidates = typeof(Queryable).GetMember(methodName, MemberTypes.Method, BindingFlags.Public | BindingFlags.Static);
+            var candidates = typeof(Queryable).GetDeclaredMethods(methodName);
 
             foreach (MethodInfo candidate in candidates)
             {
                 var genericArguments = candidate.GetGenericArguments();
                 if (genericArguments.Length == genericArgumentsCount
-                    && Matches(candidate, (Type[])getParameterTypesMethod.Invoke(null, genericArguments)))
+                    && Matches(candidate, (Type[])getParameterTypesDelegate.DynamicInvoke(genericArguments)))
                 {
                     return candidate;
                 }
@@ -7527,7 +7703,7 @@ namespace System.Data.Entity
 
             Debug.Assert(
                 false, String.Format(
-                    "Method '{0}' with parameters '{1}' not found", methodName, PrettyPrint(getParameterTypesMethod, genericArgumentsCount)));
+                    "Method '{0}' with parameters '{1}' not found", methodName, PrettyPrint(getParameterTypesDelegate.Method, genericArgumentsCount)));
 
             return null;
         }

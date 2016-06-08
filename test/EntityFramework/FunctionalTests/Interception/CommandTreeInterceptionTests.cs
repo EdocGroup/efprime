@@ -6,21 +6,27 @@ namespace System.Data.Entity.Interception
     using System.Collections.Generic;
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.Interception;
+    using System.Data.Entity.TestHelpers;
     using System.Linq;
+    using System.Transactions;
     using Xunit;
 
     public class CommandTreeInterceptionTests : FunctionalTestBase
     {
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Command_trees_for_initialization_and_simple_query_and_update_commands_can_be_logged()
         {
             // Make sure that HistoryContext has been used to ensure test runs consistently regardless of
             // whether or not other tests have run before it.
             using (var initContext = new BlogContextNoInit())
             {
-                initContext.Database.Initialize(force: false);
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        initContext.Database.Initialize(force: false);
+                    });
             }
 
             var logger = new CommandTreeLogger();
@@ -48,13 +54,13 @@ namespace System.Data.Entity.Interception
 
             Assert.True(
                 logger.Log.OfType<DbUpdateCommandTree>()
-                      .Any(
-                          t => t.SetClauses.OfType<DbSetClause>()
-                                .Any(
-                                    c => ((DbPropertyExpression)c.Property).Property.Name == "Title"
-                                         && (string)((DbConstantExpression)c.Value).Value == "I'm a logger and I'm okay...")));
+                    .Any(
+                        t => t.SetClauses.OfType<DbSetClause>()
+                            .Any(
+                                c => ((DbPropertyExpression)c.Property).Property.Name == "Title"
+                                     && (string)((DbConstantExpression)c.Value).Value == "I'm a logger and I'm okay...")));
 #endif
-            
+
             foreach (var interceptionContext in logger.LogWithContext.Select(t => t.Item2))
             {
                 Assert.Contains(context, interceptionContext.DbContexts);
@@ -70,12 +76,17 @@ namespace System.Data.Entity.Interception
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Multiple_contexts_running_concurrently_can_log_command_trees_except_trees_for_cached_queries()
         {
             // Make sure no logs get initialization trees
             using (var context = new BlogContextAllTrees())
             {
-                context.Database.Initialize(force: false);
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        context.Database.Initialize(force: false);
+                    });
             }
 
             // Run the test code once to log both update and query trees

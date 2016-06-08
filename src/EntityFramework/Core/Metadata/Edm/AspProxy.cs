@@ -4,9 +4,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections;
     using System.Collections.Generic;
+    using System.Data.Entity.Core.SchemaObjectModel;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
+    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
     using System.Reflection;
     using System.Security;
@@ -15,13 +17,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
     {
         private const string BUILD_MANAGER_TYPE_NAME = @"System.Web.Compilation.BuildManager";
         private const string AspNetAssemblyName = "System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a";
+        private static readonly byte[] _systemWebPublicKeyToken = ScalarType.ConvertToByteArray("b03f5f7f11d50a3a");
         private Assembly _webAssembly;
         private bool _triedLoadingWebAssembly;
 
-        /// <summary>
-        /// Determine whether we are inside an ASP.NET application.
-        /// </summary>
-        /// <returns> true if we are running inside an ASP.NET application </returns>
+        // <summary>
+        // Determine whether we are inside an ASP.NET application.
+        // </summary>
+        // <returns> true if we are running inside an ASP.NET application </returns>
         internal bool IsAspNetEnvironment()
         {
             if (!TryInitializeWebAssembly())
@@ -31,7 +34,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             try
             {
-                var result = PrivateMapWebPath(EdmConstants.WebHomeSymbol);
+                var result = InternalMapWebPath(EdmConstants.WebHomeSymbol);
                 return result != null;
             }
             catch (SecurityException)
@@ -53,23 +56,28 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        private bool TryInitializeWebAssembly()
+        public bool TryInitializeWebAssembly()
         {
-            // We cannot introduce a hard dependency on the System.Web assembly, so we load
-            // it via reflection.
-            //
             if (_webAssembly != null)
             {
                 return true;
             }
-            else if (_triedLoadingWebAssembly)
+
+            if (_triedLoadingWebAssembly)
             {
                 return false;
             }
 
-            Debug.Assert(_triedLoadingWebAssembly == false);
-            Debug.Assert(_webAssembly == null);
+            // We should not use System.Web unless it is already loaded. In addition, we make the assumption that
+            // in a traditional web app (which is where this is needed) System.Web will be loaded before EF is used
+            // because it is involved in initializing the application, so we only check once.
             _triedLoadingWebAssembly = true;
+
+            if (!IsSystemWebLoaded())
+            {
+                return false;
+            }
+
             try
             {
                 _webAssembly = Assembly.Load(AspNetAssemblyName);
@@ -79,15 +87,26 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 if (!e.IsCatchableExceptionType())
                 {
-                    throw; // StackOverflow, OutOfMemory, ...
+                    throw;
                 }
-
-                // It is possible that we are operating in an environment where
-                // System.Web is simply not available (for instance, inside SQL
-                // Server). Instead of throwing or rethrowing, we simply fail
-                // gracefully
             }
 
+            return false;
+        }
+
+        [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
+        public static bool IsSystemWebLoaded()
+        {
+            try
+            {
+                return AppDomain.CurrentDomain.GetAssemblies().Any(
+                    a => a.GetName().Name == "System.Web"
+                         && a.GetName().GetPublicKeyToken() != null
+                         && a.GetName().GetPublicKeyToken().SequenceEqual(_systemWebPublicKeyToken));
+            }
+            catch
+            {
+            }
             return false;
         }
 
@@ -99,27 +118,27 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// This method accepts a string parameter that represents a path in a Web (specifically,
-        /// an ASP.NET) application -- one that starts with a '~' -- and resolves it to a
-        /// canonical file path.
-        /// </summary>
-        /// <remarks>
-        /// The implementation assumes that you cannot have file names that begin with the '~'
-        /// character. (This is a pretty reasonable assumption.) Additionally, the method does not
-        /// test for the existence of a directory or file resource after resolving the path.
-        /// CONSIDER: Caching the reflection results to satisfy subsequent path resolution requests.
-        /// ISSUE: Need to maintain context for a set of path resolution requests, so that we
-        /// don't run into a situation where an incorrect context is applied to a path resolution
-        /// request.
-        /// </remarks>
-        /// <param name="path"> A path in an ASP.NET application </param>
-        /// <returns> A fully-qualified path </returns>
+        // <summary>
+        // This method accepts a string parameter that represents a path in a Web (specifically,
+        // an ASP.NET) application -- one that starts with a '~' -- and resolves it to a
+        // canonical file path.
+        // </summary>
+        // <remarks>
+        // The implementation assumes that you cannot have file names that begin with the '~'
+        // character. (This is a pretty reasonable assumption.) Additionally, the method does not
+        // test for the existence of a directory or file resource after resolving the path.
+        // CONSIDER: Caching the reflection results to satisfy subsequent path resolution requests.
+        // ISSUE: Need to maintain context for a set of path resolution requests, so that we
+        // don't run into a situation where an incorrect context is applied to a path resolution
+        // request.
+        // </remarks>
+        // <param name="path"> A path in an ASP.NET application </param>
+        // <returns> A fully-qualified path </returns>
         internal string MapWebPath(string path)
         {
             DebugCheck.NotNull(path);
 
-            path = PrivateMapWebPath(path);
+            path = InternalMapWebPath(path);
             if (path == null)
             {
                 var errMsg = Strings.InvalidUseOfWebPath(EdmConstants.WebHomeSymbol);
@@ -128,7 +147,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return path;
         }
 
-        private string PrivateMapWebPath(string path)
+        internal string InternalMapWebPath(string path)
         {
             DebugCheck.NotEmpty(path);
             Debug.Assert(path.StartsWith(EdmConstants.WebHomeSymbol, StringComparison.Ordinal));
@@ -142,8 +161,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 var hostingEnvType = _webAssembly.GetType("System.Web.Hosting.HostingEnvironment", true);
 
-                var miMapPath = hostingEnvType.GetMethod("MapPath");
-                Debug.Assert(miMapPath != null, "Unpexpected missing member in type System.Web.Hosting.HostingEnvironment");
+                var miMapPath = hostingEnvType.GetDeclaredMethod("MapPath", typeof(string));
 
                 // Note:
                 //   1. If path is null, then the MapPath() method returns the full physical path to the directory 
@@ -203,16 +221,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             //
             //    public static ICollection GetReferencedAssemblies();
             //
-            Type buildManager;
-            if (!TryGetBuildManagerType(out buildManager))
-            {
-                throw new InvalidOperationException(Strings.UnableToFindReflectedType(BUILD_MANAGER_TYPE_NAME, AspNetAssemblyName));
-            }
-
-            var getRefAssembliesMethod = buildManager.GetMethod(
-                @"GetReferencedAssemblies",
-                BindingFlags.InvokeMethod | BindingFlags.Static | BindingFlags.Public
-                );
+            var getRefAssembliesMethod = GetReferencedAssembliesMethod();
 
             if (getRefAssembliesMethod == null)
             {
@@ -242,6 +251,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 throw new InvalidOperationException(Strings.UnableToDetermineApplicationContext, e);
             }
+        }
+
+        internal MethodInfo GetReferencedAssembliesMethod()
+        {
+            Type buildManager;
+            if (!TryGetBuildManagerType(out buildManager))
+            {
+                throw new InvalidOperationException(Strings.UnableToFindReflectedType(BUILD_MANAGER_TYPE_NAME, AspNetAssemblyName));
+            }
+
+            return buildManager.GetDeclaredMethod("GetReferencedAssemblies");
         }
     }
 }

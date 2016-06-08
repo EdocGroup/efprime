@@ -6,6 +6,7 @@ namespace System.Data.Entity.Migrations.History
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Internal;
     using System.Data.Entity.Migrations.Edm;
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Model;
@@ -24,6 +25,13 @@ namespace System.Data.Entity.Migrations.History
     [Variant(DatabaseProvider.SqlServerCe, ProgrammingLanguage.CSharp)]
     public class HistoryRepositoryTests : DbTestCase
     {
+        [Fact]
+        public void Members_are_found_by_Reflection()
+        {
+            Assert.NotNull(HistoryRepository.ContextKeyProperty);
+            Assert.NotNull(HistoryRepository.MigrationIdProperty);
+        }
+
         [MigrationsTheory]
         public void Should_throw_when_upgrading_5_6_and_custom_history_context_factory_specified()
         {
@@ -31,6 +39,7 @@ namespace System.Data.Entity.Migrations.History
 
             var historyRepository
                 = new HistoryRepository(
+                    Mock.Of<InternalContextForMock>(),
                     ConnectionString,
                     ProviderFactory,
                     "MyKey",
@@ -55,7 +64,7 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             var createTableOperation = GetCreateHistoryTableOperation();
 
@@ -76,7 +85,7 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             Assert.Equal(150, historyRepository.MigrationIdMaxLength);
             Assert.Equal(300, historyRepository.ContextKeyMaxLength);
@@ -88,7 +97,7 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             var commandTrees = historyRepository.CreateDiscoveryQueryTrees();
 
@@ -111,7 +120,7 @@ namespace System.Data.Entity.Migrations.History
                     key => (Func<IDbExecutionStrategy>)(() => new SqlAzureExecutionStrategy()));
 
                 var historyRepository
-                    = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                    = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
                 var commandTrees = historyRepository.CreateDiscoveryQueryTrees();
 
@@ -129,34 +138,12 @@ namespace System.Data.Entity.Migrations.History
         }
 
         [MigrationsTheory]
-        public void GetUpgradeOperations_should_return_add_product_version_column_when_not_present()
-        {
-            ResetDatabase();
-
-            var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
-
-            var createTableOperation = GetCreateHistoryTableOperation();
-
-            createTableOperation.Columns.Remove(createTableOperation.Columns.Last());
-
-            ExecuteOperations(createTableOperation);
-
-            var addColumnOperation = (AddColumnOperation)historyRepository.GetUpgradeOperations().Last();
-
-            Assert.Equal("ProductVersion", addColumnOperation.Column.Name);
-            Assert.Equal("0.7.0.0", addColumnOperation.Column.DefaultValue);
-            Assert.Equal(32, addColumnOperation.Column.MaxLength);
-            Assert.False(addColumnOperation.Column.IsNullable.Value);
-        }
-
-        [MigrationsTheory]
         public void GetUpgradeOperations_should_return_context_key_column_when_not_present()
         {
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             var createTableOperation = GetCreateHistoryTableOperation();
 
@@ -178,7 +165,7 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             Assert.False(historyRepository.GetUpgradeOperations().Any());
         }
@@ -189,11 +176,11 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -216,11 +203,11 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -239,16 +226,16 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository1
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
 
             var historyRepository2
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
 
             ExecuteOperations(GetCreateHistoryTableOperation());
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -266,11 +253,11 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -296,14 +283,14 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository1
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
 
             var historyRepository2
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -331,13 +318,13 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             ExecuteOperations(GetCreateHistoryTableOperation());
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -356,7 +343,7 @@ namespace System.Data.Entity.Migrations.History
         public void GetMigrationId_should_return_null_when_no_database()
         {
             var historyRepository
-                = new HistoryRepository(
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), 
                     ConnectionString.Replace(DatabaseProviderFixture.DefaultDatabaseName, "NoSuchDatabase"), 
                     ProviderFactory, 
                     "MyKey",
@@ -372,13 +359,13 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             ExecuteOperations(GetCreateHistoryTableOperation());
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -400,16 +387,16 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository1
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
 
             var historyRepository2
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
 
             ExecuteOperations(GetCreateHistoryTableOperation());
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -433,13 +420,13 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             ExecuteOperations(GetCreateHistoryTableOperation());
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     new[]
@@ -458,7 +445,7 @@ namespace System.Data.Entity.Migrations.History
         public void GetPendingMigrations_should_return_empty_set_when_no_database()
         {
             var historyRepository
-                = new HistoryRepository(
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), 
                     ConnectionString.Replace(DatabaseProviderFixture.DefaultDatabaseName, "NoSuchDatabase"),
                     ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
@@ -470,7 +457,7 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             Assert.False(historyRepository.GetPendingMigrations(Enumerable.Empty<string>()).Any());
         }
@@ -480,7 +467,7 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             Assert.False(historyRepository.GetPendingMigrations(Enumerable.Empty<string>()).Any());
         }
@@ -490,11 +477,11 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(),
@@ -516,12 +503,12 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository1 = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
-            var historyRepository2 = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
+            var historyRepository1 = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey1", null, HistoryContext.DefaultFactory);
+            var historyRepository2 = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey2", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(),
@@ -544,11 +531,11 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(),
@@ -565,7 +552,7 @@ namespace System.Data.Entity.Migrations.History
         public void GetLastModel_should_return_null_when_no_database()
         {
             var historyRepository
-                = new HistoryRepository(
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), 
                     ConnectionString.Replace(DatabaseProviderFixture.DefaultDatabaseName, "NoSuchDatabase"),
                     ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
@@ -573,7 +560,8 @@ namespace System.Data.Entity.Migrations.History
 
             modelBuilder.Entity<MigrationsCustomer>();
 
-            Assert.Null(historyRepository.GetLastModel());
+            string _;
+            Assert.Null(historyRepository.GetLastModel(out _, out _));
         }
 
         [MigrationsTheory]
@@ -581,12 +569,13 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
             var modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<MigrationsCustomer>();
 
-            Assert.Null(historyRepository.GetLastModel());
+            string _;
+            Assert.Null(historyRepository.GetLastModel(out _, out _));
         }
 
         [MigrationsTheory]
@@ -594,12 +583,13 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
             var modelBuilder = new DbModelBuilder();
 
             modelBuilder.Entity<MigrationsCustomer>();
 
-            Assert.Null(historyRepository.GetLastModel());
+            string _;
+            Assert.Null(historyRepository.GetLastModel(out _, out _));
         }
 
         [MigrationsTheory]
@@ -607,11 +597,11 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model1 = context.GetModel();
+                var model1 = new VersionedModel(context.GetModel());
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(),
@@ -620,12 +610,13 @@ namespace System.Data.Entity.Migrations.History
                 ExecuteOperations(
                     new[] { historyRepository.CreateInsertOperation("Migration 2", model1) });
 
-                string migrationId;
-                var model2 = historyRepository.GetLastModel(out migrationId);
+                string migrationId, productVersion;
+                var model2 = historyRepository.GetLastModel(out migrationId, out productVersion);
 
                 Assert.NotNull(model2);
-                Assert.True(XNode.DeepEquals(model1, model2));
+                Assert.True(XNode.DeepEquals(model1.Model, model2));
                 Assert.Equal("Migration 2", migrationId);
+                Assert.Equal(typeof(DbContext).Assembly().GetInformationalVersion(), productVersion);
             }
         }
 
@@ -635,29 +626,30 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository1
-                = new HistoryRepository(ConnectionString, ProviderFactory, "Key1", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "Key1", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
                 var model = context.GetModel();
+                var versionedModel = new VersionedModel(model);
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(),
-                    historyRepository1.CreateInsertOperation("Migration 1", model));
+                    historyRepository1.CreateInsertOperation("Migration 1", versionedModel));
 
                 var historyRepository2
-                    = new HistoryRepository(ConnectionString, ProviderFactory, "Key2", null, HistoryContext.DefaultFactory);
+                    = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "Key2", null, HistoryContext.DefaultFactory);
 
                 ExecuteOperations(
-                    new[] { historyRepository2.CreateInsertOperation("Migration 2", model) });
+                    new[] { historyRepository2.CreateInsertOperation("Migration 2", versionedModel) });
 
-                string migrationId;
-                model = historyRepository1.GetLastModel(out migrationId);
+                string migrationId, productVersion;
+                model = historyRepository1.GetLastModel(out migrationId, out productVersion);
 
                 Assert.NotNull(model);
                 Assert.Equal("Migration 1", migrationId);
 
-                model = historyRepository2.GetLastModel(out migrationId);
+                model = historyRepository2.GetLastModel(out migrationId, out productVersion);
 
                 Assert.NotNull(model);
                 Assert.Equal("Migration 2", migrationId);
@@ -670,24 +662,25 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository1
-                = new HistoryRepository(ConnectionString, ProviderFactory, "Key1", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "Key1", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
                 var model = context.GetModel();
+                var versionedModel = new VersionedModel(model);
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(),
-                    historyRepository1.CreateInsertOperation("Migration 1", model));
+                    historyRepository1.CreateInsertOperation("Migration 1", versionedModel));
 
                 var historyRepository2
-                    = new HistoryRepository(ConnectionString, ProviderFactory, "Key2", null, HistoryContext.DefaultFactory);
+                    = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "Key2", null, HistoryContext.DefaultFactory);
 
                 ExecuteOperations(
-                    new[] { historyRepository2.CreateInsertOperation("Migration 2", model) });
+                    new[] { historyRepository2.CreateInsertOperation("Migration 2", versionedModel) });
 
-                string migrationId;
-                model = historyRepository1.GetLastModel(out migrationId, "Key2");
+                string migrationId, productVersion;
+                model = historyRepository1.GetLastModel(out migrationId, out productVersion, "Key2");
 
                 Assert.NotNull(model);
                 Assert.Equal("Migration 2", migrationId);
@@ -700,7 +693,7 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository
-                = new HistoryRepository(ConnectionString, ProviderFactory, "LegacyKey", null, HistoryContext.DefaultFactory)
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "LegacyKey", null, HistoryContext.DefaultFactory)
                       {
                           CurrentSchema = "foo"
                       };
@@ -708,13 +701,14 @@ namespace System.Data.Entity.Migrations.History
             using (var context = CreateContext<ShopContext_v1>())
             {
                 var model = context.GetModel();
+                var versionedModel = new VersionedModel(model);
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(historyRepository.CurrentSchema),
-                    historyRepository.CreateInsertOperation("Migration", model));
+                    historyRepository.CreateInsertOperation("Migration", versionedModel));
 
                 historyRepository
-                    = new HistoryRepository(
+                    = new HistoryRepository(Mock.Of<InternalContextForMock>(), 
                         ConnectionString,
                         ProviderFactory,
                         "NewKey",
@@ -722,8 +716,8 @@ namespace System.Data.Entity.Migrations.History
                         HistoryContext.DefaultFactory,
                         schemas: new[] { "foo" });
 
-                string migrationId;
-                model = historyRepository.GetLastModel(out migrationId, "LegacyKey");
+                string migrationId, _;
+                model = historyRepository.GetLastModel(out migrationId, out _, "LegacyKey");
 
                 Assert.NotNull(model);
                 Assert.Equal("Migration", migrationId);
@@ -736,27 +730,31 @@ namespace System.Data.Entity.Migrations.History
             ResetDatabase();
 
             var historyRepository1
-                = new HistoryRepository(ConnectionString, ProviderFactory, "Key1", null, HistoryContext.DefaultFactory);
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "Key1", null, HistoryContext.DefaultFactory);
 
             using (var context = CreateContext<ShopContext_v1>())
             {
                 var model = context.GetModel();
+                var versionedModel = new VersionedModel(model);
 
                 ExecuteOperations(
                     GetCreateHistoryTableOperation(),
-                    historyRepository1.CreateInsertOperation("Migration 1", model));
+                    historyRepository1.CreateInsertOperation("Migration 1", versionedModel));
 
                 var historyRepository2
-                    = new HistoryRepository(ConnectionString, ProviderFactory, "Key2", null, HistoryContext.DefaultFactory);
+                    = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "Key2", null, HistoryContext.DefaultFactory);
 
                 ExecuteOperations(
-                    new[] { historyRepository2.CreateInsertOperation("Migration 2", model) });
+                    new[] { historyRepository2.CreateInsertOperation("Migration 2", versionedModel) });
 
-                model = historyRepository1.GetModel("Migration 1");
+                string productVersion;
+                model = historyRepository1.GetModel("Migration 1", out productVersion);
 
                 Assert.NotNull(model);
+                Assert.Equal(typeof(DbContext).Assembly().GetInformationalVersion(), productVersion);
 
-                model = historyRepository2.GetModel("Migration 2");
+                string _;
+                model = historyRepository2.GetModel("Migration 2", out _);
 
                 Assert.NotNull(model);
             }
@@ -766,7 +764,7 @@ namespace System.Data.Entity.Migrations.History
         public void Exists_should_return_false_when_no_database()
         {
             var historyRepository
-                = new HistoryRepository(
+                = new HistoryRepository(Mock.Of<InternalContextForMock>(), 
                     ConnectionString.Replace(DatabaseProviderFixture.DefaultDatabaseName, "NoSuchDatabase"),
                     ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
@@ -778,7 +776,7 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             Assert.False(historyRepository.Exists());
         }
@@ -788,7 +786,7 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             ExecuteOperations(GetCreateHistoryTableOperation());
 
@@ -800,7 +798,7 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             ExecuteOperations(GetCreateHistoryTableOperation());
 
@@ -832,7 +830,7 @@ namespace System.Data.Entity.Migrations.History
         {
             ResetDatabase();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             var createHistoryTableOperation = GetCreateHistoryTableOperation();
 
@@ -850,9 +848,10 @@ namespace System.Data.Entity.Migrations.History
                                           0x1F8B0800000000000400ECBD07601C499625262F6DCA7B7F4AF54AD7E074A10880601324D8904010ECC188CDE692EC1D69472329AB2A81CA6556655D661640CCED9DBCF7DE7BEFBDF7DE7BEFBDF7BA3B9D4E27F7DFFF3F5C6664016CF6CE4ADAC99E2180AAC81F3F7E7C1F3F22FEC7BFF71F7CFC7BBC5B94E9655E3745B5FCECA3DDF1CE4769BE9C56B36279F1D947EBF67CFBE0A3DFE3E8374E1E9FCE16EFD29F34EDF6D08EDE5C369F7D346FDBD5A3BB779BE93C5F64CD78514CEBAAA9CEDBF1B45ADCCD66D5DDBD9D9D83BBBB3B777302F111C14AD3C7AFD6CBB658E4FC07FD79522DA7F9AA5D67E517D52C2F1BFD9CBE79CD50D317D9226F56D934FFEC236ADB54657EBC5A95C5346B099DDD8FD2E3B2C80895D77979FE9E78ED3C045E1FD91EA9CF53C2ADBDA67EDAAC58E63577CEFDB6F9BBF6A3F4AEC3EEAEA067867177601C8FBFC8562B22A8372EFD247DAD83DA7EFDFE782F04C6DD69B3097DDB535BD5D945DEF916E39AE5CF8ABA699F666D36C99AFCA3F464B688348B0C5F61DBF177C6F958FBBCCDA4769090261FA52FEBEAB2980181D7D74D9B2FC668307EFD8BCA93B2C897AD6BF045B62CCEF3A67D53BDCDC1A044A3AFCF160FEFEEEC812DEE36CDACBC156FF468B8814BFA54797CD71788C74FF3A6B820E89E782CF32958DD01356DCE96E715D16095D7EDF5EBBCF571354DCCD78AEC17799BCD08CFE3BA2DCEB3694B5F4FF3A6A179FB28FDC9AC5C5393D3C5249F9D2DBF5CB7AB757BDC34F962525E8763DADC3F8B4288F3E32F57F8CB6383AF3F0442B3A021E45F2E9FAC8B7266F17E969521ED874160CA3ECFE9735621AF5BFA995F5C5B482FAAE52D0129F99EE6AB7C3923967C932F5625016BBE5CBECE2EF361DC6EA66148B1C74F8BECA2CE163E05E513C5E475463D7B5D5007FE1BAE3FFAF3F15D28F4A3FF270000FFFF4817137F02060000)"));
 
             Assert.True(historyRepository.Exists());
-            Assert.NotNull(historyRepository.GetLastModel());
+            string _;
+            Assert.NotNull(historyRepository.GetLastModel(out _, out _));
             Assert.NotEmpty(historyRepository.GetMigrationsSince("0"));
-            Assert.NotNull(historyRepository.GetModel("000000000000000_ExistingMigration"));
+            Assert.NotNull(historyRepository.GetModel("000000000000000_ExistingMigration", out _));
             Assert.Equal("000000000000000_ExistingMigration", historyRepository.GetMigrationId("ExistingMigration"));
         }
 
@@ -874,10 +873,10 @@ namespace System.Data.Entity.Migrations.History
 
             var modelDocument = model.GetModel();
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             var historyOperation
-                = (HistoryOperation)historyRepository.CreateInsertOperation("Migration1", modelDocument);
+                = (HistoryOperation)historyRepository.CreateInsertOperation("Migration1", new VersionedModel(modelDocument));
 
             Assert.NotEmpty(historyOperation.CommandTrees);
             Assert.Equal(DbCommandTreeKind.Insert, historyOperation.CommandTrees.Single().CommandTreeKind);
@@ -899,7 +898,7 @@ namespace System.Data.Entity.Migrations.History
                 EdmxWriter.WriteEdmx(model, xmlWriter);
             }
 
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
 
             var historyOperation
                 = (HistoryOperation)historyRepository.CreateDeleteOperation("Migration1");
@@ -913,8 +912,8 @@ namespace System.Data.Entity.Migrations.History
         {
             var historyRepository = SetupHistoryRepositoryForOrderingTest();
 
-            string migrationId;
-            historyRepository.GetLastModel(out migrationId);
+            string migrationId, _;
+            historyRepository.GetLastModel(out migrationId, out _);
 
             Assert.Equal("227309030010001_Migration1", migrationId);
         }
@@ -936,7 +935,7 @@ namespace System.Data.Entity.Migrations.History
 
             using (var context = CreateContext<ShopContext_v1>())
             {
-                var model = context.GetModel();
+                var model = new VersionedModel(context.GetModel());
 
                 var clonedConnection = DbProviderServices.GetProviderFactory(context.Database.Connection).CreateConnection();
                 clonedConnection.ConnectionString = context.Database.Connection.ConnectionString;
@@ -953,7 +952,7 @@ namespace System.Data.Entity.Migrations.History
                             {
                                 MigrationId = "227309030010001_Migration1",
                                 ContextKey = "MyKey",
-                                Model = new ModelCompressor().Compress(model),
+                                Model = new ModelCompressor().Compress(model.Model),
                                 ProductVersion = "",
                             });
 
@@ -962,7 +961,7 @@ namespace System.Data.Entity.Migrations.History
                             {
                                 MigrationId = "227209030010001_Migration2",
                                 ContextKey = "MyKey",
-                                Model = new ModelCompressor().Compress(model),
+                                Model = new ModelCompressor().Compress(model.Model),
                                 ProductVersion = "",
                             });
 
@@ -970,13 +969,13 @@ namespace System.Data.Entity.Migrations.History
                 }
             }
 
-            return new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
+            return new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", null, HistoryContext.DefaultFactory);
         }
 
         [MigrationsTheory]
         public void HistoryRepository_sets_timeout_onto_HistoryContext()
         {
-            var historyRepository = new HistoryRepository(ConnectionString, ProviderFactory, "MyKey", 77, HistoryContext.DefaultFactory);
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), ConnectionString, ProviderFactory, "MyKey", 77, HistoryContext.DefaultFactory);
 
             using (var connection = new SqlConnection())
             {
@@ -991,7 +990,7 @@ namespace System.Data.Entity.Migrations.History
         public void HistoryRepository_updates_interception_context()
         {
             var owner = new Mock<DbContext>().Object;
-            var historyRepository = new HistoryRepository(
+            var historyRepository = new HistoryRepository(Mock.Of<InternalContextForMock>(), 
                 ConnectionString, 
                 ProviderFactory, 
                 "MyKey", 

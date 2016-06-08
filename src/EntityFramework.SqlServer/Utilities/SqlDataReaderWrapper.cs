@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.SqlServer.Utilities
 {
@@ -12,9 +12,9 @@ namespace System.Data.Entity.SqlServer.Utilities
 #endif
     using System.Xml;
 
-    /// <summary>
-    /// This is a wrapper for <see cref="SqlDataReader" /> that allows a mock implementation to be used.
-    /// </summary>
+    // <summary>
+    // This is a wrapper for <see cref="SqlDataReader" /> that allows a mock implementation to be used.
+    // </summary>
     internal class SqlDataReaderWrapper : MarshalByRefObject
     {
         private readonly SqlDataReader _sqlDataReader;
@@ -343,11 +343,15 @@ namespace System.Data.Entity.SqlServer.Utilities
 
         public virtual Task<bool> NextResultAsync(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             return _sqlDataReader.NextResultAsync(cancellationToken);
         }
 
         public virtual Task<bool> ReadAsync(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             return _sqlDataReader.ReadAsync(cancellationToken);
         }
 

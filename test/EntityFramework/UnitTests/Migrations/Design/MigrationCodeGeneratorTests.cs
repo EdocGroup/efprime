@@ -4,7 +4,10 @@ namespace System.Data.Entity.Migrations.Design
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.Migrations.Model;
+    using System.Data.Entity.Migrations.Utilities;
     using System.Linq;
     using Xunit;
 
@@ -122,6 +125,38 @@ namespace System.Data.Entity.Migrations.Design
                 string className)
             {
                 throw new NotImplementedException();
+            }
+
+            public new IDictionary<string, Func<AnnotationCodeGenerator>> AnnotationGenerators
+            {
+                get { return base.AnnotationGenerators; }
+            }
+
+        }
+
+        public class TestGenerator : AnnotationCodeGenerator
+        {
+            private readonly IEnumerable<string> _namespaces;
+            private readonly string _name;
+
+            public TestGenerator(string name, params string[] namespaces)
+            {
+                _name = name;
+                _namespaces = namespaces ?? new string[0];
+            }
+
+            public string Name
+            {
+                get { return _name; }
+            }
+
+            public override void Generate(string annotationName, object annotation, IndentedTextWriter writer)
+            {
+            }
+
+            public override IEnumerable<string> GetExtraNamespaces(IEnumerable<string> annotationNames)
+            {
+                return _namespaces;
             }
         }
     }

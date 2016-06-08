@@ -4,7 +4,6 @@ namespace System.Data.Entity.Migrations
 {
     using System.Collections.Generic;
     using System.Data.Entity.Internal.Linq;
-    using System.Data.Entity.ModelConfiguration.Mappers;
     using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -22,13 +21,13 @@ namespace System.Data.Entity.Migrations
         /// from database terminology.
         /// This method can useful when seeding data using Migrations.
         /// </summary>
-        /// <param name="set"> </param>
+        /// <typeparam name="TEntity">The type of entities to add or update.</typeparam>
+        /// <param name="set">The set to which the entities belong.</param>
         /// <param name="entities"> The entities to add or update. </param>
         /// <remarks>
         /// When the <paramref name="set" /> parameter is a custom or fake IDbSet implementation, this method will
         /// attempt to locate and invoke a public, instance method with the same signature as this extension method.
         /// </remarks>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
         public static void AddOrUpdate<TEntity>(
             this IDbSet<TEntity> set, params TEntity[] entities)
             where TEntity : class
@@ -52,7 +51,7 @@ namespace System.Data.Entity.Migrations
 
             var targetType = set.GetType();
 
-            var method = targetType.GetMethod("AddOrUpdate", new[] { typeof(TEntity[]) });
+            var method = targetType.GetDeclaredMethod("AddOrUpdate", typeof(TEntity[]));
 
             if (method == null)
             {
@@ -67,14 +66,14 @@ namespace System.Data.Entity.Migrations
         /// Equivalent to an "upsert" operation from database terminology.
         /// This method can useful when seeding data using Migrations.
         /// </summary>
-        /// <param name="set"> </param>
+        /// <typeparam name="TEntity">The type of entities to add or update.</typeparam>
+        /// <param name="set">The set to which the entities belong.</param>
         /// <param name="identifierExpression"> An expression specifying the properties that should be used when determining whether an Add or Update operation should be performed. </param>
         /// <param name="entities"> The entities to add or update. </param>
         /// <remarks>
         /// When the <paramref name="set" /> parameter is a custom or fake IDbSet implementation, this method will
         /// attempt to locate and invoke a public, instance method with the same signature as this extension method.
         /// </remarks>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         public static void AddOrUpdate<TEntity>(
             this IDbSet<TEntity> set, Expression<Func<TEntity, object>> identifierExpression, params TEntity[] entities)
@@ -92,7 +91,7 @@ namespace System.Data.Entity.Migrations
 
                 if (internalSet != null)
                 {
-                    var identifyingProperties 
+                    var identifyingProperties
                         = identifierExpression.GetSimplePropertyAccessList();
 
                     dbSet.AddOrUpdate(identifyingProperties, internalSet, entities);
@@ -104,9 +103,9 @@ namespace System.Data.Entity.Migrations
             var targetType = set.GetType();
 
             var method
-                = targetType.GetMethod(
+                = targetType.GetDeclaredMethod(
                     "AddOrUpdate",
-                    new[] { typeof(Expression<Func<TEntity, object>>), typeof(TEntity[]) });
+                    typeof(Expression<Func<TEntity, object>>), typeof(TEntity[]));
 
             if (method == null)
             {
@@ -172,7 +171,7 @@ namespace System.Data.Entity.Migrations
             return internalSet.InternalContext
                               .GetEntitySetAndBaseTypeForType(typeof(TEntity))
                               .EntitySet.ElementType.KeyMembers
-                              .Select(km => new PropertyPath(entityType.GetProperty(km.Name, PropertyFilter.DefaultBindingFlags)));
+                              .Select(km => new PropertyPath(entityType.GetAnyProperty(km.Name)));
         }
     }
 }

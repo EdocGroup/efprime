@@ -3,6 +3,7 @@
 namespace System.Data.Entity.Infrastructure
 {
     using System.Collections.Concurrent;
+    using System.ComponentModel;
     using System.Data.Common;
     using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Objects;
@@ -35,17 +36,17 @@ namespace System.Data.Entity.Infrastructure
 
         private readonly DbModelBuilder _cachedModelBuilder;
 
-        /// <summary>
-        /// For mocking.
-        /// </summary>
+        // <summary>
+        // For mocking.
+        // </summary>
         internal DbCompiledModel()
         {
         }
 
-        /// <summary>
-        /// Creates a model for the given EDM metadata model.
-        /// </summary>
-        /// <param name="model"> The EDM metadata model. </param>
+        // <summary>
+        // Creates a model for the given EDM metadata model.
+        // </summary>
+        // <param name="model"> The EDM metadata model. </param>
         internal DbCompiledModel(DbModel model)
         {
             DebugCheck.NotNull(model);
@@ -58,24 +59,24 @@ namespace System.Data.Entity.Infrastructure
 
         #region Model/database metadata
 
-        /// <summary>
-        /// A snapshot of the <see cref="DbModelBuilder" /> that was used to create this compiled model.
-        /// </summary>
+        // <summary>
+        // A snapshot of the <see cref="DbModelBuilder" /> that was used to create this compiled model.
+        // </summary>
         internal virtual DbModelBuilder CachedModelBuilder
         {
             get { return _cachedModelBuilder; }
         }
 
-        /// <summary>
-        /// The provider info (provider name and manifest token) that was used to create this model.
-        /// </summary>
+        // <summary>
+        // The provider info (provider name and manifest token) that was used to create this model.
+        // </summary>
         internal virtual DbProviderInfo ProviderInfo
         {
             get { return _workspace.ProviderInfo; }
         }
 
-        /// <summary> Gets the default schema of the model. </summary>
-        /// <returns> The default schema of the model. </returns>
+        // <summary> Gets the default schema of the model. </summary>
+        // <returns> The default schema of the model. </returns>
         internal string DefaultSchema
         {
             get { return CachedModelBuilder.ModelConfiguration.DefaultSchema; }
@@ -95,6 +96,7 @@ namespace System.Data.Entity.Infrastructure
         /// </summary>
         /// <typeparam name="TContext"> The type of context to create. </typeparam>
         /// <param name="existingConnection"> An existing connection to a database for use by the context. </param>
+        /// <returns>The context.</returns>
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         public TContext CreateObjectContext<TContext>(DbConnection existingConnection) where TContext : ObjectContext
         {
@@ -119,15 +121,14 @@ namespace System.Data.Entity.Infrastructure
             return context;
         }
 
-        /// <summary>
-        /// Gets a cached delegate (or creates a new one) used to call the constructor for the given derived ObjectContext type.
-        /// </summary>
+        // <summary>
+        // Gets a cached delegate (or creates a new one) used to call the constructor for the given derived ObjectContext type.
+        // </summary>
         internal static Func<EntityConnection, ObjectContext> GetConstructorDelegate<TContext>()
             where TContext : ObjectContext
         {
             // Optimize for case where just ObjectContext (non-derived) is asked for.
-            if (typeof(TContext)
-                == typeof(ObjectContext))
+            if (typeof(TContext) == typeof(ObjectContext))
             {
                 return _objectContextConstructor;
             }
@@ -135,8 +136,20 @@ namespace System.Data.Entity.Infrastructure
             Func<EntityConnection, ObjectContext> constructorDelegate;
             if (!_contextConstructors.TryGetValue(typeof(TContext), out constructorDelegate))
             {
-                var constructor = typeof(TContext).GetConstructor(
-                    BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(EntityConnection) }, null);
+                // This is a reasonable non-ambiguous ordering of constructor lookups to preserve
+                // everything that worked with the older Reflection APIs. Some classes that previously
+                // would not have worked due to ambiguous constructor matches will now work since this
+                // is less error-prone than attempting to re-implement the .NET best matching algorithm.
+                var constructor = typeof(TContext).GetDeclaredConstructor(
+                    c => c.IsPublic,
+                    new[] { typeof(EntityConnection) },
+                    new[] { typeof(DbConnection) },
+                    new[] { typeof(IDbConnection) },
+                    new[] { typeof(IDisposable) },
+                    new[] { typeof(Component) },
+                    new[] { typeof(MarshalByRefObject) },
+                    new[] { typeof(object) });
+
                 if (constructor == null)
                 {
                     throw Error.DbModelBuilder_MissingRequiredCtor(typeof(TContext).Name);
@@ -146,7 +159,7 @@ namespace System.Data.Entity.Infrastructure
                 constructorDelegate =
                     Expression.Lambda<Func<EntityConnection, ObjectContext>>(
                         Expression.New(constructor, connectionParam), connectionParam).
-                               Compile();
+                        Compile();
 
                 _contextConstructors.TryAdd(typeof(TContext), constructorDelegate);
             }

@@ -3,6 +3,7 @@
 namespace System.Data.Entity
 {
     using System.Data.Entity.SqlServerCompact;
+    using System.Data.Entity.Utilities;
     using System.Linq;
     using System.Reflection;
     using System.Security;
@@ -12,14 +13,13 @@ namespace System.Data.Entity
     {
         public static Assembly EntityFrameworkSqlServerCompactAssembly
         {
-            get { return typeof(SqlCeProviderServices).Assembly; }
+            get { return typeof(SqlCeProviderServices).Assembly(); }
         }
 
         [Fact]
         public void EntityFramework_assembly_is_CLSCompliant()
         {
-            var attr = typeof(DbModelBuilder).Assembly.GetCustomAttributes(true).OfType<CLSCompliantAttribute>().Single();
-            Assert.True(attr.IsCompliant);
+            Assert.True(typeof(DbModelBuilder).Assembly().GetCustomAttributes<CLSCompliantAttribute>().Single().IsCompliant);
         }
 
         [Fact]
@@ -93,36 +93,35 @@ namespace System.Data.Entity
 #if NET40
             Assert.Same(EntityFrameworkAssembly, type.Assembly);
 #else
-            Assert.Same(SystemComponentModelDataAnnotationsAssembly, type.Assembly);
+            Assert.Same(SystemComponentModelDataAnnotationsAssembly, type.Assembly());
 #endif
         }
 
         [Fact]
         public void EntityFramework_assembly_has_no_security_attributes()
         {
-            Assert.False(EntityFrameworkAssembly.GetCustomAttributes(true).OfType<SecurityTransparentAttribute>().Any());
-            Assert.False(EntityFrameworkAssembly.GetCustomAttributes(true).OfType<SecurityCriticalAttribute>().Any());
-            Assert.False(EntityFrameworkAssembly.GetCustomAttributes(true).OfType<AllowPartiallyTrustedCallersAttribute>().Any());
-            Assert.False(EntityFrameworkAssembly.GetCustomAttributes(true).OfType<SecurityRulesAttribute>().Any());
+            Assert.False(EntityFrameworkAssembly.GetCustomAttributes<SecurityTransparentAttribute>().Any());
+            Assert.False(EntityFrameworkAssembly.GetCustomAttributes<SecurityCriticalAttribute>().Any());
+            Assert.False(EntityFrameworkAssembly.GetCustomAttributes<AllowPartiallyTrustedCallersAttribute>().Any());
+            Assert.False(EntityFrameworkAssembly.GetCustomAttributes<SecurityRulesAttribute>().Any());
         }
 
         [Fact]
         public void EntityFramework_SqlServer_assembly_has_no_security_attributes()
         {
-            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes(true).OfType<SecurityTransparentAttribute>().Any());
-            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes(true).OfType<SecurityCriticalAttribute>().Any());
-            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes(true).OfType<AllowPartiallyTrustedCallersAttribute>().Any());
-            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes(true).OfType<SecurityRulesAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes<SecurityTransparentAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes<SecurityCriticalAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes<AllowPartiallyTrustedCallersAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerAssembly.GetCustomAttributes<SecurityRulesAttribute>().Any());
         }
 
         [Fact]
         public void EntityFramework_SqlCompact_assembly_has_no_security_attributes()
         {
-            Assert.False(EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes(true).OfType<SecurityTransparentAttribute>().Any());
-            Assert.False(EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes(true).OfType<SecurityCriticalAttribute>().Any());
-            Assert.False(
-                EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes(true).OfType<AllowPartiallyTrustedCallersAttribute>().Any());
-            Assert.False(EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes(true).OfType<SecurityRulesAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes<SecurityTransparentAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes<SecurityCriticalAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes<AllowPartiallyTrustedCallersAttribute>().Any());
+            Assert.False(EntityFrameworkSqlServerCompactAssembly.GetCustomAttributes<SecurityRulesAttribute>().Any());
         }
     }
 }

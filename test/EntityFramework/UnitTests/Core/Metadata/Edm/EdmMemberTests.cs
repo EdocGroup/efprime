@@ -33,7 +33,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             property.Name = "Foo";
 
-            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(), Times.Once());
+            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(property, "P"), Times.Once());
         }
 
         [Fact]
@@ -45,11 +45,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     new EdmProperty(
                         "p",
                         TypeUsage.CreateDefaultTypeUsage(PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.Byte)))));
-            Assert.Equal(
+
+            Assert.True(ex1.Message.StartsWith(
                 Resources.Strings.AttemptToAddEdmMemberFromWrongDataSpace(
-                    "p", "CT", DataSpace.CSpace, DataSpace.SSpace) +
-                    "\r\nParameter name: member",
-                ex1.Message);
+                    "p", "CT", DataSpace.CSpace, DataSpace.SSpace)));
             Assert.Equal("member", ex1.ParamName);
         }
 
@@ -89,7 +88,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 CallBase = true
             };
-            entityTypeMock.Setup(e => e.NotifyItemIdentityChanged());
 
             entityTypeMock.Object.AddMember(property1);
             entityTypeMock.Object.AddMember(property2);
@@ -100,17 +98,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             Assert.Equal("Foo1", property2.Identity);
             Assert.Equal("Foo2", property3.Identity);
-            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(), Times.Exactly(2));
+            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(property2, "Bar"), Times.Exactly(1));
+            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(property3, "Boo"), Times.Exactly(1));
 
             property2.SetReadOnly();
 
             Assert.Equal("Foo", property2.Identity);
-            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(), Times.Exactly(3));
+            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(property2, "Foo1"), Times.Exactly(1));
 
             property3.SetReadOnly();
 
             Assert.Equal("Foo", property3.Identity);
-            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(), Times.Exactly(4));
+            entityTypeMock.Verify(e => e.NotifyItemIdentityChanged(property3, "Foo2"), Times.Exactly(1));
         }
 
 

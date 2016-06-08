@@ -15,6 +15,20 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
     public class TranslatorTests
     {
         [Fact]
+        public void MethodInfo_fields_are_initialized()
+        {
+            Assert.NotNull(Translator.GenericTranslateColumnMap);
+            Assert.NotNull(Translator.TranslatorVisitor.Translator_MultipleDiscriminatorPolymorphicColumnMapHelper);
+            Assert.NotNull(Translator.TranslatorVisitor.Translator_TypedCreateInlineDelegate);
+        }
+
+        [Fact]
+        public void GetGenericElementsMethod_returns_a_generic_MethodInfo()
+        {
+            Assert.NotNull(Translator.TranslatorVisitor.GetGenericElementsMethod(typeof(int)));
+        }
+
+        [Fact]
         public void Static_TranslateColumnMap_calls_instance_method()
         {
             var typeUsageMock = new Mock<TypeUsage>();
@@ -141,7 +155,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             var oSpaceEntityType = codeFirstOSpaceTypeFactory.TryCreateType(typeof(SimpleEntity), cSpaceEntityType);
             codeFirstOSpaceTypeFactory.CspaceToOspace.Add(cSpaceEntityType, oSpaceEntityType);
 
-            metadataWorkspaceMock.Setup(m => m.GetItem<EdmType>(It.IsAny<string>(), DataSpace.OSpace))
+            metadataWorkspaceMock.Setup(m => m.GetItem<EdmType>("N.SimpleEntity", DataSpace.OSpace))
                 .Returns(oSpaceEntityType);
             
             return collectionMap;
@@ -386,7 +400,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             var collectionMap = new SimpleCollectionColumnMap(
                 entityTypeUsage, "MockCollectionType", refColumnMap, null, null);
 
-            metadataWorkspaceMock.Setup(m => m.GetItem<EdmType>(It.IsAny<string>(), DataSpace.OSpace))
+            metadataWorkspaceMock.Setup(m => m.GetItem<EdmType>("N.RefEntity", DataSpace.OSpace))
                 .Returns(oSpaceEntityType);
 
             var factory =
@@ -394,7 +408,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                     collectionMap, metadataWorkspaceMock.Object, new SpanIndex(), MergeOption.NoTracking, streaming: false, valueLayer: false);
             Assert.NotNull(factory);
 
-            Assert.Equal(new[] { null, typeof(object) }, factory.ColumnTypes);
+            Assert.Equal(new[] { null, typeof(int) }, factory.ColumnTypes);
             Assert.Equal(new[] { false, true }, factory.NullableColumns);
         }
     }

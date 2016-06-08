@@ -5,6 +5,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Linq;
 
@@ -61,11 +62,14 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
 
             foreach (var entityType in databaseMapping.Model.EntityTypes)
             {
-                if (!entityType.Abstract)
+                if (entityType.Abstract
+                    && databaseMapping.Model.EntityTypes.All(e => e.BaseType != entityType))
                 {
-                    new TableMappingGenerator(databaseMapping.ProviderManifest).
-                        Generate(entityType, databaseMapping);
+                    throw new InvalidOperationException(Strings.UnmappedAbstractType(entityType.GetClrType()));
                 }
+
+                new TableMappingGenerator(databaseMapping.ProviderManifest).
+                    Generate(entityType, databaseMapping);
             }
         }
 
@@ -86,7 +90,8 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
                 var discriminatorColumn
                     = new EdmProperty(DiscriminatorColumnName, typeUsage)
                         {
-                            Nullable = false
+                            Nullable = false,
+                            DefaultValue = "(Undefined)"
                         };
 
                 entitySetMapping
@@ -99,6 +104,12 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
 
                 foreach (var entityTypeMapping in entitySetMapping.EntityTypeMappings)
                 {
+                    // Abstract classes don't need a discriminator as they won't be directly materialized
+                    if (entityTypeMapping.EntityType.Abstract)
+                    {
+                        continue;
+                    }
+
                     var entityTypeMappingFragment = entityTypeMapping.MappingFragments.Single();
 
                     entityTypeMappingFragment.SetDefaultDiscriminator(discriminatorColumn);

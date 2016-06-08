@@ -23,16 +23,16 @@ namespace System.Data.Entity.Infrastructure
     {
         #region  Factory methods
 
-        /// <summary>
-        /// Creates a <see cref="DbMemberEntry{TEntity,TProperty}" /> from information in the given
-        /// <see
-        ///     cref="InternalMemberEntry" />
-        /// .
-        /// This method will create an instance of the appropriate subclass depending on the metadata contained
-        /// in the InternalMemberEntry instance.
-        /// </summary>
-        /// <param name="internalMemberEntry"> The internal member entry. </param>
-        /// <returns> The new entry. </returns>
+        // <summary>
+        // Creates a <see cref="DbMemberEntry{TEntity,TProperty}" /> from information in the given
+        // <see
+        //     cref="InternalMemberEntry" />
+        // .
+        // This method will create an instance of the appropriate subclass depending on the metadata contained
+        // in the InternalMemberEntry instance.
+        // </summary>
+        // <param name="internalMemberEntry"> The internal member entry. </param>
+        // <returns> The new entry. </returns>
         internal static DbMemberEntry<TEntity, TProperty> Create(InternalMemberEntry internalMemberEntry)
         {
             DebugCheck.NotNull(internalMemberEntry);
@@ -66,6 +66,7 @@ namespace System.Data.Entity.Infrastructure
         /// Returns a new instance of the non-generic <see cref="DbMemberEntry" /> class for
         /// the property represented by this object.
         /// </summary>
+        /// <param name="entry">The object representing the property.</param>
         /// <returns> A non-generic version. </returns>
         [SuppressMessage("Microsoft.Usage", "CA2225:OperatorOverloadsHaveNamedAlternates",
             Justification = "Intentionally just implicit to reduce API clutter.")]
@@ -78,10 +79,10 @@ namespace System.Data.Entity.Infrastructure
 
         #region Internal entry access
 
-        /// <summary>
-        /// Gets the underlying <see cref="InternalMemberEntry" />.
-        /// </summary>
-        /// <value> The internal member entry. </value>
+        // <summary>
+        // Gets the underlying <see cref="InternalMemberEntry" />.
+        // </summary>
+        // <value> The internal member entry. </value>
         internal abstract InternalMemberEntry InternalMemberEntry { get; }
 
         #endregion

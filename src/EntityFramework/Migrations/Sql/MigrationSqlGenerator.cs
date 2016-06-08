@@ -52,7 +52,7 @@ namespace System.Data.Entity.Migrations.Sql
         /// Builds the store type usage for the specified <paramref name="storeTypeName"/> using the facets from the specified <paramref name="propertyModel"/>.
         /// </summary>
         /// <param name="storeTypeName">Name of the store type.</param>
-        /// <param name="propertyModel">The target propertyModel.</param>
+        /// <param name="propertyModel">The target property.</param>
         /// <returns>A store-specific TypeUsage</returns>
         protected virtual TypeUsage BuildStoreTypeUsage(string storeTypeName, PropertyModel propertyModel)
         {

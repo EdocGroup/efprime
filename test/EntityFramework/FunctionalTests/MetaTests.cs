@@ -3,6 +3,7 @@
 namespace System.Data.Entity.Meta
 {
     using System;
+    using System.Data.Entity.Functionals.Utilities;
     using System.Linq;
     using Xunit;
     using System.Reflection;
@@ -15,7 +16,7 @@ namespace System.Data.Entity.Meta
         [Fact]
         public void All_functional_tests_implement_TestBase()
         {
-            var currentAssembly = Assembly.GetExecutingAssembly();
+            var currentAssembly = typeof(MetaTests).Assembly();
             var types = currentAssembly.GetTypes();
 
             foreach (var type in types)
@@ -36,15 +37,13 @@ namespace System.Data.Entity.Meta
         /// <returns> True if the type is a test class, false otherwise. </returns>
         private bool IsTypeTestClass(Type type)
         {
-            return type.GetMethods()
-                .Any(method => method.GetCustomAttributes(inherit: true)
+            return type.GetDeclaredMethods()
+                .Any(method => method.GetCustomAttributes<Attribute>(inherit: true)
                     .Any(attribute =>
                     {
-                        var attribType = (attribute as Attribute).TypeId as Type;
+                        var attribType = attribute.TypeId as Type;
                         
-                        return attribType != null 
-                            ? attribType.Namespace == "Xunit"
-                            : false;    
+                        return attribType != null && attribType.Namespace == "Xunit";    
                     }));
         }
 
@@ -55,7 +54,7 @@ namespace System.Data.Entity.Meta
         /// <returns> True if the type implements TestBase, false otherwise. </returns>
         private bool DoesTypeImplementTestBase(Type type)
         {           
-            var baseType = type.BaseType;
+            var baseType = type.BaseType();
 
             while (baseType != null)
             {
@@ -63,7 +62,7 @@ namespace System.Data.Entity.Meta
                 {
                     return true;
                 }
-                baseType = baseType.BaseType;
+                baseType = baseType.BaseType();
             }            
             return false;
         }

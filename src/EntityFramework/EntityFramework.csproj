@@ -88,6 +88,9 @@
     <Compile Include="..\Common\ByteExtensions.cs">
       <Link>Utilities\ByteExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\Common\TypeExtensions.cs">
+      <Link>Utilities\TypeExtensions.cs</Link>
+    </Compile>
     <Compile Include="..\Common\Check.cs">
       <Link>Utilities\Check.cs</Link>
     </Compile>
@@ -103,6 +106,20 @@
     <Compile Include="..\Common\StringExtensions.cs">
       <Link>Utilities\StringExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\Common\MemberInfoExtensions.cs">
+      <Link>Utilities\MemberInfoExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\AssemblyExtensions.cs">
+      <Link>Utilities\AssemblyExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\PropertyInfoExtensions.cs">
+      <Link>Utilities\PropertyInfoExtensions.cs</Link>
+    </Compile>
+    <Compile Include="Core\Mapping\FunctionImportMappingComposableHelper.cs" />
+    <Compile Include="Core\Mapping\FunctionImportResultMapping.cs" />
+    <Compile Include="Core\Mapping\IsNullConditionMapping.cs" />
+    <Compile Include="Core\Mapping\MappingItem.cs" />
+    <Compile Include="Core\Mapping\ValueConditionMapping.cs" />
     <Compile Include="Core\Metadata\Edm\CsdlSerializer.cs" />
     <Compile Include="Core\Metadata\Edm\DataModelErrorEventArgs.cs" />
     <Compile Include="Core\Metadata\Edm\DataModelValidationRule.cs" />
@@ -119,13 +136,18 @@
     <Compile Include="Core\Metadata\Edm\EdmSerializationVisitor.cs" />
     <Compile Include="Core\Metadata\Edm\EdmXmlSchemaWriter.cs" />
     <Compile Include="Core\Metadata\Edm\MetadataItemHelper.cs" />
+    <Compile Include="Core\Metadata\Edm\MetadataOptimization.cs" />
     <Compile Include="Core\Metadata\Edm\MslSerializer.cs" />
     <Compile Include="Core\Metadata\Edm\MslXmlSchemaWriter.cs" />
     <Compile Include="Core\Metadata\Edm\SsdlSerializer.cs" />
     <Compile Include="Core\Metadata\Edm\XmlSchemaWriter.cs" />
+    <Compile Include="Core\Objects\ELinq\StringTranslatorUtil.cs" />
     <Compile Include="Core\Objects\Internal\BufferedDataRecord.cs" />
     <Compile Include="Core\Objects\Internal\ShapedBufferedDataRecord.cs" />
     <Compile Include="Core\Objects\StateManagerValue.cs" />
+    <Compile Include="Core\Query\PlanCompiler\NullSemantics.cs" />
+    <Compile Include="Core\Query\PlanCompiler\TransformationRulesGroup.cs" />
+    <Compile Include="DataAnnotations\Schema\IndexAttribute.cs" />
     <Compile Include="DbConfiguration.cs" />
     <Compile Include="DbConfigurationTypeAttribute.cs" />
     <Compile Include="Core\Common\CommandTrees\DbAggregate.cs" />
@@ -222,9 +244,26 @@
     <Compile Include="Core\Metadata\Edm\IEdmModelAdapter.cs" />
     <Compile Include="Core\Metadata\Edm\RelationshipMultiplicityConverter.cs" />
     <Compile Include="Helm\HelmGlobals.cs" />
-    <Compile Include="Infrastructure\CommitFailedException.cs" />
+    <Compile Include="Infrastructure\Annotations\AnnotationCodeGenerator.cs" />
+    <Compile Include="Infrastructure\Annotations\AnnotationValues.cs" />
+    <Compile Include="Infrastructure\Annotations\CompatibilityResult.cs" />
+    <Compile Include="Infrastructure\Annotations\IMergeableAnnotation.cs" />
+    <Compile Include="Infrastructure\Annotations\IndexAnnotation.cs" />
+    <Compile Include="Infrastructure\Annotations\IndexAnnotationSerializer.cs" />
+    <Compile Include="Infrastructure\Annotations\IndexAttributeExtensions.cs" />
+    <Compile Include="Infrastructure\DependencyResolution\TransactionContextInitializerResolver.cs" />
+    <Compile Include="Infrastructure\DependencyResolution\TransactionHandlerResolver.cs" />
+    <Compile Include="Infrastructure\Design\AppConfigReader.cs" />
+    <Compile Include="Infrastructure\Interception\DatabaseLogger.cs" />
+    <Compile Include="Infrastructure\Interception\DbConfigurationDispatcher.cs" />
+    <Compile Include="Infrastructure\Interception\DbConfigurationInterceptionContext.cs" />
+    <Compile Include="Infrastructure\Interception\IDbConfigurationInterceptor.cs" />
+    <Compile Include="Infrastructure\ConsolidatedIndex.cs" />
+    <Compile Include="Infrastructure\TableExistenceChecker.cs" />
+    <Compile Include="Infrastructure\Transactions\CommitFailedException.cs" />
     <Compile Include="Infrastructure\DependencyResolution\AppConfigDependencyResolver.cs" />
     <Compile Include="Infrastructure\DependencyResolution\CachingDependencyResolver.cs" />
+    <Compile Include="Infrastructure\DependencyResolution\ClrTypeAnnotationSerializer.cs" />
     <Compile Include="Infrastructure\DependencyResolution\CompositeResolver`.cs" />
     <Compile Include="Infrastructure\DependencyResolution\DatabaseInitializerResolver.cs" />
     <Compile Include="Infrastructure\DependencyResolution\DbConfigurationLoadedEventArgs.cs" />
@@ -246,28 +285,43 @@
     <Compile Include="Infrastructure\DependencyResolution\RootDependencyResolver.cs" />
     <Compile Include="Infrastructure\DependencyResolution\SingletonDependencyResolver.cs" />
     <Compile Include="Infrastructure\DependencyResolution\WrappingDependencyResolver`.cs" />
+    <Compile Include="Infrastructure\IMetadataAnnotationSerializer.cs" />
+    <Compile Include="Infrastructure\Interception\BeginTransactionInterceptionContext.cs" />
     <Compile Include="Infrastructure\Interception\CancelableDbCommandDispatcher.cs" />
+    <Compile Include="Infrastructure\Interception\CancelableEntityConnectionDispatcher.cs" />
+    <Compile Include="Infrastructure\Interception\DatabaseLogFormatter.cs" />
+    <Compile Include="Infrastructure\Interception\DbConnectionInterceptionContext.cs" />
+    <Compile Include="Infrastructure\Interception\DbConnectionInterceptionContext`.cs" />
+    <Compile Include="Infrastructure\Interception\DbConnectionPropertyInterceptionContext.cs" />
     <Compile Include="Infrastructure\Interception\DbCommandDispatcher.cs" />
     <Compile Include="Infrastructure\Interception\DbCommandInterceptionContext.cs" />
     <Compile Include="Infrastructure\Interception\DbCommandInterceptionContext`.cs" />
     <Compile Include="Infrastructure\Interception\DbCommandInterceptor.cs" />
-    <Compile Include="Infrastructure\Interception\DatabaseLogFormatter.cs" />
     <Compile Include="Infrastructure\Interception\DbCommandTreeDispatcher.cs" />
     <Compile Include="Infrastructure\Interception\DbCommandTreeInterceptionContext.cs" />
+    <Compile Include="Infrastructure\Interception\DbConnectionDispatcher.cs" />
+    <Compile Include="Infrastructure\Interception\DbDispatchers.cs" />
     <Compile Include="Infrastructure\Interception\DbInterception.cs" />
     <Compile Include="Infrastructure\Interception\DbInterceptionContext.cs" />
-    <Compile Include="Infrastructure\Interception\DbDispatchers.cs" />
-    <Compile Include="Infrastructure\Interception\EntityConnectionDispatcher.cs" />
+    <Compile Include="Infrastructure\Interception\DbTransactionDispatcher.cs" />
+    <Compile Include="Infrastructure\Interception\DbTransactionInterceptionContext.cs" />
+    <Compile Include="Infrastructure\Interception\DbTransactionInterceptionContext`.cs" />
+    <Compile Include="Infrastructure\Interception\EnlistTransactionInterceptionContext.cs" />
     <Compile Include="Infrastructure\Interception\ICancelableDbCommandInterceptor.cs" />
+    <Compile Include="Infrastructure\Interception\ICancelableEntityConnectionInterceptor.cs" />
     <Compile Include="Infrastructure\Interception\IDbCommandInterceptor.cs" />
     <Compile Include="Infrastructure\Interception\IDbCommandTreeInterceptor.cs" />
+    <Compile Include="Infrastructure\Interception\IDbConnectionInterceptor.cs" />
     <Compile Include="Infrastructure\Interception\IDbInterceptor.cs" />
     <Compile Include="Infrastructure\Interception\IDbMutableInterceptionContext.cs" />
     <Compile Include="Infrastructure\Interception\IDbMutableInterceptionContext`.cs" />
-    <Compile Include="Infrastructure\Interception\IEntityConnectionInterceptor.cs" />
+    <Compile Include="Infrastructure\Interception\IDbTransactionInterceptor.cs" />
     <Compile Include="Infrastructure\Interception\InterceptionContextMutableData.cs" />
     <Compile Include="Infrastructure\Interception\InterceptionContextMutableData`.cs" />
     <Compile Include="Infrastructure\Interception\InternalDispatcher.cs" />
+    <Compile Include="Infrastructure\Interception\PropertyInterceptionContext.cs" />
+    <Compile Include="Infrastructure\Interception\MutableInterceptionContext.cs" />
+    <Compile Include="Infrastructure\Interception\MutableInterceptionContext`.cs" />
     <Compile Include="Infrastructure\Design\Executor.cs" />
     <Compile Include="Infrastructure\Design\ForwardingProxy.cs" />
     <Compile Include="Infrastructure\Design\HandlerBase.cs" />
@@ -278,9 +332,24 @@
     <Compile Include="Infrastructure\MappingViews\DbMappingViewCacheFactory.cs" />
     <Compile Include="Infrastructure\MappingViews\DbMappingViewCacheTypeAttribute.cs" />
     <Compile Include="Infrastructure\MappingViews\DefaultDbMappingViewCacheFactory.cs" />
-    <Compile Include="Internal\MigrationsChecker.cs" />
+    <Compile Include="Infrastructure\Transactions\DefaultTransactionHandler.cs" />
+    <Compile Include="Infrastructure\Transactions\TransactionContext.cs" />
+    <Compile Include="Infrastructure\Transactions\CommitFailureHandler.cs" />
+    <Compile Include="Infrastructure\Transactions\TransactionContextInitializer.cs" />
+    <Compile Include="Infrastructure\Transactions\TransactionHandler.cs" />
+    <Compile Include="Infrastructure\Transactions\TransactionRow.cs" />
+    <Compile Include="Internal\ConfigFile\InterceptorElement.cs" />
+    <Compile Include="Internal\ConfigFile\InterceptorsCollection.cs" />
+    <Compile Include="Internal\ConfigFile\QueryCacheElement.cs" />
+    <Compile Include="Internal\DatabaseExistenceState.cs" />
+    <Compile Include="Internal\ContextConfig.cs" />
+    <Compile Include="Internal\QueryCacheConfig.cs" />
     <Compile Include="Migrations\Builders\ParameterBuilder.cs" />
+    <Compile Include="Migrations\Infrastructure\VersionedModel.cs" />
     <Compile Include="Migrations\Model\AlterProcedureOperation.cs" />
+    <Compile Include="Migrations\Model\AlterTableOperation.cs" />
+    <Compile Include="Migrations\Model\IAnnotationTarget.cs" />
+    <Compile Include="Migrations\Model\RenameIndexOperation.cs" />
     <Compile Include="Migrations\Model\UpdateDatabaseOperation.cs" />
     <Compile Include="Migrations\Model\MoveProcedureOperation.cs" />
     <Compile Include="Migrations\Model\RenameProcedureOperation.cs" />
@@ -289,6 +358,9 @@
     <Compile Include="Migrations\Model\ParameterModel.cs" />
     <Compile Include="Migrations\Model\DropProcedureOperation.cs" />
     <Compile Include="Migrations\Model\PropertyModel.cs" />
+    <Compile Include="ModelConfiguration\Configuration\ConventionsTypeActivator.cs" />
+    <Compile Include="ModelConfiguration\Configuration\ConventionsTypeFilter.cs" />
+    <Compile Include="ModelConfiguration\Configuration\ConventionsTypeFinder.cs" />
     <Compile Include="ModelConfiguration\Configuration\Properties\Navigation\ConventionNavigationPropertyConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Conventions\TypeConventionConfiguration.cs" />
     <Compile Include="ModelConfiguration\Configuration\Conventions\TypeConventionConfiguration`.cs" />
@@ -298,6 +370,9 @@
     <Compile Include="ModelConfiguration\Configuration\Types\ConventionTypeConfiguration`.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\IConfigurationConvention.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\IConfigurationConvention`.cs" />
+    <Compile Include="ModelConfiguration\Conventions\Configuration\Property\AttributeToColumnAnnotationConvention.cs" />
+    <Compile Include="ModelConfiguration\Conventions\Configuration\Property\AttributeToTableAnnotationConvention.cs" />
+    <Compile Include="ModelConfiguration\Conventions\Configuration\Property\IndexAttributeConvention.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Property\PrimitivePropertyAttributeConfigurationConvention.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Property\PropertyAttributeConfigurationConvention.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Type\TypeAttributeConfigurationConvention.cs" />
@@ -309,6 +384,7 @@
     <Compile Include="ModelConfiguration\Conventions\Configuration\Lightweight\TypeConventionWithHaving`.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Lightweight\TypeConventionWithHaving.cs" />
     <Compile Include="ModelConfiguration\Conventions\Configuration\Lightweight\TypeConventionWithHavingBase.cs" />
+    <Compile Include="ModelConfiguration\Conventions\Edm\Db\ForeignKeyIndexConvention.cs" />
     <Compile Include="ModelConfiguration\Conventions\IConceptualModelConvention`.cs" />
     <Compile Include="ModelConfiguration\Conventions\IStoreModelConvention`.cs" />
     <Compile Include="ModelConfiguration\Conventions\Sets\ConventionSet.cs" />
@@ -469,7 +545,6 @@
     <Compile Include="Infrastructure\RetryLimitExceededException.cs" />
     <Compile Include="Infrastructure\DefaultExecutionStrategy.cs" />
     <Compile Include="Internal\CommandTracer.cs" />
-    <Compile Include="Internal\ConfigFile\MigrationSqlGeneratorElement.cs" />
     <Compile Include="Infrastructure\IDbAsyncEnumerable.cs" />
     <Compile Include="Infrastructure\IDbAsyncEnumerableExtensions.cs" />
     <Compile Include="Infrastructure\DbSqlQuery.cs" />
@@ -603,7 +678,6 @@
     <Compile Include="Core\Common\Utils\Pair.cs" />
     <Compile Include="Core\Common\Utils\Set.cs" />
     <Compile Include="Core\Common\Utils\StringUtil.cs" />
-    <Compile Include="Core\Common\Utils\ThreadSafeList.cs" />
     <Compile Include="Core\Common\Utils\TrailingSpaceComparer.cs" />
     <Compile Include="Core\Common\Utils\TrailingSpaceStringComparer.cs" />
     <Compile Include="Core\Common\Utils\TreePrinter.cs" />
@@ -734,15 +808,15 @@
     <Compile Include="Core\Mapping\FunctionImportStructuralTypeMapping.cs" />
     <Compile Include="Core\Mapping\FunctionImportStructuralTypeMappingKB.cs" />
     <Compile Include="Core\Mapping\LineInfo.cs" />
-    <Compile Include="Core\Mapping\Mapping.cs" />
+    <Compile Include="Core\Mapping\MappingBase.cs" />
     <Compile Include="Core\Mapping\MappingItemCollection.cs" />
     <Compile Include="Core\Mapping\MemberMappingKind.cs" />
     <Compile Include="Core\Mapping\metadatamappinghashervisitor.cs" />
-    <Compile Include="Core\Mapping\StorageAssociationSetModificationFunctionMapping.cs" />
-    <Compile Include="Core\Mapping\StorageEntityTypeModificationFunctionMapping.cs" />
-    <Compile Include="Core\Mapping\StorageModificationFunctionMemberPath.cs" />
-    <Compile Include="Core\Mapping\StorageModificationFunctionParameterBinding.cs" />
-    <Compile Include="Core\Mapping\StorageModificationFunctionResultBinding.cs" />
+    <Compile Include="Core\Mapping\AssociationSetModificationFunctionMapping.cs" />
+    <Compile Include="Core\Mapping\EntityTypeModificationFunctionMapping.cs" />
+    <Compile Include="Core\Mapping\ModificationFunctionMemberPath.cs" />
+    <Compile Include="Core\Mapping\ModificationFunctionParameterBinding.cs" />
+    <Compile Include="Core\Mapping\ModificationFunctionResultBinding.cs" />
     <Compile Include="Core\Mapping\StringHashBuilder.cs" />
     <Compile Include="Core\Mapping\ObjectAssociationEndMapping.cs" />
     <Compile Include="Core\Mapping\ObjectComplexPropertyMapping.cs" />
@@ -751,25 +825,25 @@
     <Compile Include="Core\Mapping\ObjectNavigationPropertyMapping.cs" />
     <Compile Include="Core\Mapping\ObjectPropertyMapping.cs" />
     <Compile Include="Core\Mapping\ObjectTypeMapping.cs" />
-    <Compile Include="Core\Mapping\StorageAssociationSetMapping.cs" />
-    <Compile Include="Core\Mapping\StorageAssociationTypeMapping.cs" />
-    <Compile Include="Core\Mapping\StorageComplexPropertyMapping.cs" />
-    <Compile Include="Core\Mapping\StorageComplexTypeMapping.cs" />
-    <Compile Include="Core\Mapping\StorageConditionPropertyMapping.cs" />
-    <Compile Include="Core\Mapping\StorageEndPropertyMapping.cs" />
-    <Compile Include="Core\Mapping\StorageEntityContainerMapping.cs" />
-    <Compile Include="Core\Mapping\StorageEntitySetMapping.cs" />
-    <Compile Include="Core\Mapping\StorageEntityTypeMapping.cs" />
-    <Compile Include="Core\Mapping\StorageMappingErrorCode.cs" />
-    <Compile Include="Core\Mapping\StorageMappingFragment.cs" />
+    <Compile Include="Core\Mapping\AssociationSetMapping.cs" />
+    <Compile Include="Core\Mapping\AssociationTypeMapping.cs" />
+    <Compile Include="Core\Mapping\ComplexPropertyMapping.cs" />
+    <Compile Include="Core\Mapping\ComplexTypeMapping.cs" />
+    <Compile Include="Core\Mapping\ConditionPropertyMapping.cs" />
+    <Compile Include="Core\Mapping\EndPropertyMapping.cs" />
+    <Compile Include="Core\Mapping\EntityContainerMapping.cs" />
+    <Compile Include="Core\Mapping\EntitySetMapping.cs" />
+    <Compile Include="Core\Mapping\EntityTypeMapping.cs" />
+    <Compile Include="Core\Mapping\MappingErrorCode.cs" />
+    <Compile Include="Core\Mapping\MappingFragment.cs" />
     <Compile Include="Core\Mapping\StorageMappingItemCollection.cs" />
-    <Compile Include="Core\Mapping\StorageMappingItemLoader.cs" />
-    <Compile Include="Core\Mapping\StorageModificationFunctionMapping.cs" />
-    <Compile Include="Core\Mapping\StorageMslConstructs.cs" />
-    <Compile Include="Core\Mapping\StoragePropertyMapping.cs" />
-    <Compile Include="Core\Mapping\StorageScalarPropertyMapping.cs" />
-    <Compile Include="Core\Mapping\StorageSetMapping.cs" />
-    <Compile Include="Core\Mapping\StorageTypeMapping.cs" />
+    <Compile Include="Core\Mapping\MappingItemLoader.cs" />
+    <Compile Include="Core\Mapping\ModificationFunctionMapping.cs" />
+    <Compile Include="Core\Mapping\MslConstructs.cs" />
+    <Compile Include="Core\Mapping\PropertyMapping.cs" />
+    <Compile Include="Core\Mapping\ScalarPropertyMapping.cs" />
+    <Compile Include="Core\Mapping\EntitySetBaseMapping.cs" />
+    <Compile Include="Core\Mapping\TypeMapping.cs" />
     <Compile Include="Core\Mapping\Update\Internal\AssociationSetMetadata.cs" />
     <Compile Include="Core\Mapping\Update\Internal\ChangeNode.cs" />
     <Compile Include="Core\Mapping\Update\Internal\CompositeKey.cs" />
@@ -1349,7 +1423,6 @@
     <Compile Include="Core\Query\PlanCompiler\SubqueryTrackingVisitor.cs" />
     <Compile Include="Core\Query\PlanCompiler\TransformationRules.cs" />
     <Compile Include="Core\Query\PlanCompiler\TransformationRulesContext.cs" />
-    <Compile Include="Core\Query\PlanCompiler\TransformationRulesGroup.cs" />
     <Compile Include="Core\Query\PlanCompiler\TypeIdKind.cs" />
     <Compile Include="Core\Query\PlanCompiler\TypeIdPropertyRef.cs" />
     <Compile Include="Core\Query\PlanCompiler\TypeInfo.cs" />
@@ -1407,19 +1480,19 @@
     <Compile Include="Migrations\Design\MigrationCodeGenerator.cs" />
     <Compile Include="Migrations\Design\MigrationScaffolder.cs" />
     <Compile Include="Migrations\Design\ScaffoldedMigration.cs" />
+    <Compile Include="Migrations\Design\ToolingException.cs" />
     <Compile Include="Migrations\Design\ToolingFacade.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Migrations\Design\VisualBasicMigrationCodeGenerator.cs" />
     <Compile Include="Migrations\Edm\EdmXNames.cs" />
     <Compile Include="Migrations\Edm\ModelCompressor.cs" />
-    <Compile Include="Utilities\AssemblyExtensions.cs" />
     <Compile Include="Utilities\DbContextExtensions.cs" />
     <Compile Include="Utilities\ExpressionExtensions.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Utilities\MemberInfoExtensions.cs" />
     <Compile Include="Utilities\ProviderRowFinder.cs" />
+    <Compile Include="Utilities\TaskExtensions.cs" />
     <Compile Include="Utilities\TaskHelper.cs" />
     <Compile Include="Utilities\TypeFinder.cs" />
     <Compile Include="Utilities\XContainerExtensions.cs" />
@@ -1759,9 +1832,7 @@
     <Compile Include="Utilities\DbProviderInfoExtensions.cs" />
     <Compile Include="Utilities\DbProviderManifestExtensions.cs" />
     <Compile Include="Utilities\HashSetExtensions.cs" />
-    <Compile Include="Utilities\PropertyInfoExtensions.cs" />
     <Compile Include="ModelConfiguration\Utilities\PropertyPath.cs" />
-    <Compile Include="Utilities\TypeExtensions.cs" />
     <Compile Include="Utilities\ValidationContextExtensions.cs" />
     <Compile Include="Validation\DbEntityValidationException.cs" />
     <Compile Include="Validation\DbEntityValidationResult.cs" />

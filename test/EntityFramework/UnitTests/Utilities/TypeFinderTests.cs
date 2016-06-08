@@ -3,6 +3,7 @@
 namespace System.Data.Entity.Utilities
 {
     using System.Linq;
+    using System.Reflection;
     using Xunit;
 
     public class TypeFinderTests : TestBase
@@ -12,7 +13,7 @@ namespace System.Data.Entity.Utilities
         {
             Assert.Same(
                 typeof(FindMe),
-                new TypeFinder(GetType().Assembly).FindType(typeof(ABase), typeof(FindMe).FullName, t => t));
+                new TypeFinder(GetType().Assembly()).FindType(typeof(ABase), typeof(FindMe).FullName, t => t));
         }
 
         [Fact]
@@ -20,7 +21,7 @@ namespace System.Data.Entity.Utilities
         {
             Assert.Same(
                 typeof(FindMe),
-                new TypeFinder(GetType().Assembly).FindType(typeof(ABase), typeof(FindMe).Name.ToLowerInvariant(), t => t));
+                new TypeFinder(GetType().Assembly()).FindType(typeof(ABase), typeof(FindMe).Name.ToLowerInvariant(), t => t));
         }
 
         public class ABase
@@ -43,7 +44,7 @@ namespace System.Data.Entity.Utilities
         {
             Assert.Same(
                 typeof(FindMeWhatWHAT),
-                new TypeFinder(GetType().Assembly).FindType(typeof(ABase), typeof(FindMeWhatWHAT).Name, t => t));
+                new TypeFinder(GetType().Assembly()).FindType(typeof(ABase), typeof(FindMeWhatWHAT).Name, t => t));
         }
 
         public class FindMeWhatWhat : ABase
@@ -60,7 +61,7 @@ namespace System.Data.Entity.Utilities
             Assert.Equal(
                 "EntityFramework.UnitTests Bad_Type_Name",
                 Assert.Throws<InvalidOperationException>(
-                    () => new TypeFinder(GetType().Assembly).FindType(
+                    () => new TypeFinder(GetType().Assembly()).FindType(
                         typeof(ABase),
                         "Bad_Type_Name",
                         t => t,
@@ -70,7 +71,7 @@ namespace System.Data.Entity.Utilities
         [Fact]
         public void FindType_can_return_null_if_no_type_matching_name_is_found()
         {
-            Assert.Null(new TypeFinder(GetType().Assembly).FindType(typeof(ABase), "Bad_Type_Name", t => t));
+            Assert.Null(new TypeFinder(GetType().Assembly()).FindType(typeof(ABase), "Bad_Type_Name", t => t));
         }
 
         [Fact]
@@ -79,7 +80,7 @@ namespace System.Data.Entity.Utilities
             Assert.Equal(
                 "EntityFramework.UnitTests MultipleMe",
                 Assert.Throws<InvalidOperationException>(
-                    () => new TypeFinder(GetType().Assembly).FindType(
+                    () => new TypeFinder(GetType().Assembly()).FindType(
                         typeof(ABase),
                         typeof(MultipleMe).Name,
                         t => t,
@@ -89,7 +90,7 @@ namespace System.Data.Entity.Utilities
         [Fact]
         public void FindType_can_return_null_if_multiple_types_matching_name_are_found()
         {
-            Assert.Null(new TypeFinder(GetType().Assembly).FindType(typeof(ABase), typeof(MultipleMe).Name, t => t));
+            Assert.Null(new TypeFinder(GetType().Assembly()).FindType(typeof(ABase), typeof(MultipleMe).Name, t => t));
         }
 
         public class MultipleMe : ABase
@@ -108,10 +109,10 @@ namespace System.Data.Entity.Utilities
         {
             Assert.Same(
                 typeof(CanYouFindMe),
-                new TypeFinder(GetType().Assembly).FindType(
+                new TypeFinder(GetType().Assembly()).FindType(
                     typeof(ABase),
                     null,
-                    t => t.Where(n => n.GetProperties().Any(p => p.Name == "DiscoverMe"))));
+                    t => t.Where(n => n.GetRuntimeProperties().Any(p => p.Name == "DiscoverMe"))));
         }
 
         public class CanYouFindMe : ABase
@@ -125,10 +126,10 @@ namespace System.Data.Entity.Utilities
             Assert.Equal(
                 "EntityFramework.UnitTests",
                 Assert.Throws<InvalidOperationException>(
-                    () => new TypeFinder(GetType().Assembly).FindType(
+                    () => new TypeFinder(GetType().Assembly()).FindType(
                         typeof(ABase),
                         null,
-                        t => t.Where(n => n.GetProperties().Any(p => p.Name == "DontDiscoverMe")),
+                        t => t.Where(n => n.GetRuntimeProperties().Any(p => p.Name == "DontDiscoverMe")),
                         noType: a => new InvalidOperationException(a))).Message);
         }
 
@@ -136,10 +137,10 @@ namespace System.Data.Entity.Utilities
         public void FindType_can_throw_if_filter_returns_many_types()
         {
             Assert.Null(
-                new TypeFinder(GetType().Assembly).FindType(
+                new TypeFinder(GetType().Assembly()).FindType(
                     typeof(ABase),
                     null,
-                    t => t.Where(n => n.GetProperties().Any(p => p.Name == "DontDiscoverMe"))));
+                    t => t.Where(n => n.GetRuntimeProperties().Any(p => p.Name == "DontDiscoverMe"))));
         }
 
         [Fact]
@@ -148,10 +149,10 @@ namespace System.Data.Entity.Utilities
             Assert.Equal(
                 "CanYouFindMeTwo CanYouFindMeThree EntityFramework.UnitTests",
                 Assert.Throws<InvalidOperationException>(
-                    () => new TypeFinder(GetType().Assembly).FindType(
+                    () => new TypeFinder(GetType().Assembly()).FindType(
                         typeof(ABase),
                         null,
-                        t => t.Where(n => n.GetProperties().Any(p => p.Name == "DiscoverMeMeMe")),
+                        t => t.Where(n => n.GetRuntimeProperties().Any(p => p.Name == "DiscoverMeMeMe")),
                         multipleTypes: (a, t) => new InvalidOperationException(t.First().Name + " " + t.Skip(1).First().Name + " " + a)))
                       .Message);
         }
@@ -160,10 +161,10 @@ namespace System.Data.Entity.Utilities
         public void FindType_can_return_null_if_filter_returns_many_types()
         {
             Assert.Null(
-                new TypeFinder(GetType().Assembly).FindType(
+                new TypeFinder(GetType().Assembly()).FindType(
                     typeof(ABase),
                     null,
-                    t => t.Where(n => n.GetProperties().Any(p => p.Name == "DiscoverMeMeMe"))));
+                    t => t.Where(n => n.GetRuntimeProperties().Any(p => p.Name == "DiscoverMeMeMe"))));
         }
 
         public class CanYouFindMeTwo : ABase

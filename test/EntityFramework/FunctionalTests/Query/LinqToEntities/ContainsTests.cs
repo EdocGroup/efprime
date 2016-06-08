@@ -242,7 +242,7 @@ WHERE ([Extent1].[Title] IN (N'Title1', N'Title2'))
 [Extent1].[Id] AS [Id]
 FROM [dbo].[Books] AS [Extent1]
 WHERE (([Extent1].[Title] IN (N'Title1', N'Title2')) AND ([Extent1].[Title] IS NOT NULL))
-    OR (([Extent1].[Title] = @p__linq__0) AND (NOT ([Extent1].[Title] IS NULL OR @p__linq__0 IS NULL))) 
+    OR ([Extent1].[Title] = @p__linq__0) 
     OR (([Extent1].[Title] IS NULL) AND (@p__linq__0 IS NULL)) 
     OR ([Extent1].[Title] IS NULL)";
 
@@ -293,11 +293,7 @@ CASE WHEN ( EXISTS (SELECT
 	1 AS [C1]
 	FROM [dbo].[Books] AS [Extent2]
 	WHERE 0 = [Extent2].[Genre]
-)) THEN cast(1 as bit) WHEN ( NOT EXISTS (SELECT 
-	1 AS [C1]
-	FROM [dbo].[Books] AS [Extent3]
-	WHERE 0 = [Extent3].[Genre]
-)) THEN cast(0 as bit) END AS [C1]
+)) THEN cast(1 as bit) ELSE cast(0 as bit) END AS [C1]
 FROM [dbo].[Books] AS [Extent1]";
 
             using (var context = new UnicodeContext())

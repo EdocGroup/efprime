@@ -4,21 +4,20 @@ namespace System.Data.Entity.Core
 {
     using System.Data.Entity.Core.Common.EntitySql;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using System.Reflection;
     using Xunit;
 
     public class EntitySqlExceptionTests
     {
-        private static readonly PropertyInfo _hResultProperty = typeof(Exception).GetProperty(
-            "HResult", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
-
+        private static readonly PropertyInfo _hResultProperty = typeof(Exception).GetDeclaredProperty("HResult");
         private const int HResultInvalidQuery = -2146232006;
 
         [Fact]
         public void Constructors_allow_for_null_message_and_inner_exception()
         {
-            Assert.True(new EntitySqlException(null).Message.Contains("'System.Data.Entity.Core.EntitySqlException'"));
-            Assert.True(new EntitySqlException(null, null).Message.Contains("'System.Data.Entity.Core.EntitySqlException'"));
+            Assert.True(new EntitySqlException(null).Message.Contains("System.Data.Entity.Core.EntitySqlException"));
+            Assert.True(new EntitySqlException(null, null).Message.Contains("System.Data.Entity.Core.EntitySqlException"));
             Assert.Null(new EntitySqlException(null, null).InnerException);
         }
 
@@ -106,22 +105,22 @@ namespace System.Data.Entity.Core
                 "Why not use LINQ like everyone else?",
                 innerException);
 
-            Assert.Equal(
-                "Why not use LINQ like everyone else? Near Hubcap emotional barometer is peaking, line 3, column 2.", exception.Message);
+            Assert.True(exception.Message.StartsWith("Why not use LINQ like everyone else?"));
+            Assert.True(exception.Message.Contains("Hubcap emotional barometer is peaking"));
             Assert.Same(innerException, exception.InnerException);
             Assert.Equal(HResultInvalidQuery, GetHResult(exception));
-            Assert.Equal("Hubcap emotional barometer is peaking, line 3, column 2", exception.ErrorContext);
+            Assert.True(exception.ErrorContext.StartsWith("Hubcap emotional barometer is peaking"));
             Assert.Equal("Why not use LINQ like everyone else?", exception.ErrorDescription);
             Assert.Equal(3, exception.Line);
             Assert.Equal(2, exception.Column);
 
             exception = ExceptionHelpers.SerializeAndDeserialize(exception);
 
-            Assert.Equal(
-                "Why not use LINQ like everyone else? Near Hubcap emotional barometer is peaking, line 3, column 2.", exception.Message);
+            Assert.True(exception.Message.StartsWith("Why not use LINQ like everyone else?"));
+            Assert.True(exception.Message.Contains("Hubcap emotional barometer is peaking"));
             Assert.Equal(innerException.Message, exception.InnerException.Message);
             Assert.Equal(HResultInvalidQuery, GetHResult(exception));
-            Assert.Equal("Hubcap emotional barometer is peaking, line 3, column 2", exception.ErrorContext);
+            Assert.True(exception.ErrorContext.StartsWith("Hubcap emotional barometer is peaking"));
             Assert.Equal("Why not use LINQ like everyone else?", exception.ErrorDescription);
             Assert.Equal(3, exception.Line);
             Assert.Equal(2, exception.Column);
@@ -139,20 +138,18 @@ namespace System.Data.Entity.Core
                 loadErrorContextInfoFromResource: true,
                 innerException: innerException);
 
-            Assert.Equal("This isn't the vodka I ordered. Near line 2, column 4.", exception.Message);
+            Assert.True(exception.Message.StartsWith("This isn't the vodka I ordered."));
             Assert.Same(innerException, exception.InnerException);
             Assert.Equal(HResultInvalidQuery, GetHResult(exception));
-            Assert.Equal("line 2, column 4", exception.ErrorContext);
             Assert.Equal("This isn't the vodka I ordered.", exception.ErrorDescription);
             Assert.Equal(2, exception.Line);
             Assert.Equal(4, exception.Column);
 
             exception = ExceptionHelpers.SerializeAndDeserialize(exception);
 
-            Assert.Equal("This isn't the vodka I ordered. Near line 2, column 4.", exception.Message);
+            Assert.True(exception.Message.StartsWith("This isn't the vodka I ordered."));
             Assert.Equal(innerException.Message, exception.InnerException.Message);
             Assert.Equal(HResultInvalidQuery, GetHResult(exception));
-            Assert.Equal("line 2, column 4", exception.ErrorContext);
             Assert.Equal("This isn't the vodka I ordered.", exception.ErrorDescription);
             Assert.Equal(2, exception.Line);
             Assert.Equal(4, exception.Column);

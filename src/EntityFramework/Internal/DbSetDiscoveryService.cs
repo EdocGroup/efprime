@@ -11,12 +11,12 @@ namespace System.Data.Entity.Internal
     using System.Linq.Expressions;
     using System.Reflection;
 
-    /// <summary>
-    /// Service used to search for instance properties on a DbContext class that can
-    /// be assigned a DbSet instance.  Also, if the the property has a public setter,
-    /// then a delegate is compiled to set the property to a new instance of DbSet.
-    /// All of this information is cached per app domain.
-    /// </summary>
+    // <summary>
+    // Service used to search for instance properties on a DbContext class that can
+    // be assigned a DbSet instance.  Also, if the the property has a public setter,
+    // then a delegate is compiled to set the property to a new instance of DbSet.
+    // All of this information is cached per app domain.
+    // </summary>
     internal class DbSetDiscoveryService
     {
         #region Fields and constructors
@@ -26,13 +26,13 @@ namespace System.Data.Entity.Internal
             new ConcurrentDictionary<Type, DbContextTypesInitializersPair>();
 
         // Used by the code below to create DbSet instances
-        private static readonly MethodInfo _setMethod = typeof(DbContext).GetMethod("Set", Type.EmptyTypes);
+        public static readonly MethodInfo SetMethod = typeof(DbContext).GetDeclaredMethod("Set");
 
         private readonly DbContext _context;
 
-        /// <summary>
-        /// Creates a set discovery service for the given derived context.
-        /// </summary>
+        // <summary>
+        // Creates a set discovery service for the given derived context.
+        // </summary>
         public DbSetDiscoveryService(DbContext context)
         {
             DebugCheck.NotNull(context);
@@ -44,14 +44,14 @@ namespace System.Data.Entity.Internal
 
         #region Set discovery/processing
 
-        /// <summary>
-        /// Processes the given context type to determine the DbSet or IDbSet
-        /// properties and collect root entity types from those properties.  Also, delegates are
-        /// created to initialize any of these properties that have public setters.
-        /// If the type has been processed previously in the app domain, then all this information
-        /// is returned from a cache.
-        /// </summary>
-        /// <returns> A dictionary of potential entity type to the list of the names of the properties that used the type. </returns>
+        // <summary>
+        // Processes the given context type to determine the DbSet or IDbSet
+        // properties and collect root entity types from those properties.  Also, delegates are
+        // created to initialize any of these properties that have public setters.
+        // If the type has been processed previously in the app domain, then all this information
+        // is returned from a cache.
+        // </summary>
+        // <returns> A dictionary of potential entity type to the list of the names of the properties that used the type. </returns>
         private Dictionary<Type, List<string>> GetSets()
         {
             DbContextTypesInitializersPair setsInfo;
@@ -68,11 +68,9 @@ namespace System.Data.Entity.Internal
                 var entityTypes = new Dictionary<Type, List<string>>();
 
                 // Properties declared directly on DbContext such as Database are skipped
-                const BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-                foreach (var propertyInfo in _context.GetType().GetProperties(bindingFlags)
-                                                     .Where(
-                                                         p => p.GetIndexParameters().Length == 0 &&
-                                                              p.DeclaringType != typeof(DbContext)))
+                foreach (var propertyInfo in _context.GetType().GetInstanceProperties()
+                    .Where(p => p.GetIndexParameters().Length == 0
+                        && p.DeclaringType != typeof(DbContext)))
                 {
                     var entityType = GetSetType(propertyInfo.PropertyType);
                     if (entityType != null)
@@ -94,10 +92,10 @@ namespace System.Data.Entity.Internal
 
                         if (DbSetPropertyShouldBeInitialized(propertyInfo))
                         {
-                            var setter = propertyInfo.GetSetMethod(nonPublic: false);
-                            if (setter != null)
+                            var setter = propertyInfo.Setter();
+                            if (setter != null && setter.IsPublic)
                             {
-                                var setMethod = _setMethod.MakeGenericMethod(entityType);
+                                var setMethod = SetMethod.MakeGenericMethod(entityType);
 
                                 var newExpression = Expression.Call(dbContextParam, setMethod);
                                 var setExpression = Expression.Call(
@@ -126,19 +124,19 @@ namespace System.Data.Entity.Internal
             return setsInfo.EntityTypeToPropertyNameMap;
         }
 
-        /// <summary>
-        /// Calls the public setter on any property found to initialize it to a new instance of DbSet.
-        /// </summary>
+        // <summary>
+        // Calls the public setter on any property found to initialize it to a new instance of DbSet.
+        // </summary>
         public void InitializeSets()
         {
             GetSets(); // Ensures sets have been discovered
             _objectSetInitializers[_context.GetType()].SetsInitializer(_context);
         }
 
-        /// <summary>
-        /// Registers the entities and their entity set name hints with the given <see cref="DbModelBuilder" />.
-        /// </summary>
-        /// <param name="modelBuilder"> The model builder. </param>
+        // <summary>
+        // Registers the entities and their entity set name hints with the given <see cref="DbModelBuilder" />.
+        // </summary>
+        // <param name="modelBuilder"> The model builder. </param>
         public void RegisterSets(DbModelBuilder modelBuilder)
         {
             var sets = (IEnumerable<KeyValuePair<Type, List<String>>>) GetSets();
@@ -158,27 +156,25 @@ namespace System.Data.Entity.Internal
             }
         }
 
-        /// <summary>
-        /// Returns false if SuppressDbSetInitializationAttribute is found on the property or the class, otherwise
-        /// returns true.
-        /// </summary>
+        // <summary>
+        // Returns false if SuppressDbSetInitializationAttribute is found on the property or the class, otherwise
+        // returns true.
+        // </summary>
         private static bool DbSetPropertyShouldBeInitialized(PropertyInfo propertyInfo)
         {
-            return propertyInfo.GetCustomAttributes(typeof(SuppressDbSetInitializationAttribute), inherit: false).Length
-                   == 0 &&
-                   propertyInfo.DeclaringType.GetCustomAttributes(
-                       typeof(SuppressDbSetInitializationAttribute), inherit: false).Length == 0;
+            return !propertyInfo.GetCustomAttributes<SuppressDbSetInitializationAttribute>(inherit: false).Any() &&
+                   !propertyInfo.DeclaringType.GetCustomAttributes<SuppressDbSetInitializationAttribute>(inherit: false).Any();
         }
 
         #endregion
 
         #region Helpers
 
-        /// <summary>
-        /// Determines whether or not an instance of DbSet/ObjectSet can be assigned to a property of the given type.
-        /// </summary>
-        /// <param name="declaredType"> The type to check. </param>
-        /// <returns> The entity type of the DbSet/ObjectSet that can be assigned, or null if no set type can be assigned. </returns>
+        // <summary>
+        // Determines whether or not an instance of DbSet/ObjectSet can be assigned to a property of the given type.
+        // </summary>
+        // <param name="declaredType"> The type to check. </param>
+        // <returns> The entity type of the DbSet/ObjectSet that can be assigned, or null if no set type can be assigned. </returns>
         private static Type GetSetType(Type declaredType)
         {
             if (!declaredType.IsArray)
@@ -197,26 +193,26 @@ namespace System.Data.Entity.Internal
             return null;
         }
 
-        /// <summary>
-        /// Given a type that might be an IDbSet\IObjectSet, determine if the type implements IDbSet&lt;&gt;\IObjectSet&lt;&gt;, and if
-        /// so return the element type of the IDbSet\IObjectSet.  Currently, if the collection implements IDbSet&lt;&gt;\IObjectSet&lt;&gt;
-        /// multiple times with different types, then we will return false since this is not supported.
-        /// </summary>
-        /// <param name="setType"> The type to check. </param>
-        /// <returns> The element type of the IDbSet\IObjectSet, or null if the type does not match. </returns>
+        // <summary>
+        // Given a type that might be an IDbSet\IObjectSet, determine if the type implements IDbSet&lt;&gt;\IObjectSet&lt;&gt;, and if
+        // so return the element type of the IDbSet\IObjectSet.  Currently, if the collection implements IDbSet&lt;&gt;\IObjectSet&lt;&gt;
+        // multiple times with different types, then we will return false since this is not supported.
+        // </summary>
+        // <param name="setType"> The type to check. </param>
+        // <returns> The element type of the IDbSet\IObjectSet, or null if the type does not match. </returns>
         private static Type GetSetElementType(Type setType)
         {
             // We have to check if the type actually is the interface, or if it implements the interface:
             try
             {
                 var setInterface =
-                    (setType.IsGenericType && typeof(IDbSet<>).IsAssignableFrom(setType.GetGenericTypeDefinition()))
+                    (setType.IsGenericType() && typeof(IDbSet<>).IsAssignableFrom(setType.GetGenericTypeDefinition()))
                         ? setType
                         : setType.GetInterface(typeof(IDbSet<>).FullName);
 
                 // We need to make sure the type is fully specified otherwise we won't be able to add element to it.
                 if (setInterface != null
-                    && !setInterface.ContainsGenericParameters)
+                    && !setInterface.ContainsGenericParameters())
                 {
                     return setInterface.GetGenericArguments()[0];
                 }

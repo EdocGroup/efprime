@@ -15,10 +15,10 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Threading.Tasks;
 #endif
 
-    /// <summary>
-    /// A wrapper over a <see cref="DbDataReader" /> that will consume and close the supplied reader
-    /// when <see cref="Initialize" /> is called.
-    /// </summary>
+    // <summary>
+    // A wrapper over a <see cref="DbDataReader" /> that will consume and close the supplied reader
+    // when <see cref="Initialize" /> is called.
+    // </summary>
     internal class BufferedDataReader : DbDataReader
     {
         private DbDataReader _underlyingReader;
@@ -179,11 +179,14 @@ namespace System.Data.Entity.Core.Objects.Internal
             string providerManifestToken, DbProviderServices providerSerivces, Type[] columnTypes, bool[] nullableColumns,
             CancellationToken cancellationToken)
         {
-            var reader = _underlyingReader;
-            if (reader == null)
+            if (_underlyingReader == null)
             {
                 return;
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var reader = _underlyingReader;
             _underlyingReader = null;
 
             try
@@ -193,20 +196,20 @@ namespace System.Data.Entity.Core.Objects.Internal
                     _bufferedDataRecords.Add(await
                         ShapedBufferedDataRecord.InitializeAsync(
                             providerManifestToken, providerSerivces, reader, columnTypes, nullableColumns, cancellationToken)
-                            .ConfigureAwait(continueOnCapturedContext: false));
+                            .WithCurrentCulture());
                 }
                 else
                 {
                     _bufferedDataRecords.Add(await
                         ShapelessBufferedDataRecord.InitializeAsync(providerManifestToken, providerSerivces, reader, cancellationToken)
-                            .ConfigureAwait(continueOnCapturedContext: false));
+                            .WithCurrentCulture());
                 }
 
-                while (await reader.NextResultAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                while (await reader.NextResultAsync(cancellationToken).WithCurrentCulture())
                 {
                     _bufferedDataRecords.Add(await
                         ShapelessBufferedDataRecord.InitializeAsync(providerManifestToken, providerSerivces, reader, cancellationToken)
-                            .ConfigureAwait(continueOnCapturedContext: false));
+                            .WithCurrentCulture());
                 }
 
                 _recordsAffected = reader.RecordsAffected;
@@ -431,6 +434,8 @@ namespace System.Data.Entity.Core.Objects.Internal
 
         public override Task<bool> NextResultAsync(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             return Task.FromResult(NextResult());
         }
 
@@ -446,6 +451,8 @@ namespace System.Data.Entity.Core.Objects.Internal
 
         public override Task<bool> ReadAsync(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             AssertReaderIsOpen();
             return _currentResultSet.ReadAsync(cancellationToken);
         }

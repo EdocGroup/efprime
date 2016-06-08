@@ -4,6 +4,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 {
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -11,11 +12,11 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Linq;
     using System.Reflection;
 
-    /// <summary>
-    /// This class is responsible for managing the app-domain instance of the <see cref="DbConfiguration" /> class.
-    /// This includes loading from config, discovery from the context assembly and pushing/popping configurations
-    /// used by <see cref="DbContextInfo" />.
-    /// </summary>
+    // <summary>
+    // This class is responsible for managing the app-domain instance of the <see cref="DbConfiguration" /> class.
+    // This includes loading from config, discovery from the context assembly and pushing/popping configurations
+    // used by <see cref="DbContextInfo" />.
+    // </summary>
     internal class DbConfigurationManager
     {
         private static readonly DbConfigurationManager _configManager
@@ -43,7 +44,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
         {
             DebugCheck.NotNull(loader);
             DebugCheck.NotNull(finder);
-
+            
             _loader = loader;
             _finder = finder;
             _configuration = new Lazy<InternalConfiguration>(
@@ -52,6 +53,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                         var configuration = _newConfiguration
                                             ?? _newConfigurationType.CreateInstance<DbConfiguration>(
                                                 Strings.CreateInstance_BadDbConfigurationType);
+
                         configuration.InternalConfiguration.Lock();
                         return configuration.InternalConfiguration;
                     });
@@ -84,12 +86,15 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
         {
             DebugCheck.NotNull(configuration);
 
-            var handler = _loadedHandler;
+            var eventArgs = new DbConfigurationLoadedEventArgs(configuration);
 
+            var handler = _loadedHandler;
             if (handler != null)
             {
-                handler(configuration.Owner, new DbConfigurationLoadedEventArgs(configuration));
+                handler(configuration.Owner, eventArgs);
             }
+
+            configuration.DispatchLoadedInterceptors(eventArgs);
         }
 
         public virtual InternalConfiguration GetConfiguration()
@@ -148,7 +153,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             DebugCheck.NotNull(contextType);
             Debug.Assert(typeof(DbContext).IsAssignableFrom(contextType));
 
-            EnsureLoadedForAssembly(contextType.Assembly, contextType);
+            EnsureLoadedForAssembly(contextType.Assembly(), contextType);
         }
 
         public virtual void EnsureLoadedForAssembly(Assembly assemblyHint, Type contextTypeHint)
@@ -220,7 +225,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             // context assembly has already been checked for configurations, then avoid creating
             // and pushing a new configuration since it would be the same as the current one anyway.
             if (config == AppConfig.DefaultInstance
-                && (contextType == typeof(DbContext) || _knownAssemblies.ContainsKey(contextType.Assembly)))
+                && (contextType == typeof(DbContext) || _knownAssemblies.ContainsKey(contextType.Assembly())))
             {
                 return false;
             }

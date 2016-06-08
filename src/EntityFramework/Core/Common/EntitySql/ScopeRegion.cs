@@ -4,6 +4,7 @@ namespace System.Data.Entity.Core.Common.EntitySql
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Common.CommandTrees;
+    using System.Data.Entity.Utilities;
     using System.Diagnostics;
 
     internal sealed class ScopeRegion
@@ -17,9 +18,9 @@ namespace System.Data.Entity.Core.Common.EntitySql
             _scopeRegionIndex = scopeRegionIndex;
         }
 
-        /// <summary>
-        /// First scope of the region.
-        /// </summary>
+        // <summary>
+        // First scope of the region.
+        // </summary>
         internal int FirstScopeIndex
         {
             get { return _firstScopeIndex; }
@@ -27,10 +28,10 @@ namespace System.Data.Entity.Core.Common.EntitySql
 
         private readonly int _firstScopeIndex;
 
-        /// <summary>
-        /// Index of the scope region.
-        /// Outer scope regions have smaller index value than inner scope regions.
-        /// </summary>
+        // <summary>
+        // Index of the scope region.
+        // Outer scope regions have smaller index value than inner scope regions.
+        // </summary>
         internal int ScopeRegionIndex
         {
             get { return _scopeRegionIndex; }
@@ -38,35 +39,35 @@ namespace System.Data.Entity.Core.Common.EntitySql
 
         private readonly int _scopeRegionIndex;
 
-        /// <summary>
-        /// True if given scope is in the current scope region.
-        /// </summary>
+        // <summary>
+        // True if given scope is in the current scope region.
+        // </summary>
         internal bool ContainsScope(int scopeIndex)
         {
             return (scopeIndex >= _firstScopeIndex);
         }
 
-        /// <summary>
-        /// Marks current scope region as performing group/folding operation.
-        /// </summary>
+        // <summary>
+        // Marks current scope region as performing group/folding operation.
+        // </summary>
         internal void EnterGroupOperation(DbExpressionBinding groupAggregateBinding)
         {
             Debug.Assert(!IsAggregating, "Scope region group operation is not reentrant.");
             _groupAggregateBinding = groupAggregateBinding;
         }
 
-        /// <summary>
-        /// Clears the <see cref="IsAggregating" /> flag on the group scope.
-        /// </summary>
+        // <summary>
+        // Clears the <see cref="IsAggregating" /> flag on the group scope.
+        // </summary>
         internal void RollbackGroupOperation()
         {
             Debug.Assert(IsAggregating, "Scope region must inside group operation in order to leave it.");
             _groupAggregateBinding = null;
         }
 
-        /// <summary>
-        /// True when the scope region performs group/folding operation.
-        /// </summary>
+        // <summary>
+        // True when the scope region performs group/folding operation.
+        // </summary>
         internal bool IsAggregating
         {
             get { return _groupAggregateBinding != null; }
@@ -83,9 +84,9 @@ namespace System.Data.Entity.Core.Common.EntitySql
 
         private DbExpressionBinding _groupAggregateBinding;
 
-        /// <summary>
-        /// Returns list of group aggregates evaluated on the scope region.
-        /// </summary>
+        // <summary>
+        // Returns list of group aggregates evaluated on the scope region.
+        // </summary>
         internal List<GroupAggregateInfo> GroupAggregateInfos
         {
             get { return _groupAggregateInfos; }
@@ -93,9 +94,9 @@ namespace System.Data.Entity.Core.Common.EntitySql
 
         private readonly List<GroupAggregateInfo> _groupAggregateInfos = new List<GroupAggregateInfo>();
 
-        /// <summary>
-        /// Adds group aggregate name to the scope region.
-        /// </summary>
+        // <summary>
+        // Adds group aggregate name to the scope region.
+        // </summary>
         internal void RegisterGroupAggregateName(string groupAggregateName)
         {
             Debug.Assert(!_groupAggregateNames.Contains(groupAggregateName), "!_groupAggregateNames.ContainsKey(groupAggregateName)");
@@ -109,14 +110,14 @@ namespace System.Data.Entity.Core.Common.EntitySql
 
         private readonly HashSet<string> _groupAggregateNames = new HashSet<string>();
 
-        /// <summary>
-        /// True if a recent expression resolution was correlated.
-        /// </summary>
+        // <summary>
+        // True if a recent expression resolution was correlated.
+        // </summary>
         internal bool WasResolutionCorrelated { get; set; }
 
-        /// <summary>
-        /// Applies <paramref name="action" /> to all scope entries in the current scope region.
-        /// </summary>
+        // <summary>
+        // Applies <paramref name="action" /> to all scope entries in the current scope region.
+        // </summary>
         internal void ApplyToScopeEntries(Action<ScopeEntry> action)
         {
             Debug.Assert(FirstScopeIndex <= _scopeManager.CurrentScopeIndex, "FirstScopeIndex <= CurrentScopeIndex");
@@ -130,9 +131,9 @@ namespace System.Data.Entity.Core.Common.EntitySql
             }
         }
 
-        /// <summary>
-        /// Applies <paramref name="action" /> to all scope entries in the current scope region.
-        /// </summary>
+        // <summary>
+        // Applies <paramref name="action" /> to all scope entries in the current scope region.
+        // </summary>
         internal void ApplyToScopeEntries(Func<ScopeEntry, ScopeEntry> action)
         {
             Debug.Assert(FirstScopeIndex <= _scopeManager.CurrentScopeIndex, "FirstScopeIndex <= CurrentScopeIndex");
@@ -156,7 +157,7 @@ namespace System.Data.Entity.Core.Common.EntitySql
                 }
                 if (updatedEntries != null)
                 {
-                    updatedEntries.ForEach((updatedScopeEntry) => scope.Replace(updatedScopeEntry.Key, updatedScopeEntry.Value));
+                    updatedEntries.Each((updatedScopeEntry) => scope.Replace(updatedScopeEntry.Key, updatedScopeEntry.Value));
                 }
             }
         }

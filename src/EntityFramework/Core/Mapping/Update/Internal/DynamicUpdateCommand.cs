@@ -1,8 +1,9 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Mapping.Update.Internal
 {
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Common.CommandTrees;
@@ -97,9 +98,9 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             return false;
         }
 
-        /// <summary>
-        /// See comments in <see cref="UpdateCommand" />.
-        /// </summary>
+        // <summary>
+        // See comments in <see cref="UpdateCommand" />.
+        // </summary>
         internal override long Execute(
             Dictionary<int, object> identifierValues,
             List<KeyValuePair<PropagatorResult, object>> generatedValues)
@@ -180,13 +181,15 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
 
 #if !NET40
 
-        /// <summary>
-        /// See comments in <see cref="UpdateCommand" />.
-        /// </summary>
+        // <summary>
+        // See comments in <see cref="UpdateCommand" />.
+        // </summary>
         internal override async Task<long> ExecuteAsync(
             Dictionary<int, object> identifierValues,
             List<KeyValuePair<PropagatorResult, object>> generatedValues, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // Compile command
             using (var command = CreateCommand(identifierValues))
             {
@@ -210,10 +213,9 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                     using (
                         var reader =
                             await
-                            command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken).ConfigureAwait(
-                                continueOnCapturedContext: false))
+                            command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, cancellationToken).WithCurrentCulture())
                     {
-                        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                        if (await reader.ReadAsync(cancellationToken).WithCurrentCulture())
                         {
                             rowsAffected++;
 
@@ -227,20 +229,18 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                                 object value;
                                 if (Helper.IsSpatialType(member.TypeUsage)
                                     &&
-                                    !await reader.IsDBNullAsync(ordinal, cancellationToken).ConfigureAwait(continueOnCapturedContext: false))
+                                    !await reader.IsDBNullAsync(ordinal, cancellationToken).WithCurrentCulture())
                                 {
                                     value =
                                         await
                                         SpatialHelpers.GetSpatialValueAsync(
                                             Translator.MetadataWorkspace, reader, member.TypeUsage, ordinal, cancellationToken).
-                                                       ConfigureAwait(continueOnCapturedContext: false);
+                                                       WithCurrentCulture();
                                 }
                                 else
                                 {
                                     value =
-                                        await
-                                        reader.GetFieldValueAsync<object>(ordinal, cancellationToken).ConfigureAwait(
-                                            continueOnCapturedContext: false);
+                                        await reader.GetFieldValueAsync<object>(ordinal, cancellationToken).WithCurrentCulture();
                                 }
 
                                 // retrieve result which includes the context for back-propagation
@@ -261,12 +261,12 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
 
                         // Consume the current reader (and subsequent result sets) so that any errors
                         // executing the command can be intercepted
-                        await CommandHelper.ConsumeReaderAsync(reader, cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                        await CommandHelper.ConsumeReaderAsync(reader, cancellationToken).WithCurrentCulture();
                     }
                 }
                 else
                 {
-                    rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken).WithCurrentCulture();
                 }
 
                 return rowsAffected;
@@ -275,9 +275,9 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
 
 #endif
 
-        /// <summary>
-        /// Gets DB command definition encapsulating store logic for this command.
-        /// </summary>
+        // <summary>
+        // Gets DB command definition encapsulating store logic for this command.
+        // </summary>
         protected virtual DbCommand CreateCommand(Dictionary<int, object> identifierValues)
         {
             var commandTree = _modificationCommandTree;
@@ -323,23 +323,23 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 var insertTree = (DbInsertCommandTree)originalTree;
                 result = new DbInsertCommandTree(
                     insertTree.MetadataWorkspace, insertTree.DataSpace,
-                    insertTree.Target, ReplaceClauses(insertTree.SetClauses, clauseMappings).AsReadOnly(), insertTree.Returning);
+                    insertTree.Target, new ReadOnlyCollection<DbModificationClause>(ReplaceClauses(insertTree.SetClauses, clauseMappings)), insertTree.Returning);
             }
             else
             {
                 var updateTree = (DbUpdateCommandTree)originalTree;
                 result = new DbUpdateCommandTree(
                     updateTree.MetadataWorkspace, updateTree.DataSpace,
-                    updateTree.Target, updateTree.Predicate, ReplaceClauses(updateTree.SetClauses, clauseMappings).AsReadOnly(),
+                    updateTree.Target, updateTree.Predicate, new ReadOnlyCollection<DbModificationClause>(ReplaceClauses(updateTree.SetClauses, clauseMappings)),
                     updateTree.Returning);
             }
 
             return result;
         }
 
-        /// <summary>
-        /// Creates a new list of modification clauses with the specified remapped clauses replaced.
-        /// </summary>
+        // <summary>
+        // Creates a new list of modification clauses with the specified remapped clauses replaced.
+        // </summary>
         private static List<DbModificationClause> ReplaceClauses(
             IList<DbModificationClause> originalClauses, Dictionary<DbSetClause, DbSetClause> mappings)
         {

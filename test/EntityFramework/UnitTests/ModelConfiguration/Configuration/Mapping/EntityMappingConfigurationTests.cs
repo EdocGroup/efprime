@@ -2,10 +2,11 @@
 
 namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
-    using System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive;
-    using System.Data.Entity.ModelConfiguration.Edm;    
+    using System.Data.Entity.ModelConfiguration.Edm;
+    using System.Data.Entity.Resources;
     using System.Data.Entity.Spatial;
     using System.Data.Entity.Utilities;    
     using System.Linq;
@@ -34,7 +35,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                           TableName = new DatabaseName("Foo")
                       };
 
-            var entityTypeMapping = new StorageEntityTypeMapping(null);
+            var entityTypeMapping = new EntityTypeMapping(null);
 
             entityTypeMapping.AddType(new EntityType("E", "N", DataSpace.CSpace));
 
@@ -44,10 +45,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             var table = databaseMapping.Database.AddTable("foo");
             var entitySet = databaseMapping.Database.GetEntitySet(table);
 
-            entityTypeMapping.AddFragment(new StorageMappingFragment(entitySet, entityTypeMapping, false));
+            entityTypeMapping.AddFragment(new MappingFragment(entitySet, entityTypeMapping, false));
             
             entityMappingConfiguration.Configure(
-                databaseMapping, ProviderRegistry.Sql2008_ProviderManifest, entityTypeMapping.EntityType, ref entityTypeMapping, false, 0, 1);
+                databaseMapping, databaseMapping.Model.Container.EntitySets,
+                ProviderRegistry.Sql2008_ProviderManifest, entityTypeMapping.EntityType,
+                ref entityTypeMapping, false, 0, 1,
+                new Dictionary<string, object>());
 
             Assert.Equal("Foo", table.GetTableName().Name);
         }
@@ -222,6 +226,24 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                 primitivePropertyConfigurations[expression14.GetComplexPropertyAccess()]);
 
             Assert.Equal(14, primitivePropertyConfigurations.Count);
+        }
+
+        [Fact]
+        public void HasAnnotation_checks_arguments()
+        {
+            var configuration = new EntityMappingConfiguration<object>();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation(null, null)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation(" ", null)).Message);
+
+            Assert.Equal(
+                Strings.BadAnnotationName("Cheese:Pickle"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation("Cheese:Pickle", null)).Message);
         }
     }
 }

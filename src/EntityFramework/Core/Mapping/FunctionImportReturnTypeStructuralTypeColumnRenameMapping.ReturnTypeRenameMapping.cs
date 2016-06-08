@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Mapping
 {
@@ -17,9 +17,9 @@ namespace System.Data.Entity.Core.Mapping
         private readonly Collection<FunctionImportReturnTypeStructuralTypeColumn> _columnListForType;
         private readonly Collection<FunctionImportReturnTypeStructuralTypeColumn> _columnListForIsTypeOfType;
 
-        /// <summary>
-        /// Null if default mapping is not allowed.
-        /// </summary>
+        // <summary>
+        // Null if default mapping is not allowed.
+        // </summary>
         private readonly string _defaultMemberName;
 
         private readonly Memoizer<StructuralType, FunctionImportReturnTypeStructuralTypeColumn> _renameCache;
@@ -33,25 +33,23 @@ namespace System.Data.Entity.Core.Mapping
                 GetRename, EqualityComparer<StructuralType>.Default);
         }
 
-        /// <summary>
-        /// <see cref="GetRename(EdmType, out IXmlLineInfo)" /> for more info.
-        /// </summary>
+        // <summary>
+        // <see cref="GetRename(EdmType, out IXmlLineInfo)" /> for more info.
+        // </summary>
         internal string GetRename(EdmType type)
         {
             IXmlLineInfo lineInfo;
             return GetRename(type, out lineInfo);
         }
 
-        /// <summary>
-        /// A default mapping (property "Foo" maps by convention to column "Foo"), if allowed, has the lowest precedence.
-        /// A mapping for a specific type (EntityType="Bar") takes precedence over a mapping for a hierarchy (EntityType="IsTypeOf(Bar)"))
-        /// If there are two hierarchy mappings, the most specific mapping takes precedence.
-        /// For instance, given the types Base, Derived1 : Base, and Derived2 : Derived1,
-        /// w.r.t. Derived1 "IsTypeOf(Derived1)" takes precedence over "IsTypeOf(Base)" when you ask for the rename of Derived1
-        /// </summary>
-        /// <param name="type"> </param>
-        /// <param name="lineInfo"> Empty for default rename mapping. </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // A default mapping (property "Xyz" maps by convention to column "Xyz"), if allowed, has the lowest precedence.
+        // A mapping for a specific type (EntityType="Abc") takes precedence over a mapping for a hierarchy (EntityType="IsTypeOf(Abc)"))
+        // If there are two hierarchy mappings, the most specific mapping takes precedence.
+        // For instance, given the types Base, Derived1 : Base, and Derived2 : Derived1,
+        // w.r.t. Derived1 "IsTypeOf(Derived1)" takes precedence over "IsTypeOf(Base)" when you ask for the rename of Derived1
+        // </summary>
+        // <param name="lineInfo"> Empty for default rename mapping. </param>
         internal string GetRename(EdmType type, out IXmlLineInfo lineInfo)
         {
             DebugCheck.NotNull(type);
@@ -81,10 +79,10 @@ namespace System.Data.Entity.Core.Mapping
             else
             {
                 // find out all the tyes that is isparent type of this lookup type
-                var nodesInBaseHierachy =
+                var nodesInBaseHierarchy =
                     _columnListForIsTypeOfType.Where(t => t.Type.IsAssignableFrom(typeForRename));
 
-                if (nodesInBaseHierachy.Count() == 0)
+                if (nodesInBaseHierarchy.Count() == 0)
                 {
                     // non of its parent is renamed, so it will take the default one
                     return new FunctionImportReturnTypeStructuralTypeColumn(_defaultMemberName, typeForRename, false, null);
@@ -93,16 +91,16 @@ namespace System.Data.Entity.Core.Mapping
                 {
                     // we will guarantee that there will be some mapping for us on this column
                     // find out which one is lowest on the link
-                    return GetLowestParentInHierachy(nodesInBaseHierachy);
+                    return GetLowestParentInHierarchy(nodesInBaseHierarchy);
                 }
             }
         }
 
-        private static FunctionImportReturnTypeStructuralTypeColumn GetLowestParentInHierachy(
-            IEnumerable<FunctionImportReturnTypeStructuralTypeColumn> nodesInHierachy)
+        private static FunctionImportReturnTypeStructuralTypeColumn GetLowestParentInHierarchy(
+            IEnumerable<FunctionImportReturnTypeStructuralTypeColumn> nodesInHierarchy)
         {
             FunctionImportReturnTypeStructuralTypeColumn lowestParent = null;
-            foreach (var node in nodesInHierachy)
+            foreach (var node in nodesInHierarchy)
             {
                 if (lowestParent == null)
                 {

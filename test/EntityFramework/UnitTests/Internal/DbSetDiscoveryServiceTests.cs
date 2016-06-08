@@ -10,6 +10,7 @@ namespace System.Data.Entity.Internal
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using System.Linq;
     using System.Reflection;
     using Moq;
@@ -20,6 +21,12 @@ namespace System.Data.Entity.Internal
     /// </summary>
     public class DbSetDiscoveryServiceTests : TestBase
     {
+        [Fact]
+        public void MethodInfo_fields_are_initialized()
+        {
+            Assert.NotNull(DbSetDiscoveryService.SetMethod);
+        }
+
         #region Positive DbContext discovery and initialization tests
 
         public class FakeEntity1
@@ -190,26 +197,25 @@ namespace System.Data.Entity.Internal
             using (var context = new FakeDbContextWithDbSets())
             {
                 var contextType = typeof(FakeDbContextWithDbSets);
-                const BindingFlags binding = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-                Assert.NotNull(contextType.GetProperty("PublicGetSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("ProtectedGetSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("InternalGetSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("InternalProtectedGetSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("PrivateGetSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("PrivateSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("ProtectedSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("InternalSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("InternalProtectedSet", binding).GetValue(context, null));
-                Assert.NotNull(contextType.GetProperty("PrivateGet", binding).GetValue(context, null));
-                Assert.NotNull(contextType.GetProperty("ProtectedGet", binding).GetValue(context, null));
-                Assert.NotNull(contextType.GetProperty("InternalGet", binding).GetValue(context, null));
-                Assert.NotNull(contextType.GetProperty("InternalProtectedGet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("PublicGetNoSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("ProtectedGetNoSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("InternalGetNoSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("InternalProtectedGetNoSet", binding).GetValue(context, null));
-                Assert.Null(contextType.GetProperty("PrivateGetNoSet", binding).GetValue(context, null));
+                Assert.NotNull(contextType.GetDeclaredProperty("PublicGetSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("ProtectedGetSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("InternalGetSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("InternalProtectedGetSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("PrivateGetSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("PrivateSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("ProtectedSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("InternalSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("InternalProtectedSet").GetValue(context, null));
+                Assert.NotNull(contextType.GetDeclaredProperty("PrivateGet").GetValue(context, null));
+                Assert.NotNull(contextType.GetDeclaredProperty("ProtectedGet").GetValue(context, null));
+                Assert.NotNull(contextType.GetDeclaredProperty("InternalGet").GetValue(context, null));
+                Assert.NotNull(contextType.GetDeclaredProperty("InternalProtectedGet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("PublicGetNoSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("ProtectedGetNoSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("InternalGetNoSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("InternalProtectedGetNoSet").GetValue(context, null));
+                Assert.Null(contextType.GetDeclaredProperty("PrivateGetNoSet").GetValue(context, null));
             }
         }
 
@@ -482,10 +488,7 @@ namespace System.Data.Entity.Internal
 
         private static AttributeUsageAttribute GetDbSetDiscoveryAttributeUsage()
         {
-            return
-                (AttributeUsageAttribute)typeof(SuppressDbSetInitializationAttribute).GetCustomAttributes(
-                    typeof(AttributeUsageAttribute),
-                    inherit: false).Single();
+            return typeof(SuppressDbSetInitializationAttribute).GetCustomAttributes<AttributeUsageAttribute>(inherit: false).Single();
         }
 
         #endregion

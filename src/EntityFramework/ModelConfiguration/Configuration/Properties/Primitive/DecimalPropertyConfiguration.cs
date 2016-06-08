@@ -5,25 +5,25 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Utilities;
 
-    /// <summary>
-    /// Used to configure a <see cref="Decimal" /> property of an entity type or
-    /// complex type.
-    /// </summary>
+    // <summary>
+    // Used to configure a <see cref="Decimal" /> property of an entity type or
+    // complex type.
+    // </summary>
     internal class DecimalPropertyConfiguration : PrimitivePropertyConfiguration
     {
-        /// <summary>
-        /// Gets or sets the precision of the property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the precision of the property.
+        // </summary>
         public byte? Precision { get; set; }
 
-        /// <summary>
-        /// Gets or sets the scale of the property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the scale of the property.
+        // </summary>
         public byte? Scale { get; set; }
 
-        /// <summary>
-        /// Initializes a new instance of the DecimalPropertyConfiguration class.
-        /// </summary>
+        // <summary>
+        // Initializes a new instance of the DecimalPropertyConfiguration class.
+        // </summary>
         public DecimalPropertyConfiguration()
         {
         }
@@ -42,9 +42,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             return new DecimalPropertyConfiguration(this);
         }
 
-        internal override void Configure(EdmProperty property)
+        protected override void ConfigureProperty(EdmProperty property)
         {
-            base.Configure(property);
+            base.ConfigureProperty(property);
 
             if (Precision != null)
             {
@@ -100,11 +100,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Primiti
             }
         }
 
-        internal override void OverrideFrom(PrimitivePropertyConfiguration other)
+        internal override void MakeCompatibleWith(PrimitivePropertyConfiguration other, bool inCSpace)
         {
             DebugCheck.NotNull(other);
 
-            base.OverrideFrom(other);
+            base.MakeCompatibleWith(other, inCSpace);
 
             var decimalPropertyConfiguration = other as DecimalPropertyConfiguration;
 

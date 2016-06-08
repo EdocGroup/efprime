@@ -2,13 +2,21 @@
 
 namespace System.Data.Entity.Core.Metadata.Edm
 {
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Diagnostics;
 
-    /// <summary>
-    /// Class that contains all the constants for various schemas
-    /// </summary>
+    // <summary>
+    // Class that contains all the constants for various schemas
+    // </summary>
     internal static class XmlConstants
     {
+        internal const string CustomAnnotationNamespace = "http://schemas.microsoft.com/ado/2013/11/edm/customannotation";
+        internal const string CustomAnnotationPrefix = CustomAnnotationNamespace + ":";
+        internal const string ClrTypeAnnotation = "ClrType";
+        internal const string ClrTypeAnnotationWithPrefix = CustomAnnotationPrefix + ClrTypeAnnotation;
+        internal const string UseClrTypesAnnotationWithPrefix = CustomAnnotationPrefix + "UseClrTypes";
+        internal const string IndexAnnotationWithPrefix = CustomAnnotationPrefix + IndexAnnotation.AnnotationName;
+
         // v3.5 of .net framework
         internal const string ModelNamespace_1 = "http://schemas.microsoft.com/ado/2006/04/edm";
         internal const string ModelNamespace_1_1 = "http://schemas.microsoft.com/ado/2007/05/edm";

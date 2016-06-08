@@ -147,7 +147,7 @@ namespace System.Data.Entity.Migrations.Infrastructure
 
             object entity;
 
-            if (!clrType.IsAbstract)
+            if (!clrType.IsAbstract())
             {
                 entity = set.Create();
             }

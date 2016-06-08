@@ -11,7 +11,6 @@ namespace System.Data.Entity.ModelConfiguration.Edm
     internal static class EntityTypeExtensions
     {
         private const string TableNameAnnotation = "TableName";
-        private const string KeyNamesTypeAnnotation = "KeyNamesType";
 
         public static void AddColumn(this EntityType table, EdmProperty column)
         {
@@ -29,7 +28,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             DebugCheck.NotNull(table);
             DebugCheck.NotNull(configuration);
 
-            table.Annotations.SetConfiguration(configuration);
+            table.GetMetadataProperties().SetConfiguration(configuration);
         }
 
         public static DatabaseName GetTableName(this EntityType table)
@@ -44,22 +43,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             DebugCheck.NotNull(table);
             DebugCheck.NotNull(tableName);
 
-            table.Annotations.SetAnnotation(TableNameAnnotation, tableName);
-        }
-
-        public static EntityType GetKeyNamesType(this EntityType table)
-        {
-            DebugCheck.NotNull(table);
-
-            return (EntityType)table.Annotations.GetAnnotation(KeyNamesTypeAnnotation);
-        }
-
-        public static void SetKeyNamesType(this EntityType table, EntityType entityType)
-        {
-            DebugCheck.NotNull(table);
-            DebugCheck.NotNull(entityType);
-
-            table.Annotations.SetAnnotation(KeyNamesTypeAnnotation, entityType);
+            table.GetMetadataProperties().SetAnnotation(TableNameAnnotation, tableName);
         }
 
         internal static IEnumerable<EntityType> ToHierarchy(this EntityType edmType)
@@ -71,8 +55,11 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             List<EdmProperty> keyProps = null;
 
-            foreach (var declaringType in entityType.ToHierarchy().Reverse())
+            // PERF: this code is part of a critical path, consider its performance when refactoring
+            var hierarchy = entityType.ToHierarchy().ToList();
+            for (var i = hierarchy.Count - 1; i >=0; --i)
             {
+                var declaringType = hierarchy[i];
                 if (declaringType.BaseType == null
                     && declaringType.KeyProperties.Count > 0)
                 {
@@ -88,8 +75,10 @@ namespace System.Data.Entity.ModelConfiguration.Edm
                     var entityProps =
                         new HashSet<EdmProperty>(declaringType.DeclaredProperties.Where(p => p != null));
 
-                    foreach (var keyProp in declaringType.KeyProperties)
+                    // ReSharper disable once ForCanBeConvertedToForeach
+                    for(var j = 0; j < declaringType.KeyProperties.Count; ++j)
                     {
+                        var keyProp = declaringType.KeyProperties[j];
                         if (keyProp != null
                             && !duplicateKeyProps.Contains(keyProp)
                             && entityProps.Contains(keyProp)
@@ -293,7 +282,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             return set.All(
                 et => et == entityType // same type
                       || entityType.IsAncestorOf(et) // entityType is parent of et
-                      || !et.IsAncestorOf(entityType)); // et is not a parent of entityType (i.e. they can be unrelated)
+                      || et.GetRootType() != entityType.GetRootType()); // unrelated
         }
     }
 }

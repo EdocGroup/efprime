@@ -15,6 +15,7 @@ namespace System.Data.Entity.Core.Objects
     using System.Data.SqlClient;
     using System.Linq;
     using System.Linq.Expressions;
+    using Moq.Protected;
 #if !NET40
     using System.Threading;
     using System.Threading.Tasks;
@@ -31,7 +32,7 @@ namespace System.Data.Entity.Core.Objects
                 /*readerOwned*/ false, /*streaming*/ false);
         }
 
-        internal static CoordinatorFactory<T> CreateCoordinatorFactory<T>(Expression<Func<Shaper, T>> element = null)
+        internal static CoordinatorFactory<T> CreateCoordinatorFactory<T>(Expression<Func<Shaper, T>> element = null, Expression<Func<Shaper, bool>> hasData = null)
         {
             if (element == null)
             {
@@ -40,7 +41,7 @@ namespace System.Data.Entity.Core.Objects
             return new CoordinatorFactory<T>(
                 depth: 0,
                 stateSlot: 0,
-                hasData: null,
+                hasData: hasData,
                 setKeys: null,
                 checkKeys: null,
                 nestedCoordinators: new CoordinatorFactory[0],
@@ -101,23 +102,43 @@ namespace System.Data.Entity.Core.Objects
                 recordStateFactories: recordStateFactories);
         }
 
-        internal static ObjectContextForMock CreateMockObjectContext<TEntity>(IEntityAdapter entityAdapter = null)
+        internal static ObjectContext CreateMockObjectContext<TEntity>(EntityConnection entityConnection = null, IEntityAdapter entityAdapter = null)
         {
-            var dbConnectionMock = new Mock<DbConnection>();
-            dbConnectionMock.Setup(m => m.DataSource).Returns("fakeDb");
-            var entityConnectionMock = new Mock<EntityConnection>();
-            entityConnectionMock.SetupGet(m => m.StoreConnection).Returns(dbConnectionMock.Object);
-            var entityConnection = entityConnectionMock.Object;
+            if (entityConnection == null)
+            {
+                var dbConnectionMock = new Mock<DbConnection>();
+                dbConnectionMock.Setup(m => m.DataSource).Returns("fakeDb");
+                dbConnectionMock.Setup(m => m.ConnectionString).Returns("Data Source=fakeDb");
+                dbConnectionMock.Protected().SetupGet<DbProviderFactory>("DbProviderFactory")
+                    .Returns(GenericProviderFactory<DbProviderFactory>.Instance);
+                var entityConnectionMock = new Mock<EntityConnection>();
+                entityConnectionMock.SetupGet(m => m.StoreConnection).Returns(dbConnectionMock.Object);
+                entityConnection = entityConnectionMock.Object;
 
-            var objectContextMock = new Mock<ObjectContextForMock>(entityConnection, entityAdapter)
+                var state = ConnectionState.Closed;
+                entityConnectionMock.Setup(m => m.Close()).Callback(() => { state = ConnectionState.Closed; });
+                entityConnectionMock.Setup(m => m.Open()).Callback(
+                    () =>
+                    {
+                        state = ConnectionState.Open;
+                    });
+                
+#if !NET40
+                entityConnectionMock.Setup(m => m.OpenAsync(It.IsAny<CancellationToken>())).Returns(
+                    () =>
+                        {
+                            state = ConnectionState.Open;
+                            return Task.FromResult(true);
+                        });
+#endif
+                entityConnectionMock.Setup(m => m.State).Returns(() => state);
+            }
+
+            var objectContextMock = new Mock<ObjectContext>(null, null, null, entityAdapter)
                                         {
                                             CallBase = true
                                         };
             objectContextMock.Setup(m => m.Connection).Returns(entityConnection);
-            objectContextMock.Setup(m => m.EnsureConnection());
-#if !NET40
-            objectContextMock.Setup(m => m.EnsureConnectionAsync(It.IsAny<CancellationToken>())).Returns(Task.FromResult<object>(null));
-#endif
 
             var model = EdmModel.CreateStoreModel(
                 new DbProviderInfo(GenericProviderFactory<DbProviderFactory>.Instance.InvariantProviderName, "2008"),
@@ -146,11 +167,6 @@ namespace System.Data.Entity.Core.Objects
 
             objectContextMock.Setup(m => m.CreateQuery<TEntity>(It.IsAny<string>(), It.IsAny<ObjectParameter[]>())).Returns(
                 () => mockObjectQuery.Object);
-
-#if !NET40
-            objectContextMock.Setup(m => m.EnsureConnectionAsync(It.IsAny<CancellationToken>()))
-                             .Returns(Task.FromResult<object>(null));
-#endif
 
             return objectContextMock.Object;
         }

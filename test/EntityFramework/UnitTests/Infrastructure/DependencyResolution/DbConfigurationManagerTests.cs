@@ -5,9 +5,11 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Configuration;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Resources;
     using System.Data.Entity.TestHelpers;
+    using System.Data.Entity.Utilities;
     using System.Linq;
     using Moq;
     using SimpleModel;
@@ -32,9 +34,9 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             {
                 var manager = CreateManager();
                 var mockInternalConfiguration = new Mock<InternalConfiguration>(null, null, null, null, null)
-                    {
-                        CallBase = true
-                    };
+                {
+                    CallBase = true
+                };
 
                 var mockDbConfiguration = new Mock<DbConfiguration>();
                 mockDbConfiguration.Setup(m => m.InternalConfiguration).Returns(mockInternalConfiguration.Object);
@@ -58,7 +60,8 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             [Fact]
             public void GetConfiguration_returns_the_previously_set_configuration()
             {
-                var manager = CreateManager();
+                var mockLoader = new Mock<DbConfigurationLoader>();
+                var manager = CreateManager(mockLoader);
                 var mockInternalConfiguration = CreateMockInternalConfiguration();
 
                 manager.SetConfiguration(mockInternalConfiguration.Object);
@@ -69,7 +72,8 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             [Fact]
             public void GetConfiguration_sets_and_returns_a_new_configuration_if_none_was_previously_set()
             {
-                var manager = CreateManager();
+                var mockLoader = new Mock<DbConfigurationLoader>();
+                var manager = CreateManager(mockLoader);
 
                 var configuration = manager.GetConfiguration();
 
@@ -112,10 +116,10 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             {
                 ConfigurationThreadTest(
                     m =>
-                        {
-                            m.PushConfiguration(AppConfig.DefaultInstance, typeof(SimpleModelContext));
-                            m.PopConfiguration(AppConfig.DefaultInstance);
-                        },
+                    {
+                        m.PushConfiguration(AppConfig.DefaultInstance, typeof(SimpleModelContext));
+                        m.PopConfiguration(AppConfig.DefaultInstance);
+                    },
                     m => { });
             }
         }
@@ -223,15 +227,15 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var mockFinder = new Mock<DbConfigurationFinder>();
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
-                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null)).Returns(
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null)).Returns(
                     typeof(FakeConfiguration));
 
                 var manager = CreateManager(null, mockFinder);
 
                 manager.EnsureLoadedForContext(contextType);
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null));
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null));
                 Assert.IsType<FakeConfiguration>(manager.GetConfiguration().Owner);
             }
 
@@ -242,13 +246,13 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var manager = CreateManager(null, mockFinder);
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
-                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null)).Returns(
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null)).Returns(
                     typeof(FakeConfigurationWithEnsures));
 
                 manager.EnsureLoadedForContext(typeof(FakeContext));
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null));
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null));
                 Assert.IsType<FakeConfigurationWithEnsures>(manager.GetConfiguration().Owner);
             }
 
@@ -260,7 +264,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
                 CreateManager(null, mockFinder).EnsureLoadedForContext(contextType);
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null), Times.Never());
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null), Times.Never());
             }
 
             [Fact]
@@ -270,16 +274,16 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var manager = CreateManager(null, mockFinder);
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
 
                 manager.EnsureLoadedForContext(contextType);
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null), Times.Once());
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null), Times.Once());
 
                 manager.EnsureLoadedForContext(contextType);
 
                 // Finder has not been used again
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null), Times.Once());
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null), Times.Once());
             }
 
             [Fact]
@@ -306,11 +310,11 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var manager = CreateManager(null, mockFinder);
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
 
                 manager.EnsureLoadedForContext(contextType);
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null));
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null));
 
                 var mockInternalConfiguration = CreateMockInternalConfiguration();
                 manager.SetConfiguration(mockInternalConfiguration.Object);
@@ -327,11 +331,11 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var configuration = manager.GetConfiguration();
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
 
                 manager.EnsureLoadedForContext(contextType);
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null));
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null));
 
                 Assert.Same(configuration, manager.GetConfiguration());
             }
@@ -346,12 +350,12 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var configuration = manager.GetConfiguration();
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
 
                 manager.EnsureLoadedForContext(contextType);
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null));
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null));
 
                 Assert.Same(configuration, manager.GetConfiguration());
             }
@@ -365,8 +369,8 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var mockFinder = new Mock<DbConfigurationFinder>();
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
-                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null))
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null))
                           .Returns(configuration.Owner.GetType());
                 var manager = CreateManager(null, mockFinder);
 
@@ -374,7 +378,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
                 manager.EnsureLoadedForContext(contextType);
 
-                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null));
+                mockFinder.Verify(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null));
 
                 Assert.Same(configuration, manager.GetConfiguration());
             }
@@ -387,8 +391,8 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var mockFinder = new Mock<DbConfigurationFinder>();
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
-                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null))
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null))
                           .Returns(typeof(FakeConfiguration));
                 var manager = CreateManager(null, mockFinder);
 
@@ -407,8 +411,8 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 var mockFinder = new Mock<DbConfigurationFinder>();
                 var contextType = typeof(FakeContext);
 
-                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly, contextType, null)).Returns(contextType);
-                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly, contextType, null))
+                mockFinder.Setup(m => m.TryFindContextType(contextType.Assembly(), contextType, null)).Returns(contextType);
+                mockFinder.Setup(m => m.TryFindConfigurationType(contextType.Assembly(), contextType, null))
                           .Returns(configuration.GetType());
                 var manager = CreateManager(null, mockFinder);
 
@@ -498,10 +502,10 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             {
                 ConfigurationThreadTest(
                     m =>
-                        {
-                            m.PushConfiguration(AppConfig.DefaultInstance, typeof(SimpleModelContext));
-                            m.PopConfiguration(AppConfig.DefaultInstance);
-                        },
+                    {
+                        m.PushConfiguration(AppConfig.DefaultInstance, typeof(SimpleModelContext));
+                        m.PopConfiguration(AppConfig.DefaultInstance);
+                    },
                     m => m.EnsureLoadedForContext(typeof(SimpleModelContext)));
             }
         }
@@ -512,7 +516,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             public void EnsureLoadedForAssembly_loads_configuration_from_assembly_if_none_was_previously_used()
             {
                 var mockFinder = new Mock<DbConfigurationFinder>();
-                var assembly = typeof(Random).Assembly;
+                var assembly = typeof(Random).Assembly();
 
                 mockFinder.Setup(m => m.TryFindConfigurationType(assembly, null, null)).Returns(typeof(FakeConfiguration));
 
@@ -529,7 +533,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
         public class PushConfiguration : TestBase
         {
             [Fact]
-            public void PushConfugiration_does_push_new_config_when_not_necessary()
+            public void PushConfiguration_does_push_new_config_when_not_necessary()
             {
                 var mockLoader = new Mock<DbConfigurationLoader>();
                 var mockFinder = new Mock<DbConfigurationFinder>();
@@ -542,7 +546,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             }
 
             [Fact]
-            public void PushConfugiration_pushes_and_locks_configuration_from_config_if_found()
+            public void PushConfiguration_pushes_and_locks_configuration_from_config_if_found()
             {
                 var appConfig = new AppConfig(new ConnectionStringSettingsCollection());
                 var mockLoader = new Mock<DbConfigurationLoader>();
@@ -561,7 +565,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             }
 
             [Fact]
-            public void PushConfugiration_pushes_and_locks_configuration_discovered_in_context_assembly_if_found()
+            public void PushConfiguration_pushes_and_locks_configuration_discovered_in_context_assembly_if_found()
             {
                 var mockLoader = new Mock<DbConfigurationLoader>();
                 var mockFinder = new Mock<DbConfigurationFinder>();
@@ -580,7 +584,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             }
 
             [Fact]
-            public void PushConfugiration_pushes_default_configuration_if_no_other_found()
+            public void PushConfiguration_pushes_default_configuration_if_no_other_found()
             {
                 var mockLoader = new Mock<DbConfigurationLoader>();
                 var mockFinder = new Mock<DbConfigurationFinder>();
@@ -622,7 +626,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             }
 
             [Fact]
-            public void PushConfugiration_switches_in_original_root_resolver()
+            public void PushConfiguration_switches_in_original_root_resolver()
             {
                 var appConfig = new AppConfig(new ConnectionStringSettingsCollection());
                 var mockLoader = new Mock<DbConfigurationLoader>();
@@ -653,11 +657,11 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
                     ExecuteInParallel(
                         () =>
-                            {
-                                var appConfig = new AppConfig(new ConnectionStringSettingsCollection());
-                                manager.PushConfiguration(appConfig, typeof(SimpleModelContext));
-                                manager.PopConfiguration(appConfig);
-                            });
+                        {
+                            var appConfig = new AppConfig(new ConnectionStringSettingsCollection());
+                            manager.PushConfiguration(appConfig, typeof(SimpleModelContext));
+                            manager.PopConfiguration(appConfig);
+                        });
 
                     Assert.Same(config, manager.GetConfiguration());
                 }
@@ -671,9 +675,9 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             {
                 var manager = CreateManager();
                 var mockInternalConfiguration = new Mock<InternalConfiguration>(null, null, null, null, null)
-                    {
-                        CallBase = true
-                    };
+                {
+                    CallBase = true
+                };
 
                 var mockDbConfiguration = new Mock<DbConfiguration>();
                 mockDbConfiguration.Setup(m => m.InternalConfiguration).Returns(mockInternalConfiguration.Object);
@@ -724,13 +728,29 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
         public class OnLoaded
         {
-            private readonly IDbDependencyResolver _snapshot;
             private readonly Mock<InternalConfiguration> _configuration;
+            private readonly LoadedInterceptor _interceptor1;
+            private readonly LoadedInterceptor _interceptor2;
+            private readonly LoadedInterceptor _interceptor3;
 
             public OnLoaded()
             {
-                _snapshot = new Mock<IDbDependencyResolver>().Object;
-                _configuration = CreateMockInternalConfiguration(null, _snapshot);
+                var dispatchers = new Mock<DbDispatchers>();
+
+                var snapshot = new Mock<IDbDependencyResolver>().Object;
+
+                _configuration = CreateMockInternalConfiguration(null, snapshot, () => dispatchers.Object);
+
+                _interceptor1 = new LoadedInterceptor(_configuration, snapshot);
+                _interceptor2 = new LoadedInterceptor(_configuration, snapshot);
+                _interceptor3 = new LoadedInterceptor(_configuration, snapshot);
+
+                var d2 = new DbConfigurationDispatcher();
+                d2.InternalDispatcher.Add(_interceptor1);
+                d2.InternalDispatcher.Add(_interceptor2);
+                d2.InternalDispatcher.Add(_interceptor2);
+
+                dispatchers.Setup(m => m.Configuration).Returns(d2);
             }
 
             [Fact]
@@ -738,50 +758,56 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             {
                 var manager = CreateManager();
 
-                manager.OnLoaded(_configuration.Object); // No throw when no handlers registered
+                manager.OnLoaded(_configuration.Object);
+                Assert.Equal(1, _interceptor1.Called);
+                Assert.Equal(2, _interceptor2.Called);
+                Assert.Equal(0, _interceptor3.Called);
 
-                manager.AddLoadedHandler(Handler1);
-                manager.AddLoadedHandler(Handler2);
-                manager.AddLoadedHandler(Handler3);
+                manager.AddLoadedHandler(_interceptor1.Handler);
+                manager.AddLoadedHandler(_interceptor2.Handler);
+                manager.AddLoadedHandler(_interceptor3.Handler);
 
                 manager.OnLoaded(_configuration.Object);
-                Assert.Equal(1, Handler1Called);
-                Assert.Equal(1, Handler2Called);
-                Assert.Equal(1, Handler3Called);
+                Assert.Equal(3, _interceptor1.Called);
+                Assert.Equal(5, _interceptor2.Called);
+                Assert.Equal(1, _interceptor3.Called);
 
-                manager.RemoveLoadedHandler(Handler2);
+                manager.RemoveLoadedHandler(_interceptor2.Handler);
 
                 manager.OnLoaded(_configuration.Object);
-                Assert.Equal(2, Handler1Called);
-                Assert.Equal(1, Handler2Called);
-                Assert.Equal(2, Handler3Called);
+                Assert.Equal(5, _interceptor1.Called);
+                Assert.Equal(7, _interceptor2.Called);
+                Assert.Equal(2, _interceptor3.Called);
             }
 
-            private int Handler1Called { get; set; }
-
-            private void Handler1(object sender, DbConfigurationLoadedEventArgs args)
+            internal class LoadedInterceptor : IDbConfigurationInterceptor
             {
-                Assert.Same(_configuration.Object.Owner, sender);
-                Assert.Same(_snapshot, args.DependencyResolver);
-                Handler1Called++;
-            }
+                private readonly Mock<InternalConfiguration> _configuration;
+                private readonly IDbDependencyResolver _snapshot;
 
-            private int Handler2Called { get; set; }
+                public LoadedInterceptor(Mock<InternalConfiguration> configuration, IDbDependencyResolver snapshot)
+                {
+                    _configuration = configuration;
+                    _snapshot = snapshot;
+                }
 
-            private void Handler2(object sender, DbConfigurationLoadedEventArgs args)
-            {
-                Assert.Same(_configuration.Object.Owner, sender);
-                Assert.Same(_snapshot, args.DependencyResolver);
-                Handler2Called++;
-            }
+                public int Called { get; set; }
 
-            private int Handler3Called { get; set; }
+                public void Loaded(
+                    DbConfigurationLoadedEventArgs loadedEventArgs, 
+                    DbConfigurationInterceptionContext interceptionContext)
+                {
+                    Assert.Same(_snapshot, loadedEventArgs.DependencyResolver);
+                    Assert.NotNull(interceptionContext);
+                    Called++;
+                }
 
-            private void Handler3(object sender, DbConfigurationLoadedEventArgs args)
-            {
-                Assert.Same(_configuration.Object.Owner, sender);
-                Assert.Same(_snapshot, args.DependencyResolver);
-                Handler3Called++;
+                public void Handler(object sender, DbConfigurationLoadedEventArgs args)
+                {
+                    Assert.Same(_configuration.Object.Owner, sender);
+                    Assert.Same(_snapshot, args.DependencyResolver);
+                    Called++;
+                }
             }
         }
 
@@ -811,9 +837,9 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
         }
 
         private static Mock<InternalConfiguration> CreateMockInternalConfiguration(
-            DbConfiguration dbConfiguration = null, IDbDependencyResolver snapshot = null)
+            DbConfiguration dbConfiguration = null, IDbDependencyResolver snapshot = null, Func<DbDispatchers> dispatchers = null)
         {
-            var mockInternalConfiguration = new Mock<InternalConfiguration>(null, null, null, null, null);
+            var mockInternalConfiguration = new Mock<InternalConfiguration>(null, null, null, null, dispatchers);
 
             if (dbConfiguration == null)
             {
@@ -839,10 +865,10 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
                 ExecuteInParallel(
                     () =>
-                        {
-                            inThreads(manager);
-                            configurationBag.Add(manager.GetConfiguration());
-                        });
+                    {
+                        inThreads(manager);
+                        configurationBag.Add(manager.GetConfiguration());
+                    });
 
                 Assert.Equal(20, configurationBag.Count);
                 Assert.True(configurationBag.All(c => manager.GetConfiguration() == c));

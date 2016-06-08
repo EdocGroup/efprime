@@ -71,6 +71,9 @@
     <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\EntityFramework\Utilities\TaskExtensions.cs">
+      <Link>Utilities\TaskExtensions.cs</Link>
+    </Compile>
     <Compile Include="..\SharedAssemblyInfo.cs">
       <Link>Properties\SharedAssemblyInfo.cs</Link>
     </Compile>
@@ -79,6 +82,12 @@
     </Compile>
     <Compile Include="..\Common\ByteExtensions.cs">
       <Link>Utilities\ByteExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\TypeExtensions.cs">
+      <Link>Utilities\TypeExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\Common\PropertyInfoExtensions.cs">
+      <Link>Utilities\PropertyInfo.cs</Link>
     </Compile>
     <Compile Include="..\Common\Check.cs">
       <Link>Utilities\Check.cs</Link>
@@ -118,8 +127,10 @@
     <Compile Include="SqlGen\DmlFunctionSqlGenerator.cs" />
     <Compile Include="SqlGen\DmlSqlGenerator.cs" />
     <Compile Include="SqlGen\SqlStringBuilder.cs" />
+    <Compile Include="SqlGen\SkipClause.cs" />
     <Compile Include="SqlServerMigrationSqlGenerator.cs" />
     <Compile Include="SqlSpatialFunctions.cs" />
+    <Compile Include="SqlTableExistenceChecker.cs" />
     <Compile Include="SqlTypesAssemblyLoader.cs" />
     <Compile Include="SqlVersionUtils.cs" />
     <Compile Include="Utilities\SqlDataReaderWrapper.cs" />

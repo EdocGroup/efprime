@@ -8,25 +8,34 @@ namespace System.Data.Entity.Core.Mapping
     /// <summary>
     /// Represents a mapping from a model function import to a store composable or non-composable function.
     /// </summary>
-    internal abstract class FunctionImportMapping
+    public abstract class FunctionImportMapping : MappingItem
     {
+        private readonly EdmFunction _functionImport;
+        private readonly EdmFunction _targetFunction;
+
         internal FunctionImportMapping(EdmFunction functionImport, EdmFunction targetFunction)
         {
-            Check.NotNull(functionImport, "functionImport");
-            Check.NotNull(targetFunction, "targetFunction");
+            DebugCheck.NotNull(functionImport);
+            DebugCheck.NotNull(targetFunction);
 
-            FunctionImport = functionImport;
-            TargetFunction = targetFunction;
+            _functionImport = functionImport;
+            _targetFunction = targetFunction;
         }
 
         /// <summary>
         /// Gets model function (or source of the mapping)
         /// </summary>
-        public EdmFunction FunctionImport { get; private set; }
+        public EdmFunction FunctionImport 
+        {
+            get { return _functionImport; }
+        }
 
         /// <summary>
         /// Gets store function (or target of the mapping)
         /// </summary>
-        public EdmFunction TargetFunction { get; private set; }
+        public EdmFunction TargetFunction
+        {
+            get { return _targetFunction; }
+        }
     }
 }

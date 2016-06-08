@@ -5,11 +5,10 @@ namespace System.Data.Entity.Interception
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data.Common;
-    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.Interception;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.Linq;
-    using System.Threading;
     using System.Threading.Tasks;
     using Xunit;
 
@@ -24,6 +23,7 @@ namespace System.Data.Entity.Interception
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Initialization_and_simple_query_and_update_commands_can_be_logged()
         {
             var logger = new CommandLogger();
@@ -152,62 +152,10 @@ namespace System.Data.Entity.Interception
             Assert.True(executedLog.TaskStatus.HasFlag(TaskStatus.Faulted));
         }
 
-        [Fact]
-        public void Async_commands_that_are_canceled_are_still_intercepted()
-        {
-            var logger = new CommandLogger();
-            DbInterception.Add(logger);
-
-            var cancellation = new CancellationTokenSource();
-            var cancellationToken = cancellation.Token;
-
-            try
-            {
-                using (var context = new BlogContextNoInit())
-                {
-                    context.Database.Connection.Open();
-
-                    cancellation.Cancel();
-
-                    var command = context.Database.ExecuteSqlCommandAsync("update Blogs set Title = 'No' where Id = -1", cancellationToken);
-
-                    try
-                    {
-                        command.Wait();
-                    }
-                    catch (AggregateException)
-                    {
-                        // Ignore
-                    }
-
-                    Assert.True(command.IsCanceled);
-
-                    context.Database.Connection.Close();
-                }
-            }
-            finally
-            {
-                DbInterception.Remove(logger);
-            }
-
-            Assert.Equal(2, logger.Log.Count);
-
-            var executingLog = logger.Log[0];
-            Assert.Equal(CommandMethod.NonQueryExecuting, executingLog.Method);
-            Assert.True(executingLog.IsAsync);
-            Assert.Null(executingLog.Result);
-            Assert.Null(executingLog.Exception);
-
-            var executedLog = logger.Log[1];
-            Assert.Equal(CommandMethod.NonQueryExecuted, executedLog.Method);
-            Assert.True(executedLog.IsAsync);
-            Assert.Equal(0, executedLog.Result);
-            Assert.Null(executedLog.Exception);
-            Assert.True(executedLog.TaskStatus.HasFlag(TaskStatus.Canceled));
-        }
 #endif
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Multiple_contexts_running_concurrently_can_use_interception()
         {
             var loggers = new ConcurrentBag<CommandLogger>();

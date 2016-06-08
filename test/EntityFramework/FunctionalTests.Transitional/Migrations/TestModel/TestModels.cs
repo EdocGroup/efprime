@@ -98,6 +98,56 @@ namespace System.Data.Entity.Migrations
         public byte[] Image { get; set; }
     }
 
+    public class Child2382
+    {
+        [Key, Column(Order = 0)]
+        public int GrandParent2382Id { get; set; }
+
+        [Key, Column(Order = 1)]
+        [Index("IX_ParentId_Value", Order = 1, IsUnique = true)]
+        public int Parent2382Id { get; set; }
+
+        [Key, Column(Order = 2)]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Child2382Id { get; set; }
+
+        [Required]
+        [Index("IX_ParentId_Value", Order = 2, IsUnique = true)]
+        public int Value { get; set; }
+
+        // Navigation
+        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+        public Parent2382 Parent { get; set; }
+    }
+
+    public class Parent2382
+    {
+        [Key, Column(Order = 1)]
+        public int GrandParent2382Id { get; set; }
+
+        [Key, Column(Order = 2)]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Parent2382Id { get; set; }
+
+        // Navigation
+        [DatabaseGenerated(DatabaseGeneratedOption.None)]
+        [ForeignKey("GrandParentId")]
+        public virtual GrandParent2382 GrandParent { get; set; }
+
+        virtual public List<Child2382> Children { get; set; }
+    }
+
+    public class GrandParent2382
+    {
+        public int GrandParent2382Id { get; set; }
+
+        [Required]
+        public string Stuff { get; set; }
+
+        // Navigation
+        virtual public List<Parent2382> Parents { get; set; }
+    }
+
     public class MigrationsStore
     {
         public int Id { get; set; }
@@ -274,6 +324,29 @@ namespace System.Data.Entity.Migrations
         }
     }
 
+
+    public class ShopContext_v6 : ShopContext_v3
+    {
+        public ShopContext_v6()
+        {
+        }
+
+        public ShopContext_v6(string nameOrConnectionString)
+            : base(nameOrConnectionString)
+        {
+        }
+
+        protected override void OnModelCreating(DbModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder
+                .Entity<MigrationsStore>()
+                .Property(s => s.Name)
+                .HasMaxLength(15);
+        }
+    }
+
     public class EmptyModel : DbContext
     {
     }
@@ -423,5 +496,163 @@ namespace System.Data.Entity.Migrations
         public virtual ProcessedTransaction ParentTransaction { get; set; }
 
         public virtual ICollection<ProcessedTransaction> ChildTransactions { get; set; }
+    }
+
+    namespace OSpaceRenames_v1
+    {
+        public class TableRename1
+        {
+            public int Id { get; set; }
+        }
+
+        public class TableRenameDerived1 : TableRename1
+        {
+            public string Member { get; set; }
+        }
+
+        public class TableRenameManyManyLeft1
+        {
+            public int Id { get; set; }
+            public ICollection<TableRenameManyManyRight> Rights { get; set; }
+        }
+
+        public class TableRenameManyManyRight
+        {
+            public int Id { get; set; }
+            public ICollection<TableRenameManyManyLeft1> Lefts { get; set; }
+        }
+
+        public class TableRenameEntitySplit1
+        {
+            public int Id { get; set; }
+            public string Member { get; set; }
+        }
+
+        public class TableRenameTableSplit1
+        {
+            public int Id { get; set; }
+            public TableRenameTableSplitPayload1 Payload { get; set; }
+        }
+
+        public class TableRenameTableSplitPayload1
+        {
+            public int Id { get; set; }
+        }
+
+        [Table("ColumnRename")]
+        public class ColumnRename1
+        {
+            public int Id { get; set; }
+            public string Member { get; set; }
+            public ComplexType ComplexMember { get; set; }
+            public IaParent Parent { get; set; }
+        }
+
+        public class ColumnRenameDerived : ColumnRename1
+        {
+            public string DerivedMember { get; set; }
+        }
+
+        public class ComplexType
+        {
+            public string Member { get; set; }
+        }
+
+        public class IaParent
+        {
+            public int Id { get; set; }
+            public string Member { get; set; }
+        }
+
+        public class OrphanedColumn1
+        {
+            public int Id { get; set; }
+            public string OrphanedColumnParentId { get; set; }
+            public OrphanedColumnParent OrphanedColumnParent { get; set; }
+        }
+
+        public class OrphanedColumnParent
+        {
+            public string Id { get; set; }
+        }
+    }
+
+    namespace OSpaceRenames_v2
+    {
+        public class TableRename2
+        {
+            public int Id { get; set; }
+        }
+
+        public class TableRenameDerived2 : TableRename2
+        {
+            public string Member { get; set; }
+        }
+
+        public class TableRenameManyManyLeft2
+        {
+            public int Id { get; set; }
+            public ICollection<TableRenameManyManyRight> Rights { get; set; }
+        }
+
+        public class TableRenameManyManyRight
+        {
+            public int Id { get; set; }
+            public ICollection<TableRenameManyManyLeft2> Lefts { get; set; }
+        }
+        
+        public class TableRenameEntitySplit2
+        {
+            public int Id { get; set; }
+            public string Member { get; set; }
+        }
+
+        public class TableRenameTableSplit2
+        {
+            public int Id { get; set; }
+            public TableRenameTableSplitPayload2 Payload { get; set; }
+        }
+
+        public class TableRenameTableSplitPayload2
+        {
+            public int Id { get; set; }
+        }
+
+        [Table("ColumnRename")]
+        public class ColumnRename2
+        {
+            public int Id { get; set; }
+            public string Member { get; set; }
+            public ComplexType ComplexMember { get; set; }
+            public IaParent Parent { get; set; }
+        }
+
+        public class ColumnRenameDerived : ColumnRename2
+        {
+            public string DerivedMember { get; set; }
+        }
+
+        public class ComplexType
+        {
+            public string Member { get; set; }
+        }
+
+        public class IaParent
+        {
+            public int Id { get; set; }
+            public string Member { get; set; }
+        }
+
+        public class OrphanedColumn2
+        {
+            public int Id { get; set; }
+            public string OrphanedColumnParentId { get; set; }
+            public OrphanedColumnParent OrphanedColumnParent { get; set; }
+        }
+
+        public class OrphanedColumnParent
+        {
+            public string Id { get; set; }
+        }
     }
 }

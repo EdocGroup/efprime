@@ -20,9 +20,9 @@ namespace System.Data.Entity.Core.Objects.ELinq
     using System.Reflection;
     using System.Text;
 
-    /// <summary>
-    /// Class supporting conversion of LINQ expressions to EDM CQT expressions.
-    /// </summary>
+    // <summary>
+    // Class supporting conversion of LINQ expressions to EDM CQT expressions.
+    // </summary>
     [SuppressMessage("Microsoft.Maintainability", "CA1506:AvoidExcessiveClassCoupling")]
     internal sealed partial class ExpressionConverter
     {
@@ -50,33 +50,29 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
         private static readonly Dictionary<ExpressionType, Translator> _translators = InitializeTranslators();
 
-        internal const string s_entityCollectionCountPropertyName = "Count";
-        internal const string s_nullableHasValuePropertyName = "HasValue";
-        internal const string s_nullableValuePropertyName = "Value";
-
-        /// <summary>
-        /// Gets the name of the key column appearing in ELinq GroupBy projections
-        /// </summary>
+        // <summary>
+        // Gets the name of the key column appearing in ELinq GroupBy projections
+        // </summary>
         internal const string KeyColumnName = "Key";
 
-        /// <summary>
-        /// Gets the name of the group column appearing in ELinq CQTs (used in GroupBy expressions)
-        /// </summary>
+        // <summary>
+        // Gets the name of the group column appearing in ELinq CQTs (used in GroupBy expressions)
+        // </summary>
         internal const string GroupColumnName = "Group";
 
-        /// <summary>
-        /// Gets the name of the parent column appearing in ELinq EntityCollection projections
-        /// </summary>
+        // <summary>
+        // Gets the name of the parent column appearing in ELinq EntityCollection projections
+        // </summary>
         internal const string EntityCollectionOwnerColumnName = "Owner";
 
-        /// <summary>
-        /// Gets the name of the children column appearing in ELinq EntityCollection projections
-        /// </summary>
+        // <summary>
+        // Gets the name of the children column appearing in ELinq EntityCollection projections
+        // </summary>
         internal const string EntityCollectionElementsColumnName = "Elements";
 
-        /// <summary>
-        /// The Edm namespace name, used for canonical functions
-        /// </summary>
+        // <summary>
+        // The Edm namespace name, used for canonical functions
+        // </summary>
         internal const string EdmNamespaceName = "Edm";
 
         #endregion
@@ -181,6 +177,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             yield return new ModuloTranslator();
             yield return new SubtractTranslator();
             yield return new MultiplyTranslator();
+            yield return new PowerTranslator();
             yield return new NegateTranslator();
             yield return new UnaryPlusTranslator();
             yield return new MethodCallTranslator();
@@ -201,8 +198,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 ExpressionType.ArrayIndex,
                 ExpressionType.Invoke,
                 ExpressionType.Lambda,
-                ExpressionType.NewArrayBounds,
-                ExpressionType.Power);
+                ExpressionType.NewArrayBounds);
         }
 
         #endregion
@@ -306,14 +302,14 @@ namespace System.Data.Entity.Core.Objects.ELinq
         // Ensures that the given initializer metadata is valid within the current converter context.
         // We do not allow two incompatible structures representing the same type within a query, e.g.,
         //
-        //      outer.Join(inner, o => new Foo { X = o.ID }, i => new Foo { Y = i.ID }, ...
+        //      outer.Join(inner, o => new Xyz { X = o.ID }, i => new Xyz { Y = i.ID }, ...
         //
-        // since this introduces a discrepancy between the CLR (where comparisons between Foo are aware
+        // since this introduces a discrepancy between the CLR (where comparisons between Xyz are aware
         // of both X and Y) and in ELinq (where comparisons are based on the row structure only), resulting
         // in the following join predicates:
         //
-        //      Linq: foo1 == foo2 (which presumably amounts to foo1.X == foo2.X && foo1.Y == foo2.Y
-        //      ELinq: foo1.X == foo2.Y
+        //      Linq: xyz1 == xyz2 (which presumably amounts to xyz1.X == xyz2.X && xyz1.Y == xyz2.Y
+        //      ELinq: xyz1.X == xyz2.Y
         //
         // Similar problems occur with set operations such as Union and Concat, where one of the initialization
         // patterns may be ignored.
@@ -371,17 +367,17 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
         #region Span Mapping maintenance methods
 
-        /// <summary>
-        /// Adds a new mapping from DbExpression => Span information for the specified expression,
-        /// after first ensuring that the mapping dictionary has been instantiated.
-        /// </summary>
-        /// <param name="expression"> The expression for which Span information should be added </param>
-        /// <param name="span">
-        /// The Span information, which may be <c>null</c> . If <c>null</c> , no attempt is made to update the dictionary of span mappings.
-        /// </param>
-        /// <returns>
-        /// The original <paramref name="expression" /> argument, to allow <c>return AddSpanMapping(expression, span)</c> scenarios
-        /// </returns>
+        // <summary>
+        // Adds a new mapping from DbExpression => Span information for the specified expression,
+        // after first ensuring that the mapping dictionary has been instantiated.
+        // </summary>
+        // <param name="expression"> The expression for which Span information should be added </param>
+        // <param name="span">
+        // The Span information, which may be <c>null</c> . If <c>null</c> , no attempt is made to update the dictionary of span mappings.
+        // </param>
+        // <returns>
+        // The original <paramref name="expression" /> argument, to allow <c>return AddSpanMapping(expression, span)</c> scenarios
+        // </returns>
         private DbExpression AddSpanMapping(DbExpression expression, Span span)
         {
             if (span != null
@@ -409,14 +405,14 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return expression;
         }
 
-        /// <summary>
-        /// Attempts to retrieve Span information for the specified DbExpression.
-        /// </summary>
-        /// <param name="expression"> The expression for which Span information should be retrieved. </param>
-        /// <param name="span"> Will contain the Span information for the specified expression if it is present in the Span mapping dictionary. </param>
-        /// <returns>
-        /// <c>true</c> if Span information was retrieved for the specified expression and <paramref name="span" /> now contains this information; otherwise <c>false</c> .
-        /// </returns>
+        // <summary>
+        // Attempts to retrieve Span information for the specified DbExpression.
+        // </summary>
+        // <param name="expression"> The expression for which Span information should be retrieved. </param>
+        // <param name="span"> Will contain the Span information for the specified expression if it is present in the Span mapping dictionary. </param>
+        // <returns>
+        // <c>true</c> if Span information was retrieved for the specified expression and <paramref name="span" /> now contains this information; otherwise <c>false</c> .
+        // </returns>
         private bool TryGetSpan(DbExpression expression, out Span span)
         {
             if (_spanMappings != null)
@@ -428,15 +424,15 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return false;
         }
 
-        /// <summary>
-        /// Removes the Span mapping entry for the specified <paramref name="from" /> expression,
-        /// and creates a new entry for the specified <paramref name="to" /> expression that maps
-        /// to the <paramref name="from" /> expression's original Span information. If no Span
-        /// information is present for the specified <paramref name="from" /> expression then no
-        /// changes are made to the Span mapping dictionary.
-        /// </summary>
-        /// <param name="from"> The expression from which to take Span information </param>
-        /// <param name="to"> The expression to which the Span information should be applied </param>
+        // <summary>
+        // Removes the Span mapping entry for the specified <paramref name="from" /> expression,
+        // and creates a new entry for the specified <paramref name="to" /> expression that maps
+        // to the <paramref name="from" /> expression's original Span information. If no Span
+        // information is present for the specified <paramref name="from" /> expression then no
+        // changes are made to the Span mapping dictionary.
+        // </summary>
+        // <param name="from"> The expression from which to take Span information </param>
+        // <param name="to"> The expression to which the Span information should be applied </param>
         private void ApplySpanMapping(DbExpression from, DbExpression to)
         {
             Span argumentSpan;
@@ -446,23 +442,23 @@ namespace System.Data.Entity.Core.Objects.ELinq
             }
         }
 
-        /// <summary>
-        /// Unifies the Span information from the specified <paramref name="left" /> and <paramref name="right" />
-        /// expressions, and applies it to the specified <paramref name="to" /> expression. Unification proceeds
-        /// as follows:
-        /// - If neither <paramref name="left" /> nor <paramref name="right" /> have Span information, no changes are made
-        /// - If one of <paramref name="left" /> or <paramref name="right" /> has Span information, that single Span information
-        /// entry is removed from the Span mapping dictionary and used to create a new entry that maps from the
-        /// <paramref
-        ///     name="to" />
-        /// expression to the Span information.
-        /// - If both <paramref name="left" /> and <paramref name="right" /> have Span information, both entries are removed
-        /// from the Span mapping dictionary, a new Span is created that contains the union of the original Spans, and
-        /// a new entry is added to the dictionary that maps from <paramref name="to" /> expression to this new Span.
-        /// </summary>
-        /// <param name="left"> The first expression argument </param>
-        /// <param name="right"> The second expression argument </param>
-        /// <param name="to"> The result expression </param>
+        // <summary>
+        // Unifies the Span information from the specified <paramref name="left" /> and <paramref name="right" />
+        // expressions, and applies it to the specified <paramref name="to" /> expression. Unification proceeds
+        // as follows:
+        // - If neither <paramref name="left" /> nor <paramref name="right" /> have Span information, no changes are made
+        // - If one of <paramref name="left" /> or <paramref name="right" /> has Span information, that single Span information
+        // entry is removed from the Span mapping dictionary and used to create a new entry that maps from the
+        // <paramref
+        //     name="to" />
+        // expression to the Span information.
+        // - If both <paramref name="left" /> and <paramref name="right" /> have Span information, both entries are removed
+        // from the Span mapping dictionary, a new Span is created that contains the union of the original Spans, and
+        // a new entry is added to the dictionary that maps from <paramref name="to" /> expression to this new Span.
+        // </summary>
+        // <param name="left"> The first expression argument </param>
+        // <param name="right"> The second expression argument </param>
+        // <param name="to"> The result expression </param>
         private void UnifySpanMappings(DbExpression left, DbExpression right, DbExpression to)
         {
             Span leftSpan = null;
@@ -565,10 +561,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return retExpr;
         }
 
-        /// <summary>
-        /// Gets the target type for a CQT cast operation.
-        /// </summary>
-        /// <returns> Appropriate type usage, or null if this is a "no-op" </returns>
+        // <summary>
+        // Gets the target type for a CQT cast operation.
+        // </summary>
+        // <returns> Appropriate type usage, or null if this is a "no-op" </returns>
         private TypeUsage GetCastTargetType(TypeUsage fromType, Type toClrType, Type fromClrType, bool preserveCastForDateTime)
         {
             // An IQueryable can report its type as ObjectQuery, IQueryable, or IOrderedQueryable depending on how the type and
@@ -576,8 +572,8 @@ namespace System.Data.Entity.Core.Objects.ELinq
             // happened and checking for something other than ObjectQuery has already been done. Therefore, from a CQT translation
             // perspective we can treat all these types as the same and this therefore becomes a no-op.
             if (fromClrType != null
-                && fromClrType.IsGenericType
-                && toClrType.IsGenericType
+                && fromClrType.IsGenericType()
+                && toClrType.IsGenericType()
                 && (fromClrType.GetGenericTypeDefinition() == typeof(ObjectQuery<>)
                     || fromClrType.GetGenericTypeDefinition() == typeof(IQueryable<>)
                     || fromClrType.GetGenericTypeDefinition() == typeof(IOrderedQueryable<>))
@@ -585,6 +581,14 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     || toClrType.GetGenericTypeDefinition() == typeof(IQueryable<>)
                     || toClrType.GetGenericTypeDefinition() == typeof(IOrderedQueryable<>))
                 && fromClrType.GetGenericArguments()[0] == toClrType.GetGenericArguments()[0])
+            {
+                return null;
+            }
+
+            //ignore System.Enum
+            if (fromClrType != null
+                && TypeSystem.GetNonNullableType(fromClrType).IsEnum
+                && toClrType == typeof(Enum))
             {
                 return null;
             }
@@ -604,10 +608,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return toType;
         }
 
-        /// <summary>
-        /// Check that the given cast specification is supported and if necessary adjust target type (for instance
-        /// add precision and scale for Integral -> Decimal casts)
-        /// </summary>
+        // <summary>
+        // Check that the given cast specification is supported and if necessary adjust target type (for instance
+        // add precision and scale for Integral -> Decimal casts)
+        // </summary>
         private static TypeUsage ValidateAndAdjustCastTypes(TypeUsage toType, TypeUsage fromType, Type toClrType, Type fromClrType)
         {
             // only support primitives if real casting is involved
@@ -642,11 +646,11 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return toType;
         }
 
-        /// <summary>
-        /// Determines if an instance of fromType can be assigned to an instance of toType using
-        /// CLR semantics. in case of primitive type, it must rely on identity since unboxing primitive requires
-        /// exact match. for nominal types, rely on subtyping.
-        /// </summary>
+        // <summary>
+        // Determines if an instance of fromType can be assigned to an instance of toType using
+        // CLR semantics. in case of primitive type, it must rely on identity since unboxing primitive requires
+        // exact match. for nominal types, rely on subtyping.
+        // </summary>
         private static bool CanOmitCast(TypeUsage fromType, TypeUsage toType, bool preserveCastForDateTime)
         {
             var isPrimitiveType = TypeSemantics.IsPrimitiveType(fromType);
@@ -677,13 +681,13 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return TypeSemantics.IsSubTypeOf(fromType, toType);
         }
 
-        /// <summary>
-        /// Gets the target type for an Is or As expression.
-        /// </summary>
-        /// <param name="operationType"> Type of operation; used in error reporting. </param>
-        /// <param name="toClrType"> Test or return type. </param>
-        /// <param name="fromClrType"> Input type in CLR metadata. </param>
-        /// <returns> Appropriate target type usage. </returns>
+        // <summary>
+        // Gets the target type for an Is or As expression.
+        // </summary>
+        // <param name="operationType"> Type of operation; used in error reporting. </param>
+        // <param name="toClrType"> Test or return type. </param>
+        // <param name="fromClrType"> Input type in CLR metadata. </param>
+        // <returns> Appropriate target type usage. </returns>
         private TypeUsage GetIsOrAsTargetType(ExpressionType operationType, Type toClrType, Type fromClrType)
         {
             Debug.Assert(operationType == ExpressionType.TypeAs || operationType == ExpressionType.TypeIs);
@@ -963,6 +967,28 @@ namespace System.Data.Entity.Core.Objects.ELinq
             {
                 return GetLambdaExpression(((UnaryExpression)argument).Operand);
             }
+            else if (ExpressionType.Call 
+                     == argument.NodeType)
+            {
+                if (typeof(Expression).IsAssignableFrom(argument.Type))
+                {
+                    var expressionMethod = Expression.Lambda<Func<Expression>>(argument).Compile();
+
+                    return GetLambdaExpression(
+                        expressionMethod.Invoke());
+                }
+            } 
+            else if (ExpressionType.Invoke
+                     == argument.NodeType)
+            {
+                if (typeof(Expression).IsAssignableFrom(argument.Type))
+                {
+                    var expressionMethod = Expression.Lambda<Func<Expression>>(argument).Compile();
+
+                    return GetLambdaExpression(
+                        expressionMethod.Invoke());
+                }
+            }
 
             throw new InvalidOperationException(
                 Strings.ADP_InternalProviderError((int)EntityUtil.InternalErrorCode.UnexpectedLinqLambdaExpressionFormat));
@@ -1099,7 +1125,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
             // Enum types are only supported for EDM V3 and higher, do not force loading
             // enum types for previous versions of EDM
-            if (nonNullableType.IsEnum && this.EdmItemCollection.EdmVersion < XmlConstants.EdmVersionForV3)
+            if (nonNullableType.IsEnum() && this.EdmItemCollection.EdmVersion < XmlConstants.EdmVersionForV3)
             {
                 nonNullableType = nonNullableType.GetEnumUnderlyingType();
             }
@@ -1134,7 +1160,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 // Note that if the underlying type is not any of the EF primitive types we will fail with and InvalidCastException.
                 // This is consistent with what we would do when seeing a cast to a primitive type that is not a EF valid primitive 
                 // type (e.g. ulong).
-                if (nonNullableType.IsEnum
+                if (nonNullableType.IsEnum()
                     && ClrProviderManifest.TryGetPrimitiveTypeKind(nonNullableType.GetEnumUnderlyingType(), out primitiveTypeKind))
                 {
                     type = EdmProviderManifest.Instance.GetCanonicalModelTypeUsage(primitiveTypeKind);
@@ -1144,12 +1170,12 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return type != null;
         }
 
-        /// <summary>
-        /// Utility method validating type for comparison ops (isNull, equals, etc.).
-        /// Only primitive types, entity types, and simple row types (no IGrouping/EntityCollection) are
-        /// supported.
-        /// </summary>
-        private static void VerifyTypeSupportedForComparison(Type clrType, TypeUsage edmType, Stack<EdmMember> memberPath)
+        // <summary>
+        // Utility method validating type for comparison ops (isNull, equals, etc.).
+        // Only primitive types, entity types, and simple row types (no IGrouping/EntityCollection) are
+        // supported.
+        // </summary>
+        private static void VerifyTypeSupportedForComparison(Type clrType, TypeUsage edmType, Stack<EdmMember> memberPath, bool isNullComparison)
         {
             // NOTE: due to bug in null handling for complex types, complex types are currently not supported
             // for comparisons (see SQL BU 543956)
@@ -1160,6 +1186,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 case BuiltInTypeKind.EntityType:
                 case BuiltInTypeKind.RefType:
                     return;
+
                 case BuiltInTypeKind.RowType:
                     {
                         InitializerMetadata initializerMetadata;
@@ -1169,7 +1196,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
                             ||
                             initializerMetadata.Kind == InitializerMetadataKind.ProjectionNew)
                         {
-                            VerifyRowTypeSupportedForComparison(clrType, (RowType)edmType.EdmType, memberPath);
+                            if (!isNullComparison)
+                            {
+                                VerifyRowTypeSupportedForComparison(clrType, (RowType)edmType.EdmType, memberPath, isNullComparison);
+                            }
                             return;
                         }
                         break;
@@ -1177,6 +1207,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
                 default:
                     break;
             }
+
             if (null == memberPath)
             {
                 throw new NotSupportedException(Strings.ELinq_UnsupportedComparison(DescribeClrType(clrType)));
@@ -1194,7 +1225,7 @@ namespace System.Data.Entity.Core.Objects.ELinq
             }
         }
 
-        private static void VerifyRowTypeSupportedForComparison(Type clrType, RowType rowType, Stack<EdmMember> memberPath)
+        private static void VerifyRowTypeSupportedForComparison(Type clrType, RowType rowType, Stack<EdmMember> memberPath, bool isNullComparison)
         {
             foreach (EdmMember member in rowType.Properties)
             {
@@ -1203,14 +1234,14 @@ namespace System.Data.Entity.Core.Objects.ELinq
                     memberPath = new Stack<EdmMember>();
                 }
                 memberPath.Push(member);
-                VerifyTypeSupportedForComparison(clrType, member.TypeUsage, memberPath);
+                VerifyTypeSupportedForComparison(clrType, member.TypeUsage, memberPath, isNullComparison);
                 memberPath.Pop();
             }
         }
 
-        /// <summary>
-        /// Describe type for exception message.
-        /// </summary>
+        // <summary>
+        // Describe type for exception message.
+        // </summary>
         internal static string DescribeClrType(Type clrType)
         {
             // Yes, this is a heuristic... just a best effort way of getting
@@ -1239,24 +1270,24 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return typeName.Contains("_") && typeName.Contains("$") && typeName.Contains(pattern);
         }
 
-        /// <summary>
-        /// Creates an implementation of IsNull. Throws exception when operand type is not supported.
-        /// </summary>
+        // <summary>
+        // Creates an implementation of IsNull. Throws exception when operand type is not supported.
+        // </summary>
         private static DbExpression CreateIsNullExpression(DbExpression operand, Type operandClrType)
         {
-            VerifyTypeSupportedForComparison(operandClrType, operand.ResultType, null);
+            VerifyTypeSupportedForComparison(operandClrType, operand.ResultType, null, true);
             return operand.IsNull();
         }
 
-        /// <summary>
-        /// Creates an implementation of equals using the given pattern. Throws exception when argument types
-        /// are not supported for equals comparison.
-        /// </summary>
+        // <summary>
+        // Creates an implementation of equals using the given pattern. Throws exception when argument types
+        // are not supported for equals comparison.
+        // </summary>
         private DbExpression CreateEqualsExpression(
             DbExpression left, DbExpression right, EqualsPattern pattern, Type leftClrType, Type rightClrType)
         {
-            VerifyTypeSupportedForComparison(leftClrType, left.ResultType, null);
-            VerifyTypeSupportedForComparison(rightClrType, right.ResultType, null);
+            VerifyTypeSupportedForComparison(leftClrType, left.ResultType, null, false);
+            VerifyTypeSupportedForComparison(rightClrType, right.ResultType, null, false);
 
             //For Ref Type comparison, check whether they refer to compatible Entity Types.
             var leftType = left.ResultType;
@@ -1281,13 +1312,12 @@ namespace System.Data.Entity.Core.Objects.ELinq
         {
             // check if either side is an initializer type
             var leftType = left.ResultType.EdmType as RowType;
-            var rightType = left.ResultType.EdmType as RowType;
+            var rightType = right.ResultType.EdmType as RowType;
 
             if (null != leftType
                 || null != rightType)
             {
-                if ((null != leftType && null != rightType)
-                    && leftType.EdmEquals(rightType))
+                if (null != leftType && null != rightType)
                 {
                     DbExpression shreddedEquals = null;
                     // if the types are the same, use struct equivalence semantics
@@ -1319,7 +1349,10 @@ namespace System.Data.Entity.Core.Objects.ELinq
             }
             else
             {
-                return ImplementEquality(left, right, pattern);
+                return
+                    _funcletizer.RootContext.ContextOptions.UseCSharpNullComparisonBehavior
+                        ? ImplementEquality(left, right, EqualsPattern.Store)
+                        : ImplementEquality(left, right, pattern);
             }
         }
 
@@ -1424,23 +1457,21 @@ namespace System.Data.Entity.Core.Objects.ELinq
 
         #region Helper Methods Shared by Translators
 
-        /// <summary>
-        /// Helper method for String.StartsWith, String.EndsWith and String.Contains
-        /// object.Method(argument), where Method is one of String.StartsWith, String.EndsWith or
-        /// String.Contains is translated into:
-        /// 1) If argument is a constant or parameter and the provider supports escaping:
-        /// object like ("%") + argument1 + ("%"), where argument1 is argument escaped by the provider
-        /// and ("%") are appended on the begining/end depending on whether
-        /// insertPercentAtStart/insertPercentAtEnd are specified
-        /// 2) Otherwise:
-        /// object.Method(argument) ->  defaultTranslator
-        /// </summary>
-        /// <param name="call"> </param>
-        /// <param name="insertPercentAtStart"> Should '%' be inserted at the begining of the pattern </param>
-        /// <param name="insertPercentAtEnd"> Should '%' be inserted at the end of the pattern </param>
-        /// <param name="defaultTranslator"> The delegate that provides the default translation </param>
-        /// <returns> The translation </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Helper method for String.StartsWith, String.EndsWith and String.Contains
+        // object.Method(argument), where Method is one of String.StartsWith, String.EndsWith or
+        // String.Contains is translated into:
+        // 1) If argument is a constant or parameter and the provider supports escaping:
+        // object like ("%") + argument1 + ("%"), where argument1 is argument escaped by the provider
+        // and ("%") are appended on the begining/end depending on whether
+        // insertPercentAtStart/insertPercentAtEnd are specified
+        // 2) Otherwise:
+        // object.Method(argument) ->  defaultTranslator
+        // </summary>
+        // <param name="insertPercentAtStart"> Should '%' be inserted at the begining of the pattern </param>
+        // <param name="insertPercentAtEnd"> Should '%' be inserted at the end of the pattern </param>
+        // <param name="defaultTranslator"> The delegate that provides the default translation </param>
+        // <returns> The translation </returns>
         private DbExpression TranslateFunctionIntoLike(
             MethodCallExpression call, bool insertPercentAtStart, bool insertPercentAtEnd,
             Func<ExpressionConverter, MethodCallExpression, DbExpression, DbExpression, DbExpression> defaultTranslator)
@@ -1503,11 +1534,11 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return result;
         }
 
-        /// <summary>
-        /// Prepare the given input patternValue into a pattern to be used in a LIKE expression by
-        /// first escaping it by the provider and then appending "%" and the beginging/end depending
-        /// on whether insertPercentAtStart/insertPercentAtEnd is specified.
-        /// </summary>
+        // <summary>
+        // Prepare the given input patternValue into a pattern to be used in a LIKE expression by
+        // first escaping it by the provider and then appending "%" and the beginging/end depending
+        // on whether insertPercentAtStart/insertPercentAtEnd is specified.
+        // </summary>
         private string PreparePattern(string patternValue, bool insertPercentAtStart, bool insertPercentAtEnd, out bool specifyEscape)
         {
             // Dev10 #800466: The pattern value if originating from a parameter value could be null
@@ -1540,14 +1571,12 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return patternBuilder.ToString();
         }
 
-        /// <summary>
-        /// Translates the arguments into DbExpressions
-        /// and creates a canonical function with the given functionName and these arguments
-        /// </summary>
-        /// <param name="functionName"> Should represent a non-aggregate canonical function </param>
-        /// <param name="Expression"> Passed only for error handling purposes </param>
-        /// <param name="linqArguments"> </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Translates the arguments into DbExpressions
+        // and creates a canonical function with the given functionName and these arguments
+        // </summary>
+        // <param name="functionName"> Should represent a non-aggregate canonical function </param>
+        // <param name="Expression"> Passed only for error handling purposes </param>
         private DbFunctionExpression TranslateIntoCanonicalFunction(
             string functionName, Expression Expression, params Expression[] linqArguments)
         {
@@ -1559,13 +1588,11 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return CreateCanonicalFunction(functionName, Expression, translatedArguments);
         }
 
-        /// <summary>
-        /// Creates a canonical function with the given name and the given arguments
-        /// </summary>
-        /// <param name="functionName"> Should represent a non-aggregate canonical function </param>
-        /// <param name="Expression"> Passed only for error handling purposes </param>
-        /// <param name="translatedArguments"> </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Creates a canonical function with the given name and the given arguments
+        // </summary>
+        // <param name="functionName"> Should represent a non-aggregate canonical function </param>
+        // <param name="Expression"> Passed only for error handling purposes </param>
         private DbFunctionExpression CreateCanonicalFunction(
             string functionName, Expression Expression, params DbExpression[] translatedArguments)
         {
@@ -1578,18 +1605,18 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return function.Invoke(translatedArguments);
         }
 
-        /// <summary>
-        /// Finds a canonical function with the given functionName and argumentTypes
-        /// </summary>
+        // <summary>
+        // Finds a canonical function with the given functionName and argumentTypes
+        // </summary>
         private EdmFunction FindCanonicalFunction(
             string functionName, IList<TypeUsage> argumentTypes, bool isGroupAggregateFunction, Expression Expression)
         {
             return FindFunction(EdmNamespaceName, functionName, argumentTypes, isGroupAggregateFunction, Expression);
         }
 
-        /// <summary>
-        /// Finds a function with the given namespaceName, functionName and argumentTypes
-        /// </summary>
+        // <summary>
+        // Finds a function with the given namespaceName, functionName and argumentTypes
+        // </summary>
         private EdmFunction FindFunction(
             string namespaceName, string functionName, IList<TypeUsage> argumentTypes, bool isGroupAggregateFunction, Expression Expression)
         {
@@ -1612,9 +1639,9 @@ namespace System.Data.Entity.Core.Objects.ELinq
             return function;
         }
 
-        /// <summary>
-        /// Helper method for FindFunction
-        /// </summary>
+        // <summary>
+        // Helper method for FindFunction
+        // </summary>
         private static void ThrowUnresolvableFunction(Expression Expression)
         {
             if (Expression.NodeType
@@ -1634,9 +1661,9 @@ namespace System.Data.Entity.Core.Objects.ELinq
             throw new NotSupportedException(Strings.ELinq_UnresolvableFunctionForExpression(Expression.NodeType));
         }
 
-        /// <summary>
-        /// Helper method for FindCanonicalFunction
-        /// </summary>
+        // <summary>
+        // Helper method for FindCanonicalFunction
+        // </summary>
         private static void ThrowUnresolvableFunctionOverload(Expression Expression, bool isAmbiguous)
         {
             if (Expression.NodeType

@@ -3,10 +3,11 @@
 namespace System.Data.Entity.Infrastructure
 {
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.Utilities;
-    using System.Diagnostics.CodeAnalysis;
+    using System.Linq;
 
     /// <summary>
     /// Represents an Entity Data Model (EDM) created by the <see cref="DbModelBuilder" />.
@@ -14,14 +15,16 @@ namespace System.Data.Entity.Infrastructure
     /// which is a compiled snapshot of the model suitable for caching and creation of
     /// <see cref="DbContext" /> or <see cref="T:System.Data.Objects.ObjectContext" /> instances.
     /// </summary>
+#pragma warning disable 618
     public class DbModel : IEdmModelAdapter
+#pragma warning restore 618
     {
         private readonly DbDatabaseMapping _databaseMapping;
         private readonly DbModelBuilder _cachedModelBuilder;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DbModel" /> class.
-        /// </summary>
+        // <summary>
+        // Initializes a new instance of the <see cref="DbModel" /> class.
+        // </summary>
         internal DbModel(DbDatabaseMapping databaseMapping, DbModelBuilder modelBuilder)
         {
             DebugCheck.NotNull(databaseMapping);
@@ -41,9 +44,9 @@ namespace System.Data.Entity.Infrastructure
                 EdmModel.CreateStoreModel(providerInfo, providerManifest));
         }
 
-        /// <summary>
-        /// For test purpose only.
-        /// </summary>
+        // <summary>
+        // For test purpose only.
+        // </summary>
         internal DbModel(EdmModel conceptualModel, EdmModel storeModel)
         {
             _databaseMapping = new DbDatabaseMapping { Model = conceptualModel, Database = storeModel };
@@ -54,7 +57,7 @@ namespace System.Data.Entity.Infrastructure
         /// </summary>
         public DbProviderInfo ProviderInfo
         {
-            get { return ((IEdmModelAdapter)this).StoreModel.ProviderInfo; }
+            get { return StoreModel.ProviderInfo; }
         }
 
         /// <summary>
@@ -62,24 +65,36 @@ namespace System.Data.Entity.Infrastructure
         /// </summary>
         public DbProviderManifest ProviderManifest
         {
-            get { return ((IEdmModelAdapter)this).StoreModel.ProviderManifest; }
+            get { return StoreModel.ProviderManifest; }
         }
 
-        [SuppressMessage("Microsoft.Design", "CA1033:InterfaceMethodsShouldBeCallableByChildTypes")]
-        EdmModel IEdmModelAdapter.ConceptualModel
+        /// <summary>
+        /// Gets the conceptual model.
+        /// </summary>
+        public EdmModel ConceptualModel
         {
             get { return _databaseMapping.Model; }
         }
 
-        [SuppressMessage("Microsoft.Design", "CA1033:InterfaceMethodsShouldBeCallableByChildTypes")]
-        EdmModel IEdmModelAdapter.StoreModel
+        /// <summary>
+        /// Gets the store model.
+        /// </summary>
+        public EdmModel StoreModel
         {
             get { return _databaseMapping.Database; }
         }
 
         /// <summary>
-        /// A snapshot of the <see cref="DbModelBuilder" /> that was used to create this compiled model.
+        /// Gets the mapping model.
         /// </summary>
+        public EntityContainerMapping ConceptualToStoreMapping
+        {
+            get { return _databaseMapping.EntityContainerMappings.SingleOrDefault(); }
+        }
+
+        // <summary>
+        // A snapshot of the <see cref="DbModelBuilder" /> that was used to create this compiled model.
+        // </summary>
         internal DbModelBuilder CachedModelBuilder
         {
             get { return _cachedModelBuilder; }

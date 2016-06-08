@@ -4,6 +4,7 @@ namespace System.Data.Entity.ModelConfiguration
 {
     using System.Collections.Generic;
     using System.ComponentModel;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.ModelConfiguration.Configuration;
     using System.Data.Entity.ModelConfiguration.Configuration.Properties.Primitive;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
@@ -18,6 +19,7 @@ namespace System.Data.Entity.ModelConfiguration
     /// <see cref="DbModelBuilder" /> or a custom type derived from EntityTypeConfiguration
     /// can be registered via the Configurations property on <see cref="DbModelBuilder" />.
     /// </summary>
+    /// <typeparam name="TEntityType">The entity type being configured.</typeparam>
     public class EntityTypeConfiguration<TEntityType> : StructuralTypeConfiguration<TEntityType>
         where TEntityType : class
     {
@@ -91,6 +93,7 @@ namespace System.Data.Entity.ModelConfiguration
         /// </summary>
         /// <typeparam name="TProperty"> The type of the property to be ignored. </typeparam>
         /// <param name="propertyExpression"> A lambda expression representing the property to be configured. C#: t => t.MyProperty VB.Net: Function(t) t.MyProperty </param>
+        /// <returns> The same EntityTypeConfiguration instance so that multiple calls can be chained. </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         [SuppressMessage("Microsoft.Design", "CA1011:ConsiderPassingBaseTypesAsParameters")]
         public EntityTypeConfiguration<TEntityType> Ignore<TProperty>(Expression<Func<TEntityType, TProperty>> propertyExpression)
@@ -108,6 +111,7 @@ namespace System.Data.Entity.ModelConfiguration
         /// Configures the table name that this entity type is mapped to.
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
+        /// <returns> The same EntityTypeConfiguration instance so that multiple calls can be chained. </returns>
         public EntityTypeConfiguration<TEntityType> ToTable(string tableName)
         {
             Check.NotEmpty(tableName, "tableName");
@@ -124,11 +128,34 @@ namespace System.Data.Entity.ModelConfiguration
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
         /// <param name="schemaName"> The database schema of the table. </param>
+        /// <returns> The same EntityTypeConfiguration instance so that multiple calls can be chained. </returns>
         public EntityTypeConfiguration<TEntityType> ToTable(string tableName, string schemaName)
         {
             Check.NotEmpty(tableName, "tableName");
 
             _entityTypeConfiguration.ToTable(tableName, schemaName);
+
+            return this;
+        }
+
+        /// <summary>
+        /// Sets an annotation in the model for the table to which this entity is mapped. The annotation
+        /// value can later be used when processing the table such as when creating migrations.
+        /// </summary>
+        /// <remarks>
+        /// It will likely be necessary to register a <see cref="IMetadataAnnotationSerializer"/> if the type of
+        /// the annotation value is anything other than a string. Passing a null value clears any annotation with
+        /// the given name on the column that had been previously set.
+        /// </remarks>
+        /// <param name="name">The annotation name, which must be a valid C#/EDM identifier.</param>
+        /// <param name="value">The annotation value, which may be a string or some other type that
+        /// can be serialized with an <see cref="IMetadataAnnotationSerializer"/></param>.
+        /// <returns>The same configuration instance so that multiple calls can be chained.</returns>
+        public EntityTypeConfiguration<TEntityType> HasTableAnnotation(string name, object value)
+        {
+            Check.NotEmpty(name, "name");
+
+            _entityTypeConfiguration.SetAnnotation(name, value);
 
             return this;
         }
