@@ -1,12 +1,12 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.SqlServer
 {
     using System.Data.SqlClient;
 
-    /// <summary>
-    /// Detects the exceptions caused by SQL Azure transient failures.
-    /// </summary>
+    // <summary>
+    // Detects the exceptions caused by SQL Azure transient failures.
+    // </summary>
     internal static class SqlAzureRetriableExceptionDetector
     {
         public static bool ShouldRetryOn(Exception ex)
@@ -19,6 +19,19 @@ namespace System.Data.Entity.SqlServer
                 {
                     switch (err.Number)
                     {
+                            // SQL Error Code: 41325
+                            // The current transaction failed to commit due to a serializable validation failure.
+                        case 41325:
+                            // SQL Error Code: 41305
+                            // The current transaction failed to commit due to a repeatable read validation failure.
+                        case 41305:
+                            // SQL Error Code: 41302
+                            // The current transaction attempted to update a record that has been updated since the transaction started.
+                        case 41302:
+                            // SQL Error Code: 41301
+                            // A previous transaction that the current transaction took a dependency on has aborted,
+                            // and the current transaction can no longer commit
+                        case 41301:
                             // SQL Error Code: 40613
                             // Database XXXX on server YYYY is not currently available. Please retry the connection later.
                             // If the problem persists, contact customer support, and provide them the session tracing ID of ZZZZZ.

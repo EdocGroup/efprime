@@ -41,6 +41,13 @@ namespace System.Data.Entity.Core.Objects
         }
 
         [Fact]
+        public void MethodInfo_fields_are_initialized()
+        {
+            Assert.NotNull(ObjectQuery<int>.IncludeSpanMethod);
+            Assert.NotNull(ObjectQuery<string>.MergeAsMethod);
+        }
+
+        [Fact]
         public void GetEnumerator_calls_Shaper_GetEnumerator_lazily()
         {
             GetEnumerator_calls_Shaper_GetEnumerator_lazily_implementation(q => ((IEnumerable<object>)q).GetEnumerator());
@@ -180,7 +187,7 @@ namespace System.Data.Entity.Core.Objects
             var executionPlanMock = Mock.Get(objectQuery.QueryState.GetExecutionPlan(MergeOption.AppendOnly));
 
             var executionStrategyMock = new Mock<IDbExecutionStrategy>();
-            var objectContextMock = Mock.Get((ObjectContextForMock)objectQuery.QueryState.ObjectContext);
+            var objectContextMock = Mock.Get(objectQuery.QueryState.ObjectContext);
 
             // Verify that ExecuteInTransaction calls ObjectQueryExecutionPlan.Execute
             if (async)
@@ -301,5 +308,35 @@ namespace System.Data.Entity.Core.Objects
                 executionStrategyMock.Verify(m => m.Execute(It.IsAny<Func<ObjectResult<object>>>()), Times.Once());
             }
         }
+
+#if !NET40
+
+        [Fact]
+        public void Non_generic_ObjectQuery_ExecuteAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var objectQuery = new Mock<ObjectQuery>{ CallBase = true }.Object;
+
+            Assert.Throws<OperationCanceledException>(
+                () => objectQuery.ExecuteAsync(0, new CancellationToken(canceled: true))
+                    .GetAwaiter().GetResult());
+        }
+
+        [Fact]
+        public void Generic_ObjectQuery_ExecuteAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            Assert.Throws<OperationCanceledException>(
+                () => new ObjectQuery<int>().ExecuteAsync(MergeOption.NoTracking, new CancellationToken(canceled: true))
+                    .GetAwaiter().GetResult());
+        }
+
+        [Fact]
+        public void Generic_ObjectQuery_ExecuteInternalAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            Assert.Throws<OperationCanceledException>(
+                () => new ObjectQuery<int>().ExecuteInternalAsync(MergeOption.NoTracking, new CancellationToken(canceled: true))
+                    .GetAwaiter().GetResult());
+        }
+
+#endif
     }
 }

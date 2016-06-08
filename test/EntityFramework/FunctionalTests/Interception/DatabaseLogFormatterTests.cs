@@ -4,11 +4,11 @@ namespace System.Data.Entity.Interception
 {
     using System.Data.Common;
     using System.Data.Entity.Infrastructure.Interception;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.Globalization;
     using System.IO;
     using System.Linq;
-    using System.Threading;
     using Xunit;
 
     internal static partial class TestHelper
@@ -38,6 +38,7 @@ namespace System.Data.Entity.Interception
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Simple_query_and_update_commands_can_be_logged()
         {
             var log = new StringWriter();
@@ -55,13 +56,18 @@ namespace System.Data.Entity.Interception
             const int asyncCount = 0;
             const int paramCount = 2;
             const int imALoggerCount = 0;
+            const int transactionCount = 1;
+            const int connectionCount = 3;
 #else
             const int selectCount = 5;
             const int updateCount = 1;
             const int asyncCount = 2;
             const int paramCount = 4;
             const int imALoggerCount = 1;
+            const int transactionCount = 2;
+            const int connectionCount = 4;
 #endif
+
             Assert.Equal(selectCount, logLines.Count(l => l.ToUpperInvariant().StartsWith("SELECT")));
             Assert.Equal(1, logLines.Count(l => l.ToUpperInvariant().StartsWith("INSERT")));
             Assert.Equal(updateCount, logLines.Count(l => l.ToUpperInvariant().StartsWith("UPDATE")));
@@ -75,6 +81,12 @@ namespace System.Data.Entity.Interception
 
             Assert.Equal(selectCount, logLines.Count(l => _resourceVerifier.IsMatch("CommandLogComplete", l, new AnyValueParameter(), "SqlDataReader", "")));
             Assert.Equal(updateCount, logLines.Count(l => _resourceVerifier.IsMatch("CommandLogComplete", l, new AnyValueParameter(), "1", "")));
+
+            Assert.Equal(transactionCount, logLines.Count(l => _resourceVerifier.IsMatch("TransactionStartedLog", l, new AnyValueParameter(), "")));
+            Assert.Equal(transactionCount, logLines.Count(l => _resourceVerifier.IsMatch("TransactionDisposedLog", l, new AnyValueParameter(), "")));
+
+            Assert.Equal(connectionCount, logLines.Count(l => _resourceVerifier.IsMatch("ConnectionOpenedLog", l, new AnyValueParameter(), "")));
+            Assert.Equal(connectionCount, logLines.Count(l => _resourceVerifier.IsMatch("ConnectionClosedLog", l, new AnyValueParameter(), "")));
         }
 
         [Fact]
@@ -90,9 +102,33 @@ namespace System.Data.Entity.Interception
 
             var logLines = log.ToString().Split(new[] { Environment.NewLine }, StringSplitOptions.None);
 
-            Assert.Equal(5, logLines.Length);
-            Assert.Equal("select * from No.Chance", logLines[0]);
-            _resourceVerifier.VerifyMatch("CommandLogFailed", logLines[2], new AnyValueParameter(), exception.Message, "");
+            Assert.Equal(7, logLines.Length);
+            Assert.Equal("select * from No.Chance", logLines[1]);
+            _resourceVerifier.VerifyMatch("CommandLogFailed", logLines[3], new AnyValueParameter(), exception.Message, "");
+        }
+
+        [Fact]
+        public void DatabaseLogFormatter_is_disposed_even_if_the_context_is_not()
+        {
+            var log = new StringWriter();
+            var context = new BlogContextNoInit();
+
+            context.Database.Log = log.Write;
+            var weakDbContext = new WeakReference(context);
+            var weakStringWriter = new WeakReference(log);
+            log = null;
+            context = null;
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            Assert.False(weakDbContext.IsAlive);
+            DbDispatchersHelpers.AssertNoInterceptors();
+
+            // Need a second pass as the DatabaseLogFormatter is removed from the interceptors in the InternalContext finalizer
+            GC.Collect();
+
+            Assert.False(weakStringWriter.IsAlive);
         }
 
 #if !NET40
@@ -111,38 +147,10 @@ namespace System.Data.Entity.Interception
 
             var logLines = log.ToString().Split(new[] { Environment.NewLine }, StringSplitOptions.None);
 
-            Assert.Equal(5, logLines.Length);
-            Assert.Equal("select * from No.Chance", logLines[0]);
-            _resourceVerifier.VerifyMatch("CommandLogAsync", logLines[1], new AnyValueParameter(), "");
-            _resourceVerifier.VerifyMatch("CommandLogFailed", logLines[2], new AnyValueParameter(), exception.Message, "");
-        }
-
-        [Fact]
-        public void Async_commands_that_are_canceled_are_still_logged()
-        {
-            var log = new StringWriter();
-            using (var context = new BlogContextNoInit())
-            {
-                context.Database.Log = log.Write;
-
-                context.Database.Connection.Open();
-
-                var cancellation = new CancellationTokenSource();
-                cancellation.Cancel();
-                var command = context.Database.ExecuteSqlCommandAsync("update Blogs set Title = 'No' where Id = -1", cancellation.Token);
-
-                Assert.Throws<AggregateException>(() => command.Wait());
-                Assert.True(command.IsCanceled);
-
-                context.Database.Connection.Close();
-            }
-
-            var logLines = log.ToString().Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-
-            Assert.Equal(5, logLines.Length);
-            Assert.Equal("update Blogs set Title = 'No' where Id = -1", logLines[0]);
-            _resourceVerifier.VerifyMatch("CommandLogAsync", logLines[1], new AnyValueParameter(), "");
-            _resourceVerifier.VerifyMatch("CommandLogCanceled", logLines[2], new AnyValueParameter(), "");
+            Assert.Equal(7, logLines.Length);
+            Assert.Equal("select * from No.Chance", logLines[1]);
+            _resourceVerifier.VerifyMatch("CommandLogAsync", logLines[2], new AnyValueParameter(), "");
+            _resourceVerifier.VerifyMatch("CommandLogFailed", logLines[3], new AnyValueParameter(), exception.Message, "");
         }
 #endif
 
@@ -182,7 +190,6 @@ namespace System.Data.Entity.Interception
 
         public class TestDatabaseLogFormatter : DatabaseLogFormatter
         {
-
             public TestDatabaseLogFormatter(DbContext context, Action<string> writeAction)
                 : base(context, writeAction)
             {
@@ -204,6 +211,14 @@ namespace System.Data.Entity.Interception
                     string.Format(
                         CultureInfo.CurrentCulture, "Context '{0}' finished executing command{1}", Context.GetType().Name,
                         Environment.NewLine));
+            }
+
+            public override void Opened(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+            {
+            }
+
+            public override void Closed(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+            {
             }
         }
     }

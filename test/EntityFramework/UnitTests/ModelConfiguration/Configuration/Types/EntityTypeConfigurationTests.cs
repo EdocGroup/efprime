@@ -48,7 +48,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             var model = new EdmModel(DataSpace.CSpace);
 
             var entityType = model.AddEntityType("E");
-            entityType.Annotations.SetClrType(typeof(object));
+            entityType.GetMetadataProperties().SetClrType(typeof(object));
 
             model.AddEntitySet("ESet", entityType);
 
@@ -67,7 +67,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             modificationFunctionsConfigurationMock
                 .Verify(
                     m => m.Configure(
-                        It.IsAny<StorageEntityTypeModificationFunctionMapping>(), It.IsAny<DbProviderManifest>()),
+                        It.IsAny<EntityTypeModificationFunctionMapping>(), It.IsAny<DbProviderManifest>()),
                     Times.Once());
         }
 
@@ -104,10 +104,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         public void Configure_should_configure_properties()
         {
             var entityType = new EntityType("E", "N", DataSpace.CSpace);
-            var property1 = EdmProperty.CreatePrimitive("P", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
+            var property = EdmProperty.CreatePrimitive("P", PrimitiveType.GetEdmPrimitiveType(PrimitiveTypeKind.String));
 
-            entityType.AddMember(property1);
-            var property = property1;
+            entityType.AddMember(property);
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
             var mockPropertyConfiguration = new Mock<PrimitivePropertyConfiguration>();
             var mockPropertyInfo = new MockPropertyInfo();
@@ -222,7 +221,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
                                  };
             var type = typeof(string);
 
-            entityType.BaseType.Annotations.SetClrType(type);
+            entityType.BaseType.GetMetadataProperties().SetClrType(type);
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
             entityTypeConfiguration.Key(new MockPropertyInfo(typeof(int), "Id"));
 
@@ -306,29 +305,29 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
         [Fact]
         public void Key_appends_key_members_when_set_by_attributes()
         {
-            var type = new MockType()
-                .Property<int>("Key1")
-                .Property<int>("Key2");
-            var config = new EntityTypeConfiguration(type);
+            var config = new EntityTypeConfiguration(typeof(AType1));
 
-            config.Key(type.GetProperty("Key1"), null);
-            config.Key(type.GetProperty("Key2"), null);
+            config.Key(typeof(AType1).GetDeclaredProperty("Key1"), null);
+            config.Key(typeof(AType1).GetDeclaredProperty("Key2"), null);
 
             Assert.Equal(2, config.KeyProperties.Count());
             Assert.Equal("Key1", config.KeyProperties.First().Name);
             Assert.Equal("Key2", config.KeyProperties.Last().Name);
         }
 
+        public class AType1
+        {
+            public int Key1 { get; set; }
+            public int Key2 { get; set; }
+        }
+
         [Fact]
         public void Key_appends_key_members_when_not_set_by_attributes()
         {
-            var type = new MockType()
-                .Property<int>("Key1")
-                .Property<int>("Key2");
-            var config = new EntityTypeConfiguration(type);
+            var config = new EntityTypeConfiguration(typeof(AType1));
 
-            config.Key(type.GetProperty("Key1"));
-            config.Key(type.GetProperty("Key2"));
+            config.Key(typeof(AType1).GetDeclaredProperty("Key1"));
+            config.Key(typeof(AType1).GetDeclaredProperty("Key2"));
 
             Assert.Equal(2, config.KeyProperties.Count());
             Assert.Equal("Key1", config.KeyProperties.First().Name);

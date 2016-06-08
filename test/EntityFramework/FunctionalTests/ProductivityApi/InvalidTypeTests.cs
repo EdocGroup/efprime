@@ -11,6 +11,7 @@ namespace ProductivityApiTests
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects.DataClasses;
+    using System.Data.Entity.Functionals.Utilities;
     using System.Data.Entity.ModelConfiguration;
     using System.Data.Entity.ViewGeneration;
     using System.Data.SqlClient;
@@ -132,11 +133,11 @@ namespace ProductivityApiTests
             // Create a derived type in a new assembly
             var provider = new CSharpCodeProvider();
             var result = provider.CompileAssemblyFromSource(
-                new CompilerParameters(new[] { typeof(Category).Assembly.Location }),
+                new CompilerParameters(new[] { typeof(Category).Assembly().Location }),
                 "public class DerivedCategory : SimpleModel.Category { }");
 
             var derivedCategoryType = result.CompiledAssembly.GetTypes().Single();
-            var dbContextSet = typeof(DbContext).GetMethod("Set", Type.EmptyTypes);
+            var dbContextSet = typeof(DbContext).GetDeclaredMethod("Set", Type.EmptyTypes);
             var dbContextSetOfDerivedCategory = dbContextSet.MakeGenericMethod(derivedCategoryType);
 
             using (var ctx = new AdvancedPatternsMasterContext())
@@ -144,7 +145,7 @@ namespace ProductivityApiTests
                 // Create a set for the new type
                 var set = dbContextSetOfDerivedCategory.Invoke(ctx, null);
                 var iQueryableFirstOrDefault = typeof(Queryable)
-                    .GetMethods()
+                    .GetDeclaredMethods()
                     .Single(m => m.Name == "FirstOrDefault" && m.GetParameters().Count() == 1);
                 var iQueryableOfDerivedCategoryFirstOrDefault =
                     iQueryableFirstOrDefault.MakeGenericMethod(derivedCategoryType);
@@ -159,7 +160,7 @@ namespace ProductivityApiTests
                     Assert.IsType<InvalidOperationException>(ex.InnerException);
                     new StringResourceVerifier(
                         new AssemblyResourceLookup(
-                            typeof(DbModelBuilder).Assembly,
+                            typeof(DbModelBuilder).Assembly(),
                             "System.Data.Entity.Properties.Resources"))
                         .VerifyMatch(
                             "DbSet_EntityTypeNotInModel", ex.InnerException.Message,
@@ -266,9 +267,9 @@ namespace ProductivityApiTests
             var model = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo).Compile();
 
             var pocoType = assembly.Types.Single(t => t.Name == "PocoEntity");
-            var setMethod = typeof(DbContext).GetMethod("Set", Type.EmptyTypes).MakeGenericMethod(pocoType);
+            var setMethod = typeof(DbContext).GetDeclaredMethod("Set", Type.EmptyTypes).MakeGenericMethod(pocoType);
             var createMethod = typeof(DbSet<>).MakeGenericType(pocoType)
-                                              .GetMethods()
+                                              .GetDeclaredMethods()
                                               .Single(m => m.Name == "Create" && !m.IsGenericMethodDefinition);
 
             using (var context = new DbContext("MixedPocoEocoContext", model))
@@ -289,9 +290,9 @@ namespace ProductivityApiTests
             assembly.Compile(new AssemblyName("MixedPocoEocoAssembly"));
 
             var pocoType = assembly.Types.Single(t => t.Name == "PocoEntity");
-            var setMethod = typeof(DbContext).GetMethod("Set", Type.EmptyTypes).MakeGenericMethod(pocoType);
+            var setMethod = typeof(DbContext).GetDeclaredMethod("Set", Type.EmptyTypes).MakeGenericMethod(pocoType);
             var createMethod = typeof(DbSet<>).MakeGenericType(pocoType)
-                                              .GetMethods()
+                                              .GetDeclaredMethods()
                                               .Single(m => m.Name == "Create" && !m.IsGenericMethodDefinition);
 
             var edmItemCollection = new EdmItemCollection(new[] { XDocument.Parse(PregenContextEdmx.Csdl).CreateReader() });

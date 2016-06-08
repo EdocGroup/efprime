@@ -10,6 +10,21 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         private const string IsTypeConstraint = "IsTypeConstraint";
         private const string IsSplitConstraint = "IsSplitConstraint";
         private const string AssociationType = "AssociationType";
+        private const string PreferredNameAnnotation = "PreferredName";
+
+        public static string GetPreferredName(this ForeignKeyBuilder fk)
+        {
+            DebugCheck.NotNull(fk);
+
+            return (string)fk.Annotations.GetAnnotation(PreferredNameAnnotation);
+        }
+
+        public static void SetPreferredName(this ForeignKeyBuilder fk, string name)
+        {
+            DebugCheck.NotNull(fk);
+
+            fk.GetMetadataProperties().SetAnnotation(PreferredNameAnnotation, name);
+        }
 
         public static bool GetIsTypeConstraint(this ForeignKeyBuilder fk)
         {
@@ -27,14 +42,14 @@ namespace System.Data.Entity.ModelConfiguration.Edm
         {
             DebugCheck.NotNull(fk);
 
-            fk.Annotations.SetAnnotation(IsTypeConstraint, true);
+            fk.GetMetadataProperties().SetAnnotation(IsTypeConstraint, true);
         }
 
         public static void SetIsSplitConstraint(this ForeignKeyBuilder fk)
         {
             DebugCheck.NotNull(fk);
 
-            fk.Annotations.SetAnnotation(IsSplitConstraint, true);
+            fk.GetMetadataProperties().SetAnnotation(IsSplitConstraint, true);
         }
 
         public static AssociationType GetAssociationType(this ForeignKeyBuilder fk)
@@ -50,7 +65,7 @@ namespace System.Data.Entity.ModelConfiguration.Edm
             DebugCheck.NotNull(fk);
             DebugCheck.NotNull(associationType);
 
-            fk.Annotations.SetAnnotation(AssociationType, associationType);
+            fk.GetMetadataProperties().SetAnnotation(AssociationType, associationType);
         }
     }
 }

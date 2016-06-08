@@ -3,6 +3,7 @@
 namespace System.Data.Entity.Core.Common.Internal.Materialization
 {
     using System.Collections.Generic;
+    using System.Data.Common;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Internal;
@@ -594,5 +595,142 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                 spatialDataReaderMock.Verify(m => m.GetGeometry(0), Times.Once());
             }
         }
+
+        [Fact]
+        public void GetGenericTypedValueDefaultMethod_finds_method_by_Reflection()
+        {
+            Shaper.ErrorHandlingValueReader<int>.GetGenericTypedValueDefaultMethod(typeof(int));
+        }
+
+#if !NET40
+
+        [Fact]
+        public void SimpleEnumerator_MoveNextAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var coordinatorFactory = Objects.MockHelper.CreateCoordinatorFactory(s => s.Reader.GetValue(0));
+
+            var shaperMock = new Shaper<object>(
+                new Mock<DbDataReader>().Object,
+                /*context*/ null,
+                /*workspace*/ null,
+                MergeOption.AppendOnly,
+                /*stateCount*/ 1,
+                coordinatorFactory,
+                /*readerOwned*/ false,
+                /*streaming*/ false);
+
+            using (var enumerator = shaperMock.GetEnumerator())
+            {
+                Assert.Contains("SimpleEnumerator", enumerator.GetType().FullName);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => enumerator.MoveNextAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+        }
+
+        [Fact]
+        public void SimpleEnumerator_MoveNextAsync_does_not_throw_if_shaper_is_not_active_even_if_task_is_being_cancelled()
+        {
+            var coordinatorFactory = Objects.MockHelper.CreateCoordinatorFactory(s => s.Reader.GetValue(0));
+
+            var shaper = new Shaper<object>(
+                new Mock<DbDataReader>().Object,
+                /*context*/ null,
+                /*workspace*/ null,
+                MergeOption.AppendOnly,
+                /*stateCount*/ 1,
+                coordinatorFactory,
+                /*readerOwned*/ false,
+                /*streaming*/ false);
+
+            using (var enumerator = shaper.GetEnumerator())
+            {
+                Assert.Contains("SimpleEnumerator", enumerator.GetType().FullName);
+
+                enumerator.MoveNext();
+
+                Assert.False(enumerator.MoveNextAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+        }
+
+
+        [Fact]
+        public void ObjectQueryNestedEnumerator_MoveNextAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var coordinatorFactory = Objects.MockHelper.CreateCoordinatorFactory(s => s.Reader.GetValue(0), s => true);
+
+            var shaper = new Shaper<object>(
+                new Mock<DbDataReader>().Object,
+                /*context*/ null,
+                /*workspace*/ null,
+                MergeOption.AppendOnly,
+                /*stateCount*/ 1,
+                coordinatorFactory,
+                /*readerOwned*/ false,
+                /*streaming*/ false);
+
+            using (var enumerator = shaper.GetEnumerator())
+            {
+                Assert.Contains("ObjectQueryNestedEnumerator", enumerator.GetType().FullName);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => enumerator.MoveNextAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+        }
+
+        [Fact]
+        public void RecordStateEnumerator_MoveNextAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var coordinatorFactory = Objects.MockHelper.CreateCoordinatorFactory(s => (RecordState)null, s => true);
+
+            var shaper = new Shaper<RecordState>(
+                new Mock<DbDataReader>().Object,
+                /*context*/ null,
+                /*workspace*/ null,
+                MergeOption.AppendOnly,
+                /*stateCount*/ 1,
+                coordinatorFactory,
+                /*readerOwned*/ false,
+                /*streaming*/ false);
+
+
+            using (var enumerator = shaper.GetEnumerator())
+            {
+                Assert.Contains("RecordStateEnumerator", enumerator.GetType().FullName);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => enumerator.MoveNextAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+        }
+
+        [Fact]
+        public void RecordStateEnumerator_MoveNextAsync_returns_reader_consumed_even_if_task_is_being_cancelled()
+        {
+            var coordinatorFactory = Objects.MockHelper.CreateCoordinatorFactory(s => (RecordState)null, s => true);
+
+            var shaper = new Shaper<RecordState>(
+                new Mock<DbDataReader>().Object,
+                /*context*/ null,
+                /*workspace*/ null,
+                MergeOption.AppendOnly,
+                /*stateCount*/ 1,
+                coordinatorFactory,
+                /*readerOwned*/ false,
+                /*streaming*/ false);
+
+
+            using (var enumerator = shaper.GetEnumerator())
+            {
+                Assert.Contains("RecordStateEnumerator", enumerator.GetType().FullName);
+                enumerator.MoveNext();
+                Assert.False(enumerator.MoveNextAsync(new CancellationToken(canceled: true)).GetAwaiter().GetResult());
+            }
+        }
+
+#endif
     }
 }

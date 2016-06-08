@@ -173,6 +173,15 @@ namespace System.Data.Entity.Core.Objects.DataClasses
             }
 
             [Fact]
+            public void Check_does_not_throw_for_non_IEnumerable_nav_props()
+            {
+                var mockTarget = new Mock<IEntityWrapper>();
+                var collection = CreateCollectionForContains(new HashSet<object>().Select(e => e), new object(), mockTarget);
+
+                Assert.False(collection.CheckIfNavigationPropertyContainsEntity(mockTarget.Object));
+            }
+
+            [Fact]
             public void Check_returns_false_if_nav_property_does_not_contain_entity()
             {
                 var mockTarget = new Mock<IEntityWrapper>();
@@ -392,8 +401,47 @@ namespace System.Data.Entity.Core.Objects.DataClasses
                 Assert.Throws<ArgumentNullException>(
                     () => MockHelper.CreateMockEntityCollection<object>(null).Object.Remove(null));
             }
-        }
 
+            [Fact]
+            public void OperationCanceledException_thrown_before_loading_results_if_task_is_cancelled()
+            {
+                var mockEntityWrapper = new Mock<IEntityWrapper>();
+                mockEntityWrapper
+                    .Setup(w => w.Entity)
+                    .Returns(new object());
+
+                var entityCollection = 
+                    new EntityCollection<object>(
+                        mockEntityWrapper.Object, 
+                        new RelationshipNavigation("Going", "fromA", "toB", null, null), 
+                        new Mock<IRelationshipFixer>().Object);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => entityCollection.LoadAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+
+                Assert.Throws<OperationCanceledException>(
+                    () => entityCollection.LoadAsync(
+                        new List<IEntityWrapper>(), MergeOption.NoTracking, new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+
+                Assert.Throws<OperationCanceledException>(
+                    () => entityCollection.LoadAsync(MergeOption.NoTracking, new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+
+            [Fact]
+            public void Wrapped_entity_validated_even_if_task_is_being_canceled()
+            {
+                var entityCollection = new EntityCollection<object>();
+
+                Assert.Equal(
+                    Strings.RelatedEnd_OwnerIsNull,
+                    Assert.Throws<InvalidOperationException>(
+                        () => entityCollection.LoadAsync(new CancellationToken(canceled: true))
+                            .GetAwaiter().GetResult()).Message);
+            }
+        }
 #endif
     }
 }

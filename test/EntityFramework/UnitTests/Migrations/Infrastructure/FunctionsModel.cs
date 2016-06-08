@@ -8,6 +8,7 @@ namespace System.Data.Entity.Migrations.Infrastructure.FunctionsModel
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.TestHelpers;
     using System.Linq;
 
     public class Customer
@@ -102,6 +103,22 @@ namespace System.Data.Entity.Migrations.Infrastructure.FunctionsModel
         public DateTime BirthDate { get; set; }
     }
 
+    public class JobTask
+    {
+        public long Id { get; set; }
+        public string Title { get; set; }
+        public virtual JobTaskState State { get; set; }
+    }
+
+    public class JobTaskState
+    {
+        public long Id { get; set; }
+        public string Code { get; set; }
+        public DateTime Date { get; set; }
+        public string Description { get; set; }
+        public virtual JobTask Task { get; set; }
+    }
+
     public class TestContext : DbContext
     {
         static TestContext()
@@ -113,15 +130,19 @@ namespace System.Data.Entity.Migrations.Infrastructure.FunctionsModel
         {
             using (var context = new TestContext())
             {
+                var providerInfo = DatabaseTestHelpers.IsSqlAzure(context.Database.Connection.ConnectionString)
+                                       ? ProviderRegistry.SqlAzure2012_ProviderInfo
+                                       : ProviderRegistry.Sql2008_ProviderInfo;
+                                                   
                 return context
                     .InternalContext
                     .CodeFirstModel
                     .CachedModelBuilder
-                    .BuildDynamicUpdateModel(ProviderRegistry.Sql2008_ProviderInfo);
+                    .BuildDynamicUpdateModel(providerInfo);
             }
         }
 
-        internal static Tuple<StorageEntityTypeModificationFunctionMapping, StorageEntityContainerMapping>
+        internal static Tuple<EntityTypeModificationFunctionMapping, EntityContainerMapping>
             GetModificationFunctionMapping(string entityName)
         {
             MetadataWorkspace metadataWorkspace;
@@ -140,19 +161,19 @@ namespace System.Data.Entity.Migrations.Infrastructure.FunctionsModel
                 = metadataWorkspace
                     .GetItem<EntityType>(typeof(TestContext).Namespace + "." + entityName, DataSpace.CSpace);
 
-            var storageEntityContainerMapping
-                = (StorageEntityContainerMapping)metadataWorkspace.GetMap(entityContainer, DataSpace.CSSpace);
+            var entityContainerMapping
+                = (EntityContainerMapping)metadataWorkspace.GetMap(entityContainer, DataSpace.CSSpace);
 
             var modificationFunctionMapping
-                = storageEntityContainerMapping
+                = entityContainerMapping
                     .EntitySetMappings
                     .SelectMany(esm => esm.ModificationFunctionMappings)
                     .Single(mfm => mfm.EntityType == entityType);
 
-            return Tuple.Create(modificationFunctionMapping, storageEntityContainerMapping);
+            return Tuple.Create(modificationFunctionMapping, entityContainerMapping);
         }
 
-        internal static Tuple<StorageAssociationSetModificationFunctionMapping, StorageEntityContainerMapping>
+        internal static Tuple<AssociationSetModificationFunctionMapping, EntityContainerMapping>
             GetAssociationModificationFunctionMapping(string associationName)
         {
             MetadataWorkspace metadataWorkspace;
@@ -171,18 +192,18 @@ namespace System.Data.Entity.Migrations.Infrastructure.FunctionsModel
                 = metadataWorkspace
                     .GetItem<AssociationType>(typeof(TestContext).Namespace + "." + associationName, DataSpace.CSpace);
 
-            var storageEntityContainerMapping
-                = (StorageEntityContainerMapping)metadataWorkspace.GetMap(entityContainer, DataSpace.CSSpace);
+            var entityContainerMapping
+                = (EntityContainerMapping)metadataWorkspace.GetMap(entityContainer, DataSpace.CSSpace);
 
             var modificationFunctionMapping
-                = storageEntityContainerMapping
+                = entityContainerMapping
                     .AssociationSetMappings
                     .Select(esm => esm.ModificationFunctionMapping)
                     .Single(
                         mfm => mfm != null
                                && mfm.AssociationSet.ElementType == associationType);
 
-            return Tuple.Create(modificationFunctionMapping, storageEntityContainerMapping);
+            return Tuple.Create(modificationFunctionMapping, entityContainerMapping);
         }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
@@ -273,6 +294,10 @@ namespace System.Data.Entity.Migrations.Infrastructure.FunctionsModel
             modelBuilder
                 .Entity<Person>()
                 .MapToStoredProcedures();
+
+            modelBuilder.Entity<JobTask>().ToTable("Tasks").MapToStoredProcedures();
+            modelBuilder.Entity<JobTaskState>().ToTable("Tasks").MapToStoredProcedures();
+            modelBuilder.Entity<JobTask>().HasRequired(t => t.State).WithRequiredDependent(t => t.Task);
         }
     }
 
@@ -327,6 +352,19 @@ namespace System.Data.Entity.Migrations.Infrastructure.FunctionsModel
                                     });
                         }
                 );
+        }
+    }
+
+    internal class TestContext_v2c : TestContext
+    {
+        protected override void OnModelCreating(DbModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder
+                .Entity<Customer>()
+                .Property(o => o.Name)
+                .HasMaxLength(42);
         }
     }
 }

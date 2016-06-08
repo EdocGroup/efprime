@@ -5,8 +5,10 @@ namespace System.Data.Entity.Migrations.Model
     using System.Collections.Generic;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Data.Entity.Spatial;
     using System.Data.Entity.Utilities;
+    using System.Diagnostics.CodeAnalysis;
     using System.Globalization;
     using System.Reflection;
 
@@ -22,6 +24,7 @@ namespace System.Data.Entity.Migrations.Model
         private readonly Type _clrType;
         private readonly object _clrDefaultValue;
         private PropertyInfo _apiPropertyInfo;
+        private IDictionary<string, AnnotationValues> _annotations = new Dictionary<string, AnnotationValues>();
 
         /// <summary>
         /// Initializes a new instance of the ColumnModel class.
@@ -54,7 +57,7 @@ namespace System.Data.Entity.Migrations.Model
 
         private object CreateDefaultValue()
         {
-            if (_clrType.IsValueType)
+            if (_clrType.IsValueType())
             {
                 return Activator.CreateInstance(_clrType);
             }
@@ -107,6 +110,16 @@ namespace System.Data.Entity.Migrations.Model
         /// </summary>
         public virtual bool IsTimestamp { get; set; }
 
+        /// <summary>
+        /// Gets or sets the custom annotations that have changed on the column.
+        /// </summary>
+        [SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly")]
+        public IDictionary<string, AnnotationValues> Annotations
+        {
+            get { return _annotations; }
+            set { _annotations = value ?? new Dictionary<string, AnnotationValues>(); }
+        }
+        
         internal PropertyInfo ApiPropertyInfo
         {
             get { return _apiPropertyInfo; }

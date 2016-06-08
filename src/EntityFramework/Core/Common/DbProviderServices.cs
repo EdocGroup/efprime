@@ -18,7 +18,6 @@ namespace System.Data.Entity.Core.Common
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Globalization;
-    using System.Reflection;
     using System.Transactions;
     using System.Xml;
 
@@ -27,7 +26,6 @@ namespace System.Data.Entity.Core.Common
     /// as the argument to the IServiceProvider.GetService method on the provider
     /// factory;
     /// </summary>
-    [CLSCompliant(false)]
     public abstract class DbProviderServices : IDbDependencyResolver
     {
         private readonly Lazy<IDbDependencyResolver> _resolver;
@@ -52,11 +50,11 @@ namespace System.Data.Entity.Core.Common
         {
         }
 
-        /// <summary>
-        /// Constructs an EF provider that will use the given <see cref="IDbDependencyResolver" /> for
-        /// resolving EF dependencies such as the <see cref="DbSpatialServices" /> instance to use.
-        /// </summary>
-        /// <param name="resolver"> The resolver to use. </param>
+        // <summary>
+        // Constructs an EF provider that will use the given <see cref="IDbDependencyResolver" /> for
+        // resolving EF dependencies such as the <see cref="DbSpatialServices" /> instance to use.
+        // </summary>
+        // <param name="resolver"> The resolver to use. </param>
         internal DbProviderServices(Func<IDbDependencyResolver> resolver)
             : this(resolver, new Lazy<DbCommandTreeDispatcher>(() => DbInterception.Dispatch.CommandTree))
         {
@@ -158,10 +156,10 @@ namespace System.Data.Entity.Core.Common
             DbProviderManifest providerManifest,
             DbCommandTree commandTree);
 
-        /// <summary>
-        /// Ensures that the data space of the specified command tree is the target (S-) space
-        /// </summary>
-        /// <param name="commandTree"> The command tree for which the data space should be validated </param>
+        // <summary>
+        // Ensures that the data space of the specified command tree is the target (S-) space
+        // </summary>
+        // <param name="commandTree"> The command tree for which the data space should be validated </param>
         internal virtual void ValidateDataSpace(DbCommandTree commandTree)
         {
             DebugCheck.NotNull(commandTree);
@@ -192,7 +190,24 @@ namespace System.Data.Entity.Core.Common
         /// <returns> an executable command definition object </returns>
         public virtual DbCommandDefinition CreateCommandDefinition(DbCommand prototype)
         {
-            return DbCommandDefinition.CreateCommandDefinition(prototype);
+            return new DbCommandDefinition(prototype, CloneDbCommand);
+        }
+
+        /// <summary>
+        /// See issue 2390 - cloning the DesignTimeVisible property on the
+        /// DbCommand can cause deadlocks. So here allow sub-classes to override.
+        /// </summary>
+        /// <param name="fromDbCommand"> the <see cref="T:System.Data.Common.DbCommand" /> object to clone </param>
+        /// <returns >a clone of the <see cref="T:System.Data.Common.DbCommand" /> </returns>
+        protected virtual DbCommand CloneDbCommand(DbCommand fromDbCommand)
+        {
+            Check.NotNull(fromDbCommand, "fromDbCommand");
+            var cloneablePrototype = fromDbCommand as ICloneable;
+            if (null == cloneablePrototype)
+            {
+                throw new ProviderIncompatibleException(Strings.EntityClient_CannotCloneStoreProvider);
+            }
+            return (DbCommand)cloneablePrototype.Clone();
         }
 
         /// <summary>Returns provider manifest token given a connection.</summary>
@@ -286,14 +301,14 @@ namespace System.Data.Entity.Core.Common
             return GetExecutionStrategy(connection, GetProviderFactory(connection));
         }
 
-        /// <summary>
-        /// Gets the <see cref="IDbExecutionStrategy" /> that will be used to execute methods that use the specified connection.
-        /// Uses MetadataWorkspace for faster lookup.
-        /// </summary>
-        /// <param name="connection">The database connection</param>
-        /// <returns>
-        /// A new instance of <see cref="DbExecutionStrategy" />
-        /// </returns>
+        // <summary>
+        // Gets the <see cref="IDbExecutionStrategy" /> that will be used to execute methods that use the specified connection.
+        // Uses MetadataWorkspace for faster lookup.
+        // </summary>
+        // <param name="connection">The database connection</param>
+        // <returns>
+        // A new instance of <see cref="DbExecutionStrategy" />
+        // </returns>
         internal static IDbExecutionStrategy GetExecutionStrategy(
             DbConnection connection,
             MetadataWorkspace metadataWorkspace)
@@ -303,9 +318,24 @@ namespace System.Data.Entity.Core.Common
             return GetExecutionStrategy(connection, storeMetadata.ProviderFactory);
         }
 
+        /// <summary>
+        /// Gets the <see cref="IDbExecutionStrategy" /> that will be used to execute methods that use the specified connection.
+        /// This overload should be used by the derived classes for compatability with wrapping providers.
+        /// </summary>
+        /// <param name="connection">The database connection</param>
+        /// <param name="providerInvariantName">The provider invariant name</param>
+        /// <returns>
+        /// A new instance of <see cref="DbExecutionStrategy" />
+        /// </returns>
+        protected static IDbExecutionStrategy GetExecutionStrategy(DbConnection connection, string providerInvariantName)
+        {
+            return GetExecutionStrategy(connection, GetProviderFactory(connection), providerInvariantName);
+        }
+
         private static IDbExecutionStrategy GetExecutionStrategy(
             DbConnection connection,
-            DbProviderFactory providerFactory)
+            DbProviderFactory providerFactory,
+            string providerInvariantName = null)
         {
             var entityConnection = connection as EntityConnection;
             if (entityConnection != null)
@@ -313,16 +343,18 @@ namespace System.Data.Entity.Core.Common
                 connection = entityConnection.StoreConnection;
             }
 
+            var dataSource = DbInterception.Dispatch.Connection.GetDataSource(connection, new DbInterceptionContext());
+
             // Using the type name of DbProviderFactory implementation instead of the provider invariant name for performance
-            var cacheKey = new ExecutionStrategyKey(providerFactory.GetType().FullName, connection.DataSource);
+            var cacheKey = new ExecutionStrategyKey(providerFactory.GetType().FullName, dataSource);
 
             var factory = _executionStrategyFactories.GetOrAdd(
                 cacheKey,
                 k =>
                 DbConfiguration.DependencyResolver.GetService<Func<IDbExecutionStrategy>>(
                     new ExecutionStrategyKey(
-                    DbConfiguration.DependencyResolver.GetService<IProviderInvariantName>(providerFactory).Name,
-                    connection.DataSource)));
+                    providerInvariantName ?? DbConfiguration.DependencyResolver.GetService<IProviderInvariantName>(providerFactory).Name,
+                    dataSource)));
             return factory();
         }
 
@@ -454,10 +486,16 @@ namespace System.Data.Entity.Core.Common
             return null;
         }
 
-        internal void SetParameterValue(DbParameter parameter, TypeUsage parameterType, object value)
+        /// <summary>
+        /// Sets the parameter value and appropriate facets for the given <see cref="TypeUsage"/>.
+        /// </summary>
+        /// <param name="parameter">The parameter.</param>
+        /// <param name="parameterType">The type of the parameter.</param>
+        /// <param name="value">The value of the parameter.</param>
+        public void SetParameterValue(DbParameter parameter, TypeUsage parameterType, object value)
         {
-            DebugCheck.NotNull(parameter);
-            DebugCheck.NotNull(parameterType);
+            Check.NotNull(parameter, "parameter");
+            Check.NotNull(parameterType, "parameterType");
 
             SetDbParameterValue(parameter, parameterType, value);
         }
@@ -518,6 +556,7 @@ namespace System.Data.Entity.Core.Common
         /// <summary>
         /// Return an XML reader which represents the CSDL description
         /// </summary>
+        /// <param name="csdlName">The name of the CSDL description.</param>
         /// <returns> An XmlReader that represents the CSDL description </returns>
         public static XmlReader GetConceptualSchemaDefinition(string csdlName)
         {
@@ -530,15 +569,14 @@ namespace System.Data.Entity.Core.Common
         {
             DebugCheck.NotEmpty(resourceName);
 
-            var executingAssembly = Assembly.GetExecutingAssembly();
-            var stream = executingAssembly.GetManifestResourceStream(resourceName);
+            var stream = typeof(DbProviderServices).Assembly().GetManifestResourceStream(resourceName);
 
             if (stream == null)
             {
                 throw Error.InvalidResourceName(resourceName);
             }
 
-            return XmlReader.Create(stream, null, resourceName);
+            return XmlReader.Create(stream);
         }
 
         /// <summary>Generates a data definition language (DDL script that creates schema objects (tables, primary keys, foreign keys) based on the contents of the StoreItemCollection parameter and targeted for the version of the database corresponding to the provider manifest token.</summary>
@@ -636,14 +674,51 @@ namespace System.Data.Entity.Core.Common
         /// <param name="connection">Connection to a database whose existence is checked by this method.</param>
         /// <param name="commandTimeout">Execution timeout for any commands needed to determine the existence of the database.</param>
         /// <param name="storeItemCollection">The collection of all store items from the model. This parameter is no longer used for determining database existence.</param>
+        public bool DatabaseExists(
+            DbConnection connection, 
+            int? commandTimeout, 
+            Lazy<StoreItemCollection> storeItemCollection)
+        {
+            Check.NotNull(connection, "connection");
+            Check.NotNull(storeItemCollection, "storeItemCollection");
+
+            using (new TransactionScope(TransactionScopeOption.Suppress))
+            {
+                return DbDatabaseExists(connection, commandTimeout, storeItemCollection);
+            }
+        }
+
+        /// <summary>Returns a value indicating whether a given database exists on the server.</summary>
+        /// <returns>True if the provider can deduce the database only based on the connection.</returns>
+        /// <param name="connection">Connection to a database whose existence is checked by this method.</param>
+        /// <param name="commandTimeout">Execution timeout for any commands needed to determine the existence of the database.</param>
+        /// <param name="storeItemCollection">The collection of all store items from the model. This parameter is no longer used for determining database existence.</param>
         protected virtual bool DbDatabaseExists(
-            DbConnection connection, int? commandTimeout,
+            DbConnection connection, 
+            int? commandTimeout,
             StoreItemCollection storeItemCollection)
         {
             Check.NotNull(connection, "connection");
             Check.NotNull(storeItemCollection, "storeItemCollection");
 
             throw new ProviderIncompatibleException(Strings.ProviderDoesNotSupportDatabaseExists);
+        }
+
+        /// <summary>Returns a value indicating whether a given database exists on the server.</summary>
+        /// <returns>True if the provider can deduce the database only based on the connection.</returns>
+        /// <param name="connection">Connection to a database whose existence is checked by this method.</param>
+        /// <param name="commandTimeout">Execution timeout for any commands needed to determine the existence of the database.</param>
+        /// <param name="storeItemCollection">The collection of all store items from the model. This parameter is no longer used for determining database existence.</param>
+        /// <remarks>Override this method to avoid creating the store item collection if it is not needed. The default implementation evaluates the Lazy and calls the other overload of this method.</remarks>
+        protected virtual bool DbDatabaseExists(
+            DbConnection connection, 
+            int? commandTimeout,
+            Lazy<StoreItemCollection> storeItemCollection)
+        {
+            Check.NotNull(connection, "connection");
+            Check.NotNull(storeItemCollection, "storeItemCollection");
+
+            return DbDatabaseExists(connection, commandTimeout, storeItemCollection.Value);
         }
 
         /// <summary>Deletes the specified database.</summary>

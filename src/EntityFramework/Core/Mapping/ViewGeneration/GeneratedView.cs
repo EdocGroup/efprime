@@ -17,15 +17,15 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
     using System.Diagnostics.CodeAnalysis;
     using System.Text;
 
-    /// <summary>
-    /// Holds the view generated for a given OFTYPE(Extent, Type) combination.
-    /// </summary>
+    // <summary>
+    // Holds the view generated for a given OFTYPE(Extent, Type) combination.
+    // </summary>
     internal sealed class GeneratedView : InternalBase
     {
-        /// <summary>
-        /// Creates generated view object for the combination of the <paramref name="extent" /> and the <paramref name="type" />.
-        /// This constructor is used for regular cell-based view generation.
-        /// </summary>
+        // <summary>
+        // Creates generated view object for the combination of the <paramref name="extent" /> and the <paramref name="type" />.
+        // This constructor is used for regular cell-based view generation.
+        // </summary>
         internal static GeneratedView CreateGeneratedView(
             EntitySetBase extent,
             EdmType type,
@@ -57,10 +57,10 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             return new GeneratedView(extent, type, commandTree, eSQL, discriminatorMap, mappingItemCollection, config);
         }
 
-        /// <summary>
-        /// Creates generated view object for the combination of the <paramref name="extent" /> and the <paramref name="type" />.
-        /// This constructor is used for FK association sets only.
-        /// </summary>
+        // <summary>
+        // Creates generated view object for the combination of the <paramref name="extent" /> and the <paramref name="type" />.
+        // This constructor is used for FK association sets only.
+        // </summary>
         internal static GeneratedView CreateGeneratedViewForFKAssociationSet(
             EntitySetBase extent,
             EdmType type,
@@ -71,15 +71,15 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             return new GeneratedView(extent, type, commandTree, null, null, mappingItemCollection, config);
         }
 
-        /// <summary>
-        /// Creates generated view object for the combination of the <paramref name="setMapping" />.Set and the
-        /// <paramref
-        ///     name="type" />
-        /// .
-        /// This constructor is used for user-defined query views only.
-        /// </summary>
+        // <summary>
+        // Creates generated view object for the combination of the <paramref name="setMapping" />.Set and the
+        // <paramref
+        //     name="type" />
+        // .
+        // This constructor is used for user-defined query views only.
+        // </summary>
         internal static bool TryParseUserSpecifiedView(
-            StorageSetMapping setMapping,
+            EntitySetBaseMapping setMapping,
             EntityTypeBase type,
             string eSQL,
             bool includeSubtypes,
@@ -99,7 +99,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             {
                 var error = new EdmSchemaError(
                     Strings.Mapping_Invalid_QueryView2(setMapping.Set.Name, parserException.Message),
-                    (int)StorageMappingErrorCode.InvalidQueryView, EdmSchemaErrorSeverity.Error,
+                    (int)MappingErrorCode.InvalidQueryView, EdmSchemaErrorSeverity.Error,
                     setMapping.EntityContainerMapping.SourceLocation, setMapping.StartLineNumber, setMapping.StartLinePosition,
                     parserException);
                 errors.Add(error);
@@ -123,7 +123,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
                 {
                     var error = new EdmSchemaError(
                         Strings.Mapping_Invalid_QueryView_Type(setMapping.Set.Name),
-                        (int)StorageMappingErrorCode.InvalidQueryViewResultType, EdmSchemaErrorSeverity.Error,
+                        (int)MappingErrorCode.InvalidQueryViewResultType, EdmSchemaErrorSeverity.Error,
                         setMapping.EntityContainerMapping.SourceLocation, setMapping.StartLineNumber, setMapping.StartLinePosition);
                     errors.Add(error);
                     failed = true;
@@ -230,12 +230,12 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             return OpCopier.Copy(targetIqtCommand, m_internalTreeNode);
         }
 
-        /// <summary>
-        /// Given an extent and its corresponding view, invokes the parser to check if the view definition is syntactically correct.
-        /// Iff parsing succeeds: <paramref name="commandTree" /> and <paramref name="discriminatorMap" /> are set to the parse result and method returns true,
-        /// otherwise if parser has thrown a catchable exception, it is returned via <paramref name="parserException" /> parameter,
-        /// otherwise exception is re-thrown.
-        /// </summary>
+        // <summary>
+        // Given an extent and its corresponding view, invokes the parser to check if the view definition is syntactically correct.
+        // Iff parsing succeeds: <paramref name="commandTree" /> and <paramref name="discriminatorMap" /> are set to the parse result and method returns true,
+        // otherwise if parser has thrown a catchable exception, it is returned via <paramref name="parserException" /> parameter,
+        // otherwise exception is re-thrown.
+        // </summary>
         private static bool TryParseView(
             string eSQL,
             bool isUserSpecified,
@@ -264,11 +264,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
                 Debug.Assert(!String.IsNullOrEmpty(eSQL), "eSQL query is not specified");
                 commandTree = (DbQueryCommandTree)ExternalCalls.CompileView(eSQL, mappingItemCollection, compilationMode);
 
-                // For non user-specified views, perform simplification.
-                if (!isUserSpecified)
-                {
-                    commandTree = ViewSimplifier.SimplifyView(extent, commandTree);
-                }
+                commandTree = ViewSimplifier.SimplifyView(extent, commandTree);
 
                 // See if the view matches the "discriminated" pattern (allows simplification of generated store commands)
                 if (extent.BuiltInTypeKind

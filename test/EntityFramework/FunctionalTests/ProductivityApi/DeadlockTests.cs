@@ -2,6 +2,7 @@
 
 namespace System.Data.Entity.ProductivityApi
 {
+    using System.Data.Entity.TestHelpers;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -69,16 +70,21 @@ namespace System.Data.Entity.ProductivityApi
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void DbContext_SaveChangesAsync_does_not_deadlock()
         {
-            using (var context = new SimpleModelContext())
-            {
-                using (context.Database.BeginTransaction())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Products.Add(new Product());
-                    RunDeadlockTest(context.SaveChangesAsync);
-                }
-            }
+                    using (var context = new SimpleModelContext())
+                    {
+                        using (context.Database.BeginTransaction())
+                        {
+                            context.Products.Add(new Product());
+                            RunDeadlockTest(context.SaveChangesAsync);
+                        }
+                    }
+                });
         }
 
         private void RunDeadlockTest(Func<Task> asyncOperation)

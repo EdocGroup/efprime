@@ -8,16 +8,16 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Linq;
     using System.Reflection;
 
-    /// <summary>
-    /// Searches types (usually obtained from an assembly) for different kinds of <see cref="DbConfiguration" />.
-    /// </summary>
+    // <summary>
+    // Searches types (usually obtained from an assembly) for different kinds of <see cref="DbConfiguration" />.
+    // </summary>
     internal class DbConfigurationFinder
     {
         public virtual Type TryFindConfigurationType(Type contextType, IEnumerable<Type> typesToSearch = null)
         {
             DebugCheck.NotNull(contextType);
 
-            return TryFindConfigurationType(contextType.Assembly, contextType, typesToSearch);
+            return TryFindConfigurationType(contextType.Assembly(), contextType, typesToSearch);
         }
 
         public virtual Type TryFindConfigurationType(
@@ -29,8 +29,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
             if (contextTypeHint != null)
             {
-                var typeFromAttribute = contextTypeHint.GetCustomAttributes(inherit: true)
-                    .OfType<DbConfigurationTypeAttribute>()
+                var typeFromAttribute = contextTypeHint.GetCustomAttributes<DbConfigurationTypeAttribute>(inherit: true)
                     .Select(a => a.ConfigurationType)
                     .FirstOrDefault();
 
@@ -48,14 +47,14 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             var configurations = (typesToSearch ?? assemblyHint.GetAccessibleTypes())
                 .Where(
                     t => t.IsSubclassOf(typeof(DbConfiguration))
-                         && !t.IsAbstract
-                         && !t.IsGenericType)
+                         && !t.IsAbstract()
+                         && !t.IsGenericType())
                 .ToList();
 
             if (configurations.Count > 1)
             {
                 throw new InvalidOperationException(
-                    Strings.MultipleConfigsInAssembly(configurations.First().Assembly, typeof(DbConfiguration).Name));
+                    Strings.MultipleConfigsInAssembly(configurations.First().Assembly(), typeof(DbConfiguration).Name));
             }
 
             return configurations.FirstOrDefault();
@@ -79,9 +78,9 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             var contextTypes = (typesToSearch ?? assemblyHint.GetAccessibleTypes())
                 .Where(
                     t => t.IsSubclassOf(typeof(DbContext))
-                         && !t.IsAbstract
-                         && !t.IsGenericType
-                         && t.GetCustomAttributes(typeof(DbConfigurationTypeAttribute), inherit: true).Any())
+                         && !t.IsAbstract()
+                         && !t.IsGenericType()
+                         && t.GetCustomAttributes<DbConfigurationTypeAttribute>(inherit: true).Any())
                 .ToList();
 
             return contextTypes.Count == 1 ? contextTypes[0] : null;

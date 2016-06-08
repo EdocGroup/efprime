@@ -11,14 +11,15 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects.ELinq;
     using System.Data.Entity.Infrastructure.DependencyResolution;
+    using System.Data.Entity.Utilities;
     using System.Diagnostics.CodeAnalysis;
     using System.Threading;
     using System.Threading.Tasks;
 
-    /// <summary>
-    /// Represents the 'compiled' form of all elements (query + result assembly) required to execute a specific
-    /// <see cref="ObjectQuery" />
-    /// </summary>
+    // <summary>
+    // Represents the 'compiled' form of all elements (query + result assembly) required to execute a specific
+    // <see cref="ObjectQuery" />
+    // </summary>
     internal class ObjectQueryExecutionPlan
     {
         internal readonly DbCommandDefinition CommandDefinition;
@@ -28,14 +29,14 @@ namespace System.Data.Entity.Core.Objects.Internal
         internal readonly MergeOption MergeOption;
         internal readonly IEnumerable<Tuple<ObjectParameter, QueryParameterExpression>> CompiledQueryParameters;
 
-        /// <summary>
-        /// If the query yields entities from a single entity set, the value is stored here.
-        /// </summary>
+        // <summary>
+        // If the query yields entities from a single entity set, the value is stored here.
+        // </summary>
         private readonly EntitySet _singleEntitySet;
 
-        /// <summary>
-        /// For testing purposes only. For anything else call <see cref="ObjectQueryExecutionPlanFactory.Prepare" />.
-        /// </summary>
+        // <summary>
+        // For testing purposes only. For anything else call <see cref="ObjectQueryExecutionPlanFactory.Prepare" />.
+        // </summary>
         public ObjectQueryExecutionPlan(
             DbCommandDefinition commandDefinition, ShaperFactory resultShaperFactory, TypeUsage resultType, MergeOption mergeOption,
             bool streaming, EntitySet singleEntitySet, IEnumerable<Tuple<ObjectParameter, QueryParameterExpression>> compiledQueryParameters)
@@ -133,6 +134,8 @@ namespace System.Data.Entity.Core.Objects.Internal
             ObjectContext context, ObjectParameterCollection parameterValues,
             CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             DbDataReader storeReader = null;
             BufferedDataReader bufferedReader = null;
             try
@@ -148,7 +151,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                                                        ? CommandBehavior.Default
                                                        : CommandBehavior.SequentialAccess
                                       , cancellationToken)
-                                               .ConfigureAwait(continueOnCapturedContext: false);
+                                               .WithCurrentCulture();
                 }
 
                 var shaperFactory = (ShaperFactory<TResultType>)ResultShaperFactory;
@@ -166,7 +169,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                     bufferedReader = new BufferedDataReader(storeReader);
                     await
                         bufferedReader.InitializeAsync(storeItemCollection.ProviderManifestToken, providerServices, shaperFactory.ColumnTypes, shaperFactory.NullableColumns, cancellationToken)
-                                      .ConfigureAwait(continueOnCapturedContext: false);
+                                      .WithCurrentCulture();
 
                     shaper = shaperFactory.Create(
                         bufferedReader, context, context.MetadataWorkspace, MergeOption, true, Streaming);
@@ -213,8 +216,9 @@ namespace System.Data.Entity.Core.Objects.Internal
         {
             // create entity command (just do this to snarf store command)
             var commandDefinition = (EntityCommandDefinition)CommandDefinition;
+            var connection = (EntityConnection)context.Connection;
             var entityCommand = new EntityCommand(
-                (EntityConnection)context.Connection, commandDefinition, context.InterceptionContext);
+                connection, commandDefinition, context.InterceptionContext);
 
             // pass through parameters and timeout values
             if (context.CommandTimeout.HasValue)
@@ -233,6 +237,11 @@ namespace System.Data.Entity.Core.Objects.Internal
                         entityCommand.Parameters[index].Value = parameter.Value ?? DBNull.Value;
                     }
                 }
+            }
+
+            if (connection.CurrentTransaction != null)
+            {
+                entityCommand.Transaction = connection.CurrentTransaction;
             }
 
             return entityCommand;

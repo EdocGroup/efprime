@@ -23,10 +23,10 @@ namespace System.Data.Entity
         private bool _shouldCloseConnection;
         private bool _isDisposed;
 
-        /// <summary>
-        /// Constructs the DbContextTransaction object with the associated connection object
-        /// </summary>
-        /// <param name="connection">The EntityConnection object owning this transaction</param>
+        // <summary>
+        // Constructs the DbContextTransaction object with the associated connection object
+        // </summary>
+        // <param name="connection">The EntityConnection object owning this transaction</param>
         internal DbContextTransaction(EntityConnection connection)
         {
             DebugCheck.NotNull(connection);
@@ -35,18 +35,30 @@ namespace System.Data.Entity
             _entityTransaction = _connection.BeginTransaction();
         }
 
-        /// <summary>
-        /// Constructs the DbContextTransaction object with the associated connection object
-        /// and with the given isolation level
-        /// </summary>
-        /// <param name="connection">The EntityConnection object owning this transaction </param>
-        /// <param name="isolationLevel">The database isolation level with which the underlying store transaction will be created</param>
+        // <summary>
+        // Constructs the DbContextTransaction object with the associated connection object
+        // and with the given isolation level
+        // </summary>
+        // <param name="connection">The EntityConnection object owning this transaction </param>
+        // <param name="isolationLevel">The database isolation level with which the underlying store transaction will be created</param>
         internal DbContextTransaction(EntityConnection connection, IsolationLevel isolationLevel)
         {
             DebugCheck.NotNull(connection);
             _connection = connection;
             EnsureOpenConnection();
             _entityTransaction = _connection.BeginTransaction(isolationLevel);
+        }
+
+        // <summary>
+        // Constructs the DbContextTransaction object with the associated transaction object
+        // </summary>
+        // <param name="transaction">The EntityTransaction object to use</param>
+        internal DbContextTransaction(EntityTransaction transaction)
+        {
+            DebugCheck.NotNull(transaction);
+            _connection = transaction.Connection;
+            EnsureOpenConnection();
+            _entityTransaction = transaction;
         }
 
         private void EnsureOpenConnection()
@@ -93,9 +105,11 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        /// Cleans up this transaction object
+        /// Releases the resources used by this transaction object
         /// </summary>
-        /// <param name="disposing"> true to release both managed and unmanaged resources; false to release only unmanaged resources </param>
+        /// <param name="disposing">
+        /// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.
+        /// </param>
         protected virtual void Dispose(bool disposing)
         {
             if (disposing)

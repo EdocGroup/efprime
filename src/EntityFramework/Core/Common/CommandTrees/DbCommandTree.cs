@@ -16,17 +16,21 @@ namespace System.Data.Entity.Core.Common.CommandTrees
         // Metadata collection
         private readonly MetadataWorkspace _metadata;
         private readonly DataSpace _dataSpace;
+        private readonly bool _useDatabaseNullSemantics;
 
         internal DbCommandTree()
         {
+            _useDatabaseNullSemantics = true;
         }
 
-        /// <summary>
-        /// Initializes a new command tree with a given metadata workspace.
-        /// </summary>
-        /// <param name="metadata"> The metadata workspace against which the command tree should operate. </param>
-        /// <param name="dataSpace"> The logical 'space' that metadata in the expressions used in this command tree must belong to. </param>
-        internal DbCommandTree(MetadataWorkspace metadata, DataSpace dataSpace)
+        // <summary>
+        // Initializes a new command tree with a given metadata workspace.
+        // </summary>
+        // <param name="metadata"> The metadata workspace against which the command tree should operate. </param>
+        // <param name="dataSpace"> The logical 'space' that metadata in the expressions used in this command tree must belong to. </param>
+        // <param name="useDatabaseNullSemantics">A boolean that indicates whether database null semantics are exhibited when comparing
+        // two operands, both of which are potentially nullable. The default value is true.</param>
+        internal DbCommandTree(MetadataWorkspace metadata, DataSpace dataSpace, bool useDatabaseNullSemantics = true)
         {
             // Ensure the metadata workspace is non-null
             DebugCheck.NotNull(metadata);
@@ -39,6 +43,29 @@ namespace System.Data.Entity.Core.Common.CommandTrees
 
             _metadata = metadata;
             _dataSpace = dataSpace;
+            _useDatabaseNullSemantics = useDatabaseNullSemantics;
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether database null semantics are exhibited when comparing
+        /// two operands, both of which are potentially nullable. The default value is true.
+        /// 
+        /// For example (operand1 == operand2) will be translated as:
+        /// 
+        /// (operand1 = operand2)
+        /// 
+        /// if UseDatabaseNullSemantics is true, respectively
+        /// 
+        /// (((operand1 = operand2) AND (NOT (operand1 IS NULL OR operand2 IS NULL))) OR ((operand1 IS NULL) AND (operand2 IS NULL)))
+        /// 
+        /// if UseDatabaseNullSemantics is false.
+        /// </summary>
+        /// <value>
+        /// <c>true</c> if database null comparison behavior is enabled, otherwise <c>false</c> .
+        /// </value>
+        public bool UseDatabaseNullSemantics
+        {
+            get { return _useDatabaseNullSemantics; }
         }
 
         /// <summary>
@@ -66,9 +93,9 @@ namespace System.Data.Entity.Core.Common.CommandTrees
         /// </summary>
         public abstract DbCommandTreeKind CommandTreeKind { get; }
 
-        /// <summary>
-        /// Gets the name and type of each parameter declared on the command tree.
-        /// </summary>
+        // <summary>
+        // Gets the name and type of each parameter declared on the command tree.
+        // </summary>
         internal abstract IEnumerable<KeyValuePair<string, TypeUsage>> GetParameters();
 
         /// <summary>

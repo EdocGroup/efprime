@@ -2,7 +2,9 @@
 
 namespace System.Data.Entity.Migrations.Model
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Data.Entity.Resources;
     using System.Linq;
     using Xunit;
@@ -15,12 +17,27 @@ namespace System.Data.Entity.Migrations.Model
             Assert.Equal(
                 new ArgumentException(Strings.ArgumentIsNullOrWhitespace("name")).Message,
                 Assert.Throws<ArgumentException>(() => new CreateTableOperation(null)).Message);
+
+            Assert.Equal(
+                new ArgumentException(Strings.ArgumentIsNullOrWhitespace("name")).Message,
+                Assert.Throws<ArgumentException>(() => new CreateTableOperation(null, null)).Message);
         }
 
         [Fact]
         public void Name_should_return_name_from_ctor()
         {
             Assert.Equal("Foo", new CreateTableOperation("Foo").Name);
+        }
+
+        [Fact]
+        public void Annotations_should_return_set_annotations()
+        {
+            Assert.Empty(new CreateTableOperation("Foo").Annotations);
+            Assert.Empty(new CreateTableOperation("Foo", null).Annotations);
+
+            var operation = new CreateTableOperation("Foo", new Dictionary<string, object> { { "A1", "V1" } });
+
+            Assert.Equal("V1", operation.Annotations["A1"]);
         }
 
         [Fact]
@@ -40,12 +57,46 @@ namespace System.Data.Entity.Migrations.Model
         [Fact]
         public void Inverse_should_produce_drop_table_operation()
         {
-            var createTableOperation
-                = new CreateTableOperation("Foo");
+            var operation = new CreateTableOperation(
+                "Foo", new Dictionary<string, object>
+                {
+                    { "AT1", "VT1" },
+                    { "AT2", "VT2" }
+                });
 
-            var dropTableOperation = (DropTableOperation)createTableOperation.Inverse;
+            operation.Columns.Add(
+                new ColumnModel(PrimitiveTypeKind.Int64)
+                {
+                    Name = "C1",
+                    Annotations = new Dictionary<string, AnnotationValues>
+                    {
+                        { "AC1A", new AnnotationValues(null, "VC1A") },
+                        { "AC1B", new AnnotationValues(null, "VC1B") }
+                    }
+                });
 
-            Assert.Equal("Foo", dropTableOperation.Name);
+            operation.Columns.Add(
+                new ColumnModel(PrimitiveTypeKind.Int64)
+                {
+                    Name = "C2",
+                    Annotations = new Dictionary<string, AnnotationValues>
+                    {
+                        { "AC2A", new AnnotationValues(null, "VC2A") },
+                        { "AC2B", new AnnotationValues(null, "VC2B") }
+                    }
+                });
+
+            var inverse = (DropTableOperation)operation.Inverse;
+
+            Assert.Equal("Foo", inverse.Name);
+
+            Assert.Equal("VT1", inverse.RemovedAnnotations["AT1"]);
+            Assert.Equal("VT2", inverse.RemovedAnnotations["AT2"]);
+
+            Assert.Equal("VC1A", inverse.RemovedColumnAnnotations["C1"]["AC1A"]);
+            Assert.Equal("VC1B", inverse.RemovedColumnAnnotations["C1"]["AC1B"]);
+            Assert.Equal("VC2A", inverse.RemovedColumnAnnotations["C2"]["AC2A"]);
+            Assert.Equal("VC2B", inverse.RemovedColumnAnnotations["C2"]["AC2B"]);
         }
 
         [Fact]

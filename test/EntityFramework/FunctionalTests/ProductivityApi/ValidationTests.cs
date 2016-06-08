@@ -7,6 +7,7 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
     using System.ComponentModel.DataAnnotations;
     using System.Data.Entity;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.TestHelpers;
     using System.Data.Entity.Validation;
     using System.Diagnostics;
     using System.Linq;
@@ -610,78 +611,83 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void GetValidationErrors_calls_DetectChanges_once()
         {
-            using (var context = new DbContextTests.ValidationTestContext())
-            {
-                context.Database.Initialize(force: false);
-
-                using (new TransactionScope())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Configuration.ValidateOnSaveEnabled = true;
-                    var food = context.Entry(new Category("FOOD"));
-                    context.Categories.Add(food.Entity);
+                    using (var context = new DbContextTests.ValidationTestContext())
+                    {
+                        context.Database.Initialize(force: false);
 
-                    var pets = context.Entry(new Category("PETS"));
-                    context.Categories.Add(pets.Entity);
-                    context.SaveChanges();
+                        using (new TransactionScope())
+                        {
+                            context.Configuration.ValidateOnSaveEnabled = true;
+                            var food = context.Entry(new Category("FOOD"));
+                            context.Categories.Add(food.Entity);
 
-                    Assert.Equal(EntityState.Unchanged, food.State);
-                    food.Entity.DetailedDescription = "foo";
-                    Assert.Equal(EntityState.Unchanged, food.State);
+                            var pets = context.Entry(new Category("PETS"));
+                            context.Categories.Add(pets.Entity);
+                            context.SaveChanges();
 
-                    context.ValidateEntityFunc = (entry) =>
-                                                     {
-                                                         Assert.Same(food.Entity, entry.Entity);
-                                                         // DetectChanges should have been called before this
-                                                         Assert.Equal(EntityState.Modified, entry.State);
-                                                         entry.State = EntityState.Unchanged;
+                            Assert.Equal(EntityState.Unchanged, food.State);
+                            food.Entity.DetailedDescription = "foo";
+                            Assert.Equal(EntityState.Unchanged, food.State);
 
-                                                         Assert.Equal(EntityState.Unchanged, pets.State);
-                                                         pets.Entity.DetailedDescription = "bar";
-                                                         Assert.Equal(EntityState.Unchanged, pets.State);
+                            context.ValidateEntityFunc = (entry) =>
+                            {
+                                Assert.Same(food.Entity, entry.Entity);
+                                // DetectChanges should have been called before this
+                                Assert.Equal(EntityState.Modified, entry.State);
+                                entry.State = EntityState.Unchanged;
 
-                                                         context.ValidateEntityFunc = (e) =>
-                                                                                          {
-                                                                                              Assert.Same(pets.Entity, e.Entity);
-                                                                                              Assert.Equal(
-                                                                                                  EntityState.Unchanged, e.State);
-                                                                                              Assert.Equal(
-                                                                                                  EntityState.Unchanged,
-                                                                                                  food.State);
+                                Assert.Equal(EntityState.Unchanged, pets.State);
+                                pets.Entity.DetailedDescription = "bar";
+                                Assert.Equal(EntityState.Unchanged, pets.State);
 
-                                                                                              Assert.Equal(
-                                                                                                  "bar",
-                                                                                                  pets.Entity.
-                                                                                                      DetailedDescription);
-                                                                                              pets.Entity.DetailedDescription =
-                                                                                                  "foo";
-                                                                                              Assert.Equal(
-                                                                                                  EntityState.Unchanged,
-                                                                                                  pets.State);
+                                context.ValidateEntityFunc = (e) =>
+                                {
+                                    Assert.Same(pets.Entity, e.Entity);
+                                    Assert.Equal(
+                                        EntityState.Unchanged, e.State);
+                                    Assert.Equal(
+                                        EntityState.Unchanged,
+                                        food.State);
 
-                                                                                              return
-                                                                                                  new DbEntityValidationResult(
-                                                                                                      entry,
-                                                                                                      Enumerable.Empty
-                                                                                                          <DbValidationError>());
-                                                                                          };
+                                    Assert.Equal(
+                                        "bar",
+                                        pets.Entity.
+                                            DetailedDescription);
+                                    pets.Entity.DetailedDescription =
+                                        "foo";
+                                    Assert.Equal(
+                                        EntityState.Unchanged,
+                                        pets.State);
 
-                                                         return new DbEntityValidationResult(
-                                                             entry,
-                                                             Enumerable.Empty
-                                                                 <DbValidationError>());
-                                                     };
+                                    return
+                                        new DbEntityValidationResult(
+                                            entry,
+                                            Enumerable.Empty
+                                                <DbValidationError>());
+                                };
 
-                    context.GetValidationErrors();
+                                return new DbEntityValidationResult(
+                                    entry,
+                                    Enumerable.Empty
+                                        <DbValidationError>());
+                            };
 
-                    Assert.Equal(EntityState.Unchanged, food.State);
-                    Assert.Equal(EntityState.Unchanged, pets.State);
+                            context.GetValidationErrors();
 
-                    // Ensure that ValidateEntityFunc ran twice
-                    Assert.Equal("foo", pets.Entity.DetailedDescription);
-                }
-            }
+                            Assert.Equal(EntityState.Unchanged, food.State);
+                            Assert.Equal(EntityState.Unchanged, pets.State);
+
+                            // Ensure that ValidateEntityFunc ran twice
+                            Assert.Equal("foo", pets.Entity.DetailedDescription);
+                        }
+                    }
+                });
         }
 
         #endregion
@@ -788,79 +794,89 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void DbEntityEntry_GetValidationResult_does_not_call_DetectChanges()
         {
-            using (var context = new DbContextTests.ValidationTestContext())
-            {
-                context.Database.Initialize(force: false);
-
-                using (new TransactionScope())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Configuration.ValidateOnSaveEnabled = true;
-                    var food = context.Entry(new Category("FOOD"));
-                    context.Categories.Add(food.Entity);
-                    context.SaveChanges();
+                    using (var context = new DbContextTests.ValidationTestContext())
+                    {
+                        context.Database.Initialize(force: false);
 
-                    Assert.Equal(EntityState.Unchanged, food.State);
-                    food.Entity.DetailedDescription = "foo";
-                    Assert.Equal(EntityState.Unchanged, food.State);
+                        using (new TransactionScope())
+                        {
+                            context.Configuration.ValidateOnSaveEnabled = true;
+                            var food = context.Entry(new Category("FOOD"));
+                            context.Categories.Add(food.Entity);
+                            context.SaveChanges();
 
-                    context.ValidateEntityFunc = (entry) =>
-                                                     {
-                                                         Assert.Same(food.Entity, entry.Entity);
-                                                         Assert.Equal(EntityState.Unchanged, entry.State);
+                            Assert.Equal(EntityState.Unchanged, food.State);
+                            food.Entity.DetailedDescription = "foo";
+                            Assert.Equal(EntityState.Unchanged, food.State);
 
-                                                         return new DbEntityValidationResult(
-                                                             entry,
-                                                             Enumerable.Empty
-                                                                 <DbValidationError>());
-                                                     };
+                            context.ValidateEntityFunc = (entry) =>
+                            {
+                                Assert.Same(food.Entity, entry.Entity);
+                                Assert.Equal(EntityState.Unchanged, entry.State);
 
-                    var validationResult = food.GetValidationResult();
+                                return new DbEntityValidationResult(
+                                    entry,
+                                    Enumerable.Empty
+                                        <DbValidationError>());
+                            };
 
-                    Assert.True(validationResult.IsValid);
+                            var validationResult = food.GetValidationResult();
 
-                    Assert.Equal(EntityState.Unchanged, food.State);
-                }
-            }
+                            Assert.True(validationResult.IsValid);
+
+                            Assert.Equal(EntityState.Unchanged, food.State);
+                        }
+                    }
+                });
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Nongeneric_DbEntityEntry_GetValidationResult_does_not_call_DetectChanges()
         {
-            using (var context = new DbContextTests.ValidationTestContext())
-            {
-                context.Database.Initialize(force: false);
-
-                using (new TransactionScope())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Configuration.ValidateOnSaveEnabled = true;
-                    var food = context.Entry((object)new Category("FOOD"));
-                    context.Categories.Add((Category)food.Entity);
-                    context.SaveChanges();
+                    using (var context = new DbContextTests.ValidationTestContext())
+                    {
+                        context.Database.Initialize(force: false);
 
-                    Assert.Equal(EntityState.Unchanged, food.State);
-                    ((Category)food.Entity).DetailedDescription = "foo";
-                    Assert.Equal(EntityState.Unchanged, food.State);
+                        using (new TransactionScope())
+                        {
+                            context.Configuration.ValidateOnSaveEnabled = true;
+                            var food = context.Entry((object)new Category("FOOD"));
+                            context.Categories.Add((Category)food.Entity);
+                            context.SaveChanges();
 
-                    context.ValidateEntityFunc = (entry) =>
-                                                     {
-                                                         Assert.Same(food.Entity, entry.Entity);
-                                                         Assert.Equal(EntityState.Unchanged, entry.State);
+                            Assert.Equal(EntityState.Unchanged, food.State);
+                            ((Category)food.Entity).DetailedDescription = "foo";
+                            Assert.Equal(EntityState.Unchanged, food.State);
 
-                                                         return new DbEntityValidationResult(
-                                                             entry,
-                                                             Enumerable.Empty
-                                                                 <DbValidationError>());
-                                                     };
+                            context.ValidateEntityFunc = (entry) =>
+                            {
+                                Assert.Same(food.Entity, entry.Entity);
+                                Assert.Equal(EntityState.Unchanged, entry.State);
 
-                    var validationResult = food.GetValidationResult();
+                                return new DbEntityValidationResult(
+                                    entry,
+                                    Enumerable.Empty
+                                        <DbValidationError>());
+                            };
 
-                    Assert.True(validationResult.IsValid);
+                            var validationResult = food.GetValidationResult();
 
-                    Assert.Equal(EntityState.Unchanged, food.State);
-                }
-            }
+                            Assert.True(validationResult.IsValid);
+
+                            Assert.Equal(EntityState.Unchanged, food.State);
+                        }
+                    }
+                });
         }
 
         #endregion
@@ -1392,12 +1408,14 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
         #region Navigation properties
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void ValidateEntity_does_not_load_entities_if_LazyLoading_is_enabled()
         {
             Test_ValidateEntity_LazyLoading(true);
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void ValidateEntity_does_not_load_entities_if_LazyLoading_is_disabled()
         {
             Test_ValidateEntity_LazyLoading(false);
@@ -1406,50 +1424,58 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
         private void Test_ValidateEntity_LazyLoading(bool lazyLoadingEnabled)
         {
             var entity = new EntityWithReferenceNavigationProperty
-                             {
-                                 ID = 1,
-                                 Name = "Test",
-                                 RelatedEntity = new EntityWithBuiltInValidationAttributes
-                                                     {
-                                                         ID = 3,
-                                                         Name = "abc"
-                                                     }
-                             };
-
-            using (var context = new SelfPopulatingContext(entity))
             {
-                using (new TransactionScope())
+                ID = 1,
+                Name = "Test",
+                RelatedEntity = new EntityWithBuiltInValidationAttributes
                 {
-                    context.SaveChanges();
-
-                    context.ChangeTracker.Entries().ToList().ForEach(e => e.State = EntityState.Detached);
-                    context.Configuration.LazyLoadingEnabled = lazyLoadingEnabled;
-
-                    entity = context.Set<EntityWithReferenceNavigationProperty>().Single();
-
-                    var errors = context.ValidateEntity(context.Entry(entity)).ValidationErrors;
-
-                    Assert.NotNull(errors);
-                    Assert.Equal(1, errors.Count());
-                    var validationError = errors.Single();
-                    Assert.Equal("RelatedEntity", validationError.PropertyName);
-                    Assert.Equal(
-                        string.Format(RequiredAttribute_ValidationError, "RelatedEntity"),
-                        validationError.ErrorMessage);
-
-                    if (lazyLoadingEnabled)
-                    {
-                        Assert.NotNull(entity.RelatedEntity);
-                    }
-                    else
-                    {
-                        Assert.Null(entity.RelatedEntity);
-                    }
-
-                    Assert.Equal(lazyLoadingEnabled, context.Configuration.LazyLoadingEnabled);
-                    Assert.Equal(lazyLoadingEnabled, GetObjectContext(context).ContextOptions.LazyLoadingEnabled);
+                    ID = 3,
+                    Name = "abc"
                 }
-            }
+            };
+
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
+                {
+                    using (var context = new SelfPopulatingContext(entity))
+                    {
+                        using (new TransactionScope())
+                        {
+                            context.SaveChanges();
+
+                            foreach (var entry in context.ChangeTracker.Entries().ToList())
+                            {
+                                entry.State = EntityState.Detached;
+                            }
+
+                            context.Configuration.LazyLoadingEnabled = lazyLoadingEnabled;
+
+                            entity = context.Set<EntityWithReferenceNavigationProperty>().Single();
+
+                            var errors = context.ValidateEntity(context.Entry(entity)).ValidationErrors;
+
+                            Assert.NotNull(errors);
+                            Assert.Equal(1, errors.Count());
+                            var validationError = errors.Single();
+                            Assert.Equal("RelatedEntity", validationError.PropertyName);
+                            Assert.Equal(
+                                string.Format(RequiredAttribute_ValidationError, "RelatedEntity"),
+                                validationError.ErrorMessage);
+
+                            if (lazyLoadingEnabled)
+                            {
+                                Assert.NotNull(entity.RelatedEntity);
+                            }
+                            else
+                            {
+                                Assert.Null(entity.RelatedEntity);
+                            }
+
+                            Assert.Equal(lazyLoadingEnabled, context.Configuration.LazyLoadingEnabled);
+                            Assert.Equal(lazyLoadingEnabled, GetObjectContext(context).ContextOptions.LazyLoadingEnabled);
+                        }
+                    }
+                });
         }
 
         #endregion
@@ -1534,17 +1560,17 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
                     {
                         EntityWithPropertyLevelCustomValidationAttributes.ValidateWithoutContextFunc =
                             (propertyValue) =>
-                                {
-                                    Assert.Equal(entity.ID, propertyValue);
-                                    return resultForValidationWithoutContext;
-                                };
+                            {
+                                Assert.Equal(entity.ID, propertyValue);
+                                return resultForValidationWithoutContext;
+                            };
                         EntityWithPropertyLevelCustomValidationAttributes.ValidateWithContextFunc =
                             (propertyValue, ctx) =>
-                                {
-                                    Assert.Equal(entity.ID, propertyValue);
-                                    Assert.Equal("ID", ctx.DisplayName);
-                                    return resultForValidationWithContext;
-                                };
+                            {
+                                Assert.Equal(entity.ID, propertyValue);
+                                Assert.Equal("ID", ctx.DisplayName);
+                                return resultForValidationWithContext;
+                            };
 
                         var entityValidationResult = Invoke_DbContext_ValidateEntity(entity);
                         VerifyValidationResults(
@@ -1601,19 +1627,19 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
                     {
                         EntityWithEntityLevelCustomValidationAttributes.ValidateWithoutContextFunc =
                             (validatedEntity) =>
-                                {
-                                    Assert.NotNull(validatedEntity);
-                                    Assert.Same(entity, validatedEntity);
-                                    return resultForValidationWithoutContext;
-                                };
+                            {
+                                Assert.NotNull(validatedEntity);
+                                Assert.Same(entity, validatedEntity);
+                                return resultForValidationWithoutContext;
+                            };
                         EntityWithEntityLevelCustomValidationAttributes.ValidateWithContextFunc =
                             (validatedEntity, ctx) =>
-                                {
-                                    Assert.NotNull(validatedEntity);
-                                    Assert.Same(entity, validatedEntity);
-                                    Assert.Equal(validatedEntity.GetType().Name, ctx.DisplayName);
-                                    return resultForValidationWithContext;
-                                };
+                            {
+                                Assert.NotNull(validatedEntity);
+                                Assert.Same(entity, validatedEntity);
+                                Assert.Equal(validatedEntity.GetType().Name, ctx.DisplayName);
+                                return resultForValidationWithContext;
+                            };
 
                         var entityValidationResult = Invoke_DbContext_ValidateEntity(entity);
                         VerifyValidationResults(
@@ -1778,16 +1804,16 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
             {
                 ComplexTypeWithTypeLevelCustomValidationAttributes.ValidateWithoutContextFunc =
                     (propertyValue) =>
-                        {
-                            Assert.True(false, "This shouldn't run.");
-                            return ValidationResult.Success;
-                        };
+                    {
+                        Assert.True(false, "This shouldn't run.");
+                        return ValidationResult.Success;
+                    };
                 ComplexTypeWithTypeLevelCustomValidationAttributes.ValidateWithContextFunc =
                     (propertyValue, ctx) =>
-                        {
-                            Assert.True(false, "This shouldn't run.");
-                            return ValidationResult.Success;
-                        };
+                    {
+                        Assert.True(false, "This shouldn't run.");
+                        return ValidationResult.Success;
+                    };
 
                 var entityValidationResult = Invoke_DbContext_ValidateEntity(entity);
                 Assert.NotNull(entityValidationResult);
@@ -1820,24 +1846,24 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
             {
                 ComplexTypeWithTypeLevelCustomValidationAttributes.ValidateWithoutContextFunc =
                     (value) =>
+                    {
+                        if (!value.IsValid)
                         {
-                            if (!value.IsValid)
-                            {
-                                return result;
-                            }
-                            return ValidationResult.Success;
-                        };
+                            return result;
+                        }
+                        return ValidationResult.Success;
+                    };
                 ComplexTypeWithTypeLevelCustomValidationAttributes.ValidateWithContextFunc =
                     (value, ctx) =>
+                    {
+                        if (!value.IsValid)
                         {
-                            if (!value.IsValid)
-                            {
-                                return result;
-                            }
+                            return result;
+                        }
 
-                            Assert.Equal("ID", ctx.DisplayName);
-                            return ValidationResult.Success;
-                        };
+                        Assert.Equal("ID", ctx.DisplayName);
+                        return ValidationResult.Success;
+                    };
 
                 var entityValidationResult = Invoke_DbContext_ValidateEntity(entity);
                 VerifyValidationResults(
@@ -1874,16 +1900,16 @@ namespace Microsoft.Data.CodeFirst.FunctionalTests.ProductivityApi.Validation
                     (propertyValue) => { return new ValidationResult(errorMessage); };
                 ComplexTypeWithTypeLevelCustomValidationAttributes.ValidateWithoutContextFunc =
                     (value) =>
-                        {
-                            Assert.True(false, "This shouldn't run.");
-                            return ValidationResult.Success;
-                        };
+                    {
+                        Assert.True(false, "This shouldn't run.");
+                        return ValidationResult.Success;
+                    };
                 ComplexTypeWithTypeLevelCustomValidationAttributes.ValidateWithContextFunc =
                     (value, ctx) =>
-                        {
-                            Assert.True(false, "This shouldn't run.");
-                            return ValidationResult.Success;
-                        };
+                    {
+                        Assert.True(false, "This shouldn't run.");
+                        return ValidationResult.Success;
+                    };
 
                 var entityValidationResult = Invoke_DbContext_ValidateEntity(entity);
                 Assert.NotNull(entityValidationResult);

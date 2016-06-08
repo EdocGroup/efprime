@@ -88,7 +88,7 @@ namespace System.Data.Entity.Internal.ConfigFile
                       </entityFramework>");
 
                 Assert.True(
-                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains(" 'type' "));
+                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains("type"));
             }
 
             [Fact]
@@ -104,7 +104,7 @@ namespace System.Data.Entity.Internal.ConfigFile
                       </entityFramework>");
 
                 Assert.True(
-                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains(" 'value' "));
+                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains("value"));
             }
         }
 
@@ -206,7 +206,7 @@ namespace System.Data.Entity.Internal.ConfigFile
                       </entityFramework>");
 
                 Assert.True(
-                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains(" 'type' "));
+                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains("type"));
             }
 
             [Fact]
@@ -222,7 +222,7 @@ namespace System.Data.Entity.Internal.ConfigFile
                       </entityFramework>");
 
                 Assert.True(
-                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains(" 'type' "));
+                    Assert.Throws<ConfigurationErrorsException>(() => config.GetSection("entityFramework")).Message.Contains("type"));
             }
 
             [Fact]
@@ -241,7 +241,69 @@ namespace System.Data.Entity.Internal.ConfigFile
                         Strings.ContextConfiguredMultipleTimes("MyContext")));
             }
         }
+        public class QueryCache
+        {
+            [Fact]
+            public void QueryCache_return_the_configured_query_cache_parameters()
+            {
+                var config = CreateConfig(
+                    @"<entityFramework>
+                        <queryCache size='1000' cleaningIntervalInSeconds='60'/>
+                      </entityFramework>");
 
+                var ef = (EntityFrameworkSection)config.GetSection("entityFramework");
+
+                Assert.Equal(1000, ef.QueryCache.Size);
+                Assert.Equal(60, ef.QueryCache.CleaningIntervalInSeconds);
+            }
+
+            [Fact]
+            public void QueryCache_throw_for_size_is_negative()
+            {
+                var config = CreateConfig(
+                    @"<entityFramework>
+                        <queryCache size='-1' cleaningIntervalInSeconds='60'/>
+                      </entityFramework>");
+
+                
+
+                Assert.Throws<ConfigurationErrorsException>(() =>
+                {
+                    var ef = (EntityFrameworkSection)config.GetSection("entityFramework");
+
+                    var size = ef.QueryCache.Size;
+                });
+            }
+
+            [Fact]
+            public void QueryCache_throw_for_cleaningIntervalInSeconds_is_negative_number()
+            {
+                var config = CreateConfig(
+                    @"<entityFramework>
+                        <queryCache size='1000' cleaningIntervalInSeconds='-1'/>
+                      </entityFramework>");
+
+                Assert.Throws<ConfigurationErrorsException>(() =>
+                {
+                    var ef = (EntityFrameworkSection)config.GetSection("entityFramework");
+
+                    var cleaningInterval = ef.QueryCache.CleaningIntervalInSeconds;
+                });
+            }
+
+            [Fact]
+            public void QueryCache_return_default_values_if_element_is_not_present()
+            {
+                var config = CreateConfig(
+                    @"<entityFramework>
+                      </entityFramework>");
+
+                var ef = (EntityFrameworkSection)config.GetSection("entityFramework");
+
+                Assert.Equal(default(Int32), ef.QueryCache.Size);
+                Assert.Equal(default(Int32), ef.QueryCache.CleaningIntervalInSeconds);
+            }
+        }
         public class Providers
         {
             [Fact]
@@ -290,6 +352,8 @@ namespace System.Data.Entity.Internal.ConfigFile
                         Strings.ProviderInvariantRepeatedInConfig("My.Invariant1")));
             }
         }
+
+
 
         private static Configuration CreateConfig(string efSection)
         {

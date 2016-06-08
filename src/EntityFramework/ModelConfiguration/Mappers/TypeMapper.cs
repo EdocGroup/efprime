@@ -29,7 +29,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
             _knownTypes.AddRange(
                 mappingContext.ModelConfiguration
                     .ConfiguredTypes
-                    .Select(t => t.Assembly)
+                    .Select(t => t.Assembly())
                     .Distinct()
                     .SelectMany(a => a.GetAccessibleTypes().Where(type => type.IsValidStructuralType())));
         }
@@ -42,7 +42,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
         public EnumType MapEnumType(Type type)
         {
             DebugCheck.NotNull(type);
-            Debug.Assert(type.IsEnum);
+            Debug.Assert(type.IsEnum());
 
             var enumType = GetExistingEdmType<EnumType>(_mappingContext.Model, type);
 
@@ -55,7 +55,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                 }
 
                 enumType = _mappingContext.Model.AddEnumType(type.Name, _mappingContext.ModelConfiguration.ModelNamespace);
-                enumType.IsFlags = type.GetCustomAttributes(typeof(FlagsAttribute), false).Any();
+                enumType.IsFlags = type.GetCustomAttributes<FlagsAttribute>(inherit: false).Any();
                 enumType.SetClrType(type);
 
                 enumType.UnderlyingType = primitiveType;
@@ -103,9 +103,8 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
 
                 MapStructuralElements(
                     type,
-                    complexType.Annotations,
+                    complexType.GetMetadataProperties(),
                     (m, p) => m.Map(p, complexType, complexTypeConfiguration),
-                    false,
                     complexTypeConfiguration);
             }
 
@@ -136,11 +135,11 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                 }
 
                 entityType = _mappingContext.Model.AddEntityType(type.Name, _mappingContext.ModelConfiguration.ModelNamespace);
-                entityType.Abstract = type.IsAbstract;
+                entityType.Abstract = type.IsAbstract();
 
-                Debug.Assert(type.BaseType != null);
+                Debug.Assert(type.BaseType() != null);
 
-                var baseType = _mappingContext.Model.GetEntityType(type.BaseType.Name);
+                var baseType = _mappingContext.Model.GetEntityType(type.BaseType().Name);
 
                 if (baseType == null)
                 {
@@ -148,7 +147,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                 }
                 else if (ReferenceEquals(baseType, entityType))
                 {
-                    throw new NotSupportedException(Strings.SimpleNameCollision(type.FullName, type.BaseType.FullName, type.Name));
+                    throw new NotSupportedException(Strings.SimpleNameCollision(type.FullName, type.BaseType().FullName, type.Name));
                 }
 
                 entityType.BaseType = baseType;
@@ -165,7 +164,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
 
                 MapStructuralElements(
                     type,
-                    entityType.Annotations,
+                    entityType.GetMetadataProperties(),
                     (m, p) =>
                     {
                         if (!m.MapIfNotNavigationProperty(p, entityType, entityTypeConfiguration))
@@ -173,22 +172,19 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                             navigationProperties.Add(p);
                         }
                     },
-                    entityType.BaseType != null,
                     entityTypeConfiguration);
 
-                var propertyInfos = (IEnumerable<PropertyInfo>)navigationProperties;
+                var navigationPropertyInfos = (IEnumerable<PropertyInfo>)navigationProperties;
                 if (_mappingContext.ModelBuilderVersion.IsEF6OrHigher())
                 {
-                    propertyInfos = propertyInfos.OrderBy(p => p.Name);
+                    navigationPropertyInfos = navigationPropertyInfos.OrderBy(p => p.Name);
                 }
 
-                foreach (var propertyInfo in propertyInfos)
+                foreach (var propertyInfo in navigationPropertyInfos)
                 {
                     new NavigationPropertyMapper(this).Map(propertyInfo, entityType, entityTypeConfiguration);
                 }
 
-                // If the base type was discovered through a navigation property
-                // then the inherited properties mapped afterwards need to be lifted
                 if (entityType.BaseType != null)
                 {
                     LiftInheritedProperties(type, entityType);
@@ -215,10 +211,10 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
             Type type,
             ICollection<MetadataProperty> annotations,
             Action<PropertyMapper, PropertyInfo> propertyMappingAction,
-            bool mapDeclaredPropertiesOnly,
             Func<TStructuralTypeConfiguration> structuralTypeConfiguration)
             where TStructuralTypeConfiguration : StructuralTypeConfiguration
         {
+            // PERF: this code is part of a critical section, consider its performance when refactoring
             DebugCheck.NotNull(type);
             DebugCheck.NotNull(annotations);
             DebugCheck.NotNull(propertyMappingAction);
@@ -230,13 +226,16 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
 
             var propertyMapper = new PropertyMapper(this);
 
-            foreach (var propertyInfo in new PropertyFilter(_mappingContext.ModelBuilderVersion)
+            var properties = new PropertyFilter(_mappingContext.ModelBuilderVersion)
                 .GetProperties(
                     type,
-                    mapDeclaredPropertiesOnly,
+                    /*declaredOnly:*/ false,
                     _mappingContext.ModelConfiguration.GetConfiguredProperties(type),
-                    _mappingContext.ModelConfiguration.StructuralTypes))
+                    _mappingContext.ModelConfiguration.StructuralTypes).ToList();
+            // ReSharper disable once ForCanBeConvertedToForeach
+            for (var i = 0; i < properties.Count; ++i)
             {
+                var propertyInfo = properties[i];
                 _mappingContext.ConventionsConfiguration.ApplyPropertyConfiguration(
                     propertyInfo, _mappingContext.ModelConfiguration);
                 _mappingContext.ConventionsConfiguration.ApplyPropertyTypeConfiguration(
@@ -254,24 +253,27 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
             DebugCheck.NotNull(type);
             DebugCheck.NotNull(entityType);
 
-            if (type.IsSealed)
+            if (type.IsSealed())
             {
                 return;
             }
 
             if (!_knownTypes.Contains(type))
             {
-                _knownTypes.AddRange(type.Assembly.GetAccessibleTypes().Where(t => t.IsValidStructuralType()));
+                _knownTypes.AddRange(type.Assembly().GetAccessibleTypes().Where(t => t.IsValidStructuralType()));
             }
 
-            var derivedTypes = _knownTypes.Where(t => t.BaseType == type);
+            var derivedTypes = _knownTypes.Where(t => t.BaseType() == type);
             if (_mappingContext.ModelBuilderVersion.IsEF6OrHigher())
             {
                 derivedTypes = derivedTypes.OrderBy(t => t.FullName);
             }
 
-            foreach (var derivedType in derivedTypes.ToList())
+            var derivedTypesList = derivedTypes.ToList();
+            // ReSharper disable once ForCanBeConvertedToForeach
+            for (var i = 0; i < derivedTypesList.Count; ++i)
             {
+                var derivedType = derivedTypesList[i];
                 var derivedEntityType = MapEntityType(derivedType);
 
                 if (derivedEntityType != null)
@@ -306,7 +308,7 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
             {
                 entityTypeConfiguration.ClearKey();
 
-                foreach (var property in type.BaseType.GetProperties(PropertyFilter.DefaultBindingFlags))
+                foreach (var property in type.BaseType().GetInstanceProperties())
                 {
                     if (!_mappingContext.AttributeProvider.GetAttributes(property).OfType<NotMappedAttribute>().Any()
                         && entityTypeConfiguration.IgnoredProperties.Any(p => p.IsSameAs(property)))
@@ -316,24 +318,15 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                 }
             }
 
-            LiftInheritedProperties(type, entityType, entityTypeConfiguration);
-        }
-
-        private void LiftInheritedProperties(
-            Type type, EntityType entityType, EntityTypeConfiguration entityTypeConfiguration)
-        {
-            DebugCheck.NotNull(type);
-            DebugCheck.NotNull(entityType);
-
             var members = entityType.DeclaredMembers.ToList();
 
             var declaredProperties
-                = new PropertyFilter(_mappingContext.ModelBuilderVersion)
+                = new HashSet<PropertyInfo>(new PropertyFilter(_mappingContext.ModelBuilderVersion)
                     .GetProperties(
                         type,
                         /*declaredOnly:*/ true,
                         _mappingContext.ModelConfiguration.GetConfiguredProperties(type),
-                        _mappingContext.ModelConfiguration.StructuralTypes);
+                        _mappingContext.ModelConfiguration.StructuralTypes));
 
             foreach (var member in members)
             {
@@ -349,11 +342,6 @@ namespace System.Data.Entity.ModelConfiguration.Mappers
                     }
 
                     entityType.RemoveMember(member);
-
-                    if (entityTypeConfiguration != null)
-                    {
-                        entityTypeConfiguration.RemoveProperty(new PropertyPath(propertyInfo));
-                    }
                 }
             }
         }

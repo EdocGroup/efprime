@@ -3,8 +3,8 @@
 namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
-    using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Text;
     using System.Threading;
@@ -28,22 +28,22 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Initializes a new instance of EdmType
-        /// </summary>
+        // <summary>
+        // Initializes a new instance of EdmType
+        // </summary>
         internal EdmType()
         {
             // No initialization of item attributes in here, it's used as a pass thru in the case for delay population
             // of item attributes
         }
 
-        /// <summary>
-        /// Constructs a new instance of EdmType with the given name, namespace and version
-        /// </summary>
-        /// <param name="name"> name of the type </param>
-        /// <param name="namespaceName"> namespace of the type </param>
-        /// <param name="dataSpace"> dataSpace in which this type belongs to </param>
-        /// <exception cref="System.ArgumentNullException">Thrown if either the name, namespace or version arguments are null</exception>
+        // <summary>
+        // Constructs a new instance of EdmType with the given name, namespace and version
+        // </summary>
+        // <param name="name"> name of the type </param>
+        // <param name="namespaceName"> namespace of the type </param>
+        // <param name="dataSpace"> dataSpace in which this type belongs to </param>
+        // <exception cref="System.ArgumentNullException">Thrown if either the name, namespace or version arguments are null</exception>
         internal EdmType(
             string name,
             string namespaceName,
@@ -67,11 +67,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private string _namespace;
         private EdmType _baseType;
 
-        /// <summary>
-        /// Direct accessor for the field Identity. The reason we need to do this is that for derived class,
-        /// they want to cache things only when they are readonly. Plus they want to check for null before
-        /// updating the value
-        /// </summary>
+        // <summary>
+        // Direct accessor for the field Identity. The reason we need to do this is that for derived class,
+        // they want to cache things only when they are readonly. Plus they want to check for null before
+        // updating the value
+        // </summary>
         internal string CacheIdentity { get; private set; }
 
         string INamedDataModelItem.Identity
@@ -79,9 +79,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return Identity; }
         }
 
-        /// <summary>
-        /// Returns the identity of the edm type
-        /// </summary>
+        // <summary>
+        // Returns the identity of the edm type
+        // </summary>
         internal override string Identity
         {
             get
@@ -154,24 +154,28 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 Util.ThrowIfReadOnly(this);
 
-                // Check to make sure there won't be a loop in the inheritance
-                var type = value;
-                while (type != null)
-                {
-                    Debug.Assert(type != this, "Cannot set the given type as base type because it would introduce a loop in inheritance");
-
-                    type = type.BaseType;
-                }
-
-                // Also if the base type is EntityTypeBase, make sure it doesn't have keys
-                Debug.Assert(
-                    value == null ||
-                    !Helper.IsEntityTypeBase(this) ||
-                    ((EntityTypeBase)this).KeyMembers.Count == 0 ||
-                    ((EntityTypeBase)value).KeyMembers.Count == 0,
-                    " For EntityTypeBase, both base type and derived types cannot have keys defined");
+                CheckBaseType(value);
 
                 _baseType = value;
+            }
+        }
+
+        private void CheckBaseType(EdmType baseType)
+        {
+            for (var type = baseType; type != null; type = type.BaseType)
+            {
+                if (type == this)
+                {
+                    throw new ArgumentException(Strings.CannotSetBaseTypeCyclicInheritance(baseType.Name, Name));
+                }
+            }
+
+            if (baseType != null
+                && Helper.IsEntityTypeBase(this)
+                && ((EntityTypeBase)baseType).KeyMembers.Count != 0
+                && ((EntityTypeBase)this).KeyMembers.Count != 0)
+            {
+                throw new ArgumentException(Strings.CannotDefineKeysOnBothBaseAndDerivedTypes);
             }
         }
 
@@ -182,10 +186,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return Identity; }
         }
 
-        /// <summary>
-        /// If OSpace, return the CLR Type else null
-        /// </summary>
-        /// <exception cref="System.InvalidOperationException">Thrown if the setter is called on instance that is in ReadOnly state</exception>
+        // <summary>
+        // If OSpace, return the CLR Type else null
+        // </summary>
+        // <exception cref="System.InvalidOperationException">Thrown if the setter is called on instance that is in ReadOnly state</exception>
         internal virtual Type ClrType
         {
             get { return null; }
@@ -216,16 +220,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return identity;
         }
 
-        /// <summary>
-        /// Initialize the type. This method must be called since for bootstraping we only call the constructor.
-        /// This method will help us initialize the type
-        /// </summary>
-        /// <param name="type"> The edm type to initialize with item attributes </param>
-        /// <param name="name"> The name of this type </param>
-        /// <param name="namespaceName"> The namespace of this type </param>
-        /// <param name="dataSpace"> dataSpace in which this type belongs to </param>
-        /// <param name="isAbstract"> If the type is abstract </param>
-        /// <param name="baseType"> The base type for this type </param>
+        // <summary>
+        // Initialize the type. This method must be called since for bootstraping we only call the constructor.
+        // This method will help us initialize the type
+        // </summary>
+        // <param name="type"> The edm type to initialize with item attributes </param>
+        // <param name="name"> The name of this type </param>
+        // <param name="namespaceName"> The namespace of this type </param>
+        // <param name="dataSpace"> dataSpace in which this type belongs to </param>
+        // <param name="isAbstract"> If the type is abstract </param>
+        // <param name="baseType"> The base type for this type </param>
         internal static void
             Initialize(
             EdmType type,
@@ -268,19 +272,19 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return _collectionType;
         }
 
-        /// <summary>
-        /// check to see if otherType is among the base types,
-        /// </summary>
-        /// <returns> if otherType is among the base types, return true, otherwise returns false. when othertype is same as the current type, return false. </returns>
+        // <summary>
+        // check to see if otherType is among the base types,
+        // </summary>
+        // <returns> if otherType is among the base types, return true, otherwise returns false. when othertype is same as the current type, return false. </returns>
         internal virtual bool IsSubtypeOf(EdmType otherType)
         {
             return Helper.IsSubtypeOf(this, otherType);
         }
 
-        /// <summary>
-        /// check to see if otherType is among the sub-types,
-        /// </summary>
-        /// <returns> if otherType is among the sub-types, returns true, otherwise returns false. when othertype is same as the current type, return false. </returns>
+        // <summary>
+        // check to see if otherType is among the sub-types,
+        // </summary>
+        // <returns> if otherType is among the sub-types, returns true, otherwise returns false. when othertype is same as the current type, return false. </returns>
         internal virtual bool IsBaseTypeOf(EdmType otherType)
         {
             if (otherType == null)
@@ -290,17 +294,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return otherType.IsSubtypeOf(this);
         }
 
-        /// <summary>
-        /// Check if this type is assignable from otherType
-        /// </summary>
+        // <summary>
+        // Check if this type is assignable from otherType
+        // </summary>
         internal virtual bool IsAssignableFrom(EdmType otherType)
         {
             return Helper.IsAssignableFrom(this, otherType);
         }
 
-        /// <summary>
-        /// Sets this item to be readonly, once this is set, the item will never be writable again.
-        /// </summary>
+        // <summary>
+        // Sets this item to be readonly, once this is set, the item will never be writable again.
+        // </summary>
         internal override void SetReadOnly()
         {
             if (!IsReadOnly)
@@ -315,10 +319,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Returns all facet descriptions associated with this type.
-        /// </summary>
-        /// <returns> Descriptions for all built-in facets for this type. </returns>
+        // <summary>
+        // Returns all facet descriptions associated with this type.
+        // </summary>
+        // <returns> Descriptions for all built-in facets for this type. </returns>
         internal virtual IEnumerable<FacetDescription> GetAssociatedFacetDescriptions()
         {
             return GetGeneralFacetDescriptions();

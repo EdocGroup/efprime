@@ -9,6 +9,7 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Data.Entity.ModelConfiguration.Internal.UnitTests;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Spatial;
+    using System.Data.Entity.Utilities;
     using System.Reflection;
 #if !NET40
     using System.Threading;
@@ -481,7 +482,7 @@ namespace System.Data.Entity.Core.Objects.Internal
         {
             if (type == typeof(char))
             {
-                return typeof(DbDataReader).GetMethod("GetChar");
+                return typeof(DbDataReader).GetOnlyDeclaredMethod("GetChar");
             }
             bool isNullable;
             return CodeGenEmitter.GetReaderMethod(type, out isNullable);
@@ -531,5 +532,51 @@ namespace System.Data.Entity.Core.Objects.Internal
                 Strings.ADP_NoData,
                 Assert.Throws<InvalidOperationException>(() => method(bufferedReader)).Message);
         }
+
+#if !NET40
+
+        [Fact]
+        public void InitializeAsync_does_not_throw_OperationCanceledException_if_reader_is_null_even_if_task_is_cancelled()
+        {
+            var reader = new BufferedDataReader(new Mock<DbDataReader>().Object);
+
+            reader.Close();
+
+            Assert.False(reader.InitializeAsync("manifestToken", new Mock<DbProviderServices>().Object,
+                    new Type[0], new bool[0], new CancellationToken(canceled: true)).IsCanceled);
+        }
+
+        [Fact]
+        public void InitializeAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var reader = new BufferedDataReader(new Mock<DbDataReader>().Object);
+
+            Assert.Throws<OperationCanceledException>(
+                () => reader.InitializeAsync("manifestToken", new Mock<DbProviderServices>().Object,
+                    new Type[0], new bool[0], new CancellationToken(canceled: true))
+                    .GetAwaiter().GetResult());
+        }
+
+        [Fact]
+        public void NextResultAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var reader = new BufferedDataReader(new Mock<DbDataReader>().Object);
+
+            Assert.Throws<OperationCanceledException>(
+                () => reader.NextResultAsync(new CancellationToken(canceled: true))
+                    .GetAwaiter().GetResult());
+        }
+
+        [Fact]
+        public void ReadAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            var reader = new BufferedDataReader(new Mock<DbDataReader>().Object);
+
+            Assert.Throws<OperationCanceledException>(
+                () => reader.ReadAsync(new CancellationToken(canceled: true))
+                    .GetAwaiter().GetResult());
+        }
+
+#endif
     }
 }

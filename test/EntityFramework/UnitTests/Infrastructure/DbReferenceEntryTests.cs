@@ -2,12 +2,15 @@
 
 namespace System.Data.Entity.Infrastructure
 {
+    using System.Data.Entity.Core.Objects.Internal;
     using System.Data.Entity.Internal;
     using System.Data.Entity.ModelConfiguration.Internal.UnitTests;
     using System.Data.Entity.Resources;
     using System.Threading;
     using Moq;
     using Xunit;
+    using MockHelper = System.Data.Entity.Internal.MockHelper;
+    using System.Data.Entity.Core.Objects.DataClasses;
 
     public class DbReferenceEntryTests
     {
@@ -278,6 +281,48 @@ namespace System.Data.Entity.Infrastructure
                 return nonGeneric;
             }
         }
+
+#if !NET40
+
+        public class LoadAsync
+        {
+            [Fact]
+            public void Generic_DbCollectionEntry_throws_OperationCanceledException_if_task_is_cancelled()
+            {
+                var entityEntry = new DbEntityEntry<FakeWithProps>(FakeWithProps.CreateMockInternalEntityEntry().Object);
+
+                var mockWrapper = new Mock<IEntityWrapper>();
+                mockWrapper.Setup(w => w.Entity).Returns(new object());
+
+                ((RelatedEnd)entityEntry
+                    .Reference(e => e.Reference).InternalMemberEntry.InternalEntityEntry.GetRelatedEnd("Reference"))
+                    .SetWrappedOwner(mockWrapper.Object);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => entityEntry.Reference(e => e.Reference).LoadAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+
+            [Fact]
+            public void Non_generic_DbCollectionEntry_throws_OperationCanceledException_if_task_is_cancelled()
+            {
+                var entityEntry = new DbEntityEntry<FakeWithProps>(FakeWithProps.CreateMockInternalEntityEntry().Object);
+
+                var mockWrapper = new Mock<IEntityWrapper>();
+                mockWrapper.Setup(w => w.Entity).Returns(new object());
+
+                ((RelatedEnd)entityEntry
+                    .Reference(e => e.Reference).InternalMemberEntry.InternalEntityEntry.GetRelatedEnd("Reference"))
+                    .SetWrappedOwner(mockWrapper.Object);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => ((DbReferenceEntry)entityEntry.Reference(e => e.Reference))
+                        .LoadAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+        }
+
+#endif
 
         #region Helpers
 

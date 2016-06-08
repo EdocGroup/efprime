@@ -11,11 +11,14 @@ namespace System.Data.Entity
     /// An implementation of <see cref="IDatabaseInitializer{TContext}" /> that will use Code First Migrations
     /// to update the database to the latest version.
     /// </summary>
+    /// <typeparam name="TContext">The type of the context.</typeparam>
+    /// <typeparam name="TMigrationsConfiguration">The type of the migrations configuration to use during initialization.</typeparam>
     public class MigrateDatabaseToLatestVersion<TContext, TMigrationsConfiguration> : IDatabaseInitializer<TContext>
         where TContext : DbContext
         where TMigrationsConfiguration : DbMigrationsConfiguration<TContext>, new()
     {
         private readonly DbMigrationsConfiguration _config;
+        private readonly bool _useSuppliedContext;
 
         static MigrateDatabaseToLatestVersion()
         {
@@ -23,11 +26,48 @@ namespace System.Data.Entity
         }
 
         /// <summary>
-        /// Initializes a new instance of the MigrateDatabaseToLatestVersion class.
+        /// Initializes a new instance of the MigrateDatabaseToLatestVersion class that will use
+        /// the connection information from a context constructed using the default constructor 
+        /// or registered factory if applicable
         /// </summary>
         public MigrateDatabaseToLatestVersion()
+            : this(useSuppliedContext: false)
         {
-            _config = new TMigrationsConfiguration();
+
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the MigrateDatabaseToLatestVersion class specifying whether to
+        /// use the connection information from the context that triggered initialization to perform the migration.
+        /// </summary>
+        /// <param name="useSuppliedContext">
+        /// If set to <c>true</c> the initializer is run using the connection information from the context that 
+        /// triggered initialization. Otherwise, the connection information will be taken from a context constructed 
+        /// using the default constructor or registered factory if applicable. 
+        /// </param>
+        public MigrateDatabaseToLatestVersion(bool useSuppliedContext)
+            : this(useSuppliedContext, new TMigrationsConfiguration())
+        {
+            
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the MigrateDatabaseToLatestVersion class specifying whether to
+        /// use the connection information from the context that triggered initialization to perform the migration.
+        /// Also allows specifying migrations configuration to use during initialization.
+        /// </summary>
+        /// <param name="useSuppliedContext">
+        /// If set to <c>true</c> the initializer is run using the connection information from the context that
+        /// triggered initialization. Otherwise, the connection information will be taken from a context constructed
+        /// using the default constructor or registered factory if applicable.
+        /// </param>
+        /// <param name="configuration"> Migrations configuration to use during initialization. </param>
+        public MigrateDatabaseToLatestVersion(bool useSuppliedContext, TMigrationsConfiguration configuration)
+        {
+            Check.NotNull(configuration, "configuration");
+
+            _config = configuration;
+            _useSuppliedContext = useSuppliedContext;
         }
 
         /// <summary>
@@ -47,11 +87,11 @@ namespace System.Data.Entity
         }
 
         /// <inheritdoc />
-        public void InitializeDatabase(TContext context)
+        public virtual void InitializeDatabase(TContext context)
         {
             Check.NotNull(context, "context");
 
-            var migrator = new DbMigrator(_config);
+            var migrator = new DbMigrator(_config, _useSuppliedContext ? context : null);
             migrator.Update();
         }
     }

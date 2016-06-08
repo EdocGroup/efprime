@@ -2,17 +2,20 @@
 
 namespace System.Data.Entity
 {
+    using System.Collections;
     using System.Collections.Generic;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Internal.Linq;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using System.Linq;
     using System.Linq.Expressions;
     using System.Threading;
     using System.Threading.Tasks;
     using Moq;
     using Xunit;
+    using System.Data.Entity.TestHelpers;
 
     public class QueryableExtensionsTests
     {
@@ -178,6 +181,21 @@ namespace System.Data.Entity
                 Assert.NotSame(query, newQuery);
                 Assert.NotEqual(MergeOption.NoTracking, query.MergeOption);
                 Assert.Equal(MergeOption.NoTracking, ((ObjectQuery)newQuery).MergeOption);
+            }
+
+            [Fact]
+            public void On_ObjectQuery_returns_a_NoTracking_one_with_ExecutionStrategy()
+            {
+                var query = (ObjectQuery)MockHelper.CreateMockObjectQuery(new object()).Object;
+                var mockExecutionStrategy = new Mock<IDbExecutionStrategy>().Object;
+
+                var newQuery = (ObjectQuery)query.AsNoTracking().WithExecutionStrategy(mockExecutionStrategy);
+
+                Assert.NotSame(query, newQuery);
+                Assert.NotEqual(MergeOption.NoTracking, query.MergeOption);
+                Assert.Null(query.ExecutionStrategy);
+                Assert.Same(mockExecutionStrategy, newQuery.ExecutionStrategy);
+                Assert.Equal(MergeOption.NoTracking, newQuery.MergeOption);
             }
 
             [Fact]
@@ -833,7 +851,7 @@ namespace System.Data.Entity
                     Assert.Throws<ArgumentException>(
                         () =>
                         new DbQuery<RootEntity>(new Mock<IInternalQuery<RootEntity>>().Object).Include(
-                            e => e.Level1Reference.GetType().Assembly)).Message);
+                            e => e.Level1Reference.GetType().Assembly())).Message);
             }
 
             [Fact]
@@ -946,6 +964,151 @@ namespace System.Data.Entity
                 var mockQueryable = new Mock<IIncludable>(MockBehavior.Strict);
                 IQueryable source = mockQueryable.Object;
                 var result = new Mock<IIncludable>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable2 : IQueryable
+            {
+                IIncludable2 Include(IComparable path);
+            }
+
+            [Fact]
+            public void Non_generic_IComparable_Include_on_IQueryable_with_Include_method_calls_that_method()
+            {
+                var mockQueryable = new Mock<IIncludable2>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable2>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable3 : IQueryable
+            {
+                IIncludable3 Include(ICloneable path);
+            }
+
+            [Fact]
+            public void Non_generic_ICloneable_Include_on_IQueryable_with_Include_method_calls_that_method()
+            {
+                var mockQueryable = new Mock<IIncludable3>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable3>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable4 : IQueryable
+            {
+                IIncludable4 Include(IComparable<string> path);
+            }
+
+            [Fact]
+            public void Non_generic_IComparable_string_Include_on_IQueryable_with_Include_method_calls_that_method()
+            {
+                var mockQueryable = new Mock<IIncludable4>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable4>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable5 : IQueryable
+            {
+                IIncludable5 Include(IEnumerable<char> path);
+            }
+
+            [Fact]
+            public void Non_generic_IEnumerable_char__Include_on_IQueryable_with_Include_method_calls_that_method()
+            {
+                var mockQueryable = new Mock<IIncludable5>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable5>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable6 : IQueryable
+            {
+                IIncludable6 Include(IEnumerable path);
+            }
+
+            [Fact]
+            public void Non_generic_IEnumerable_Include_on_IQueryable_with_Include_method_calls_that_method()
+            {
+                var mockQueryable = new Mock<IIncludable6>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable6>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable7 : IQueryable
+            {
+                IIncludable7 Include(IEquatable<string> path);
+            }
+
+            [Fact]
+            public void Non_generic_IEquatable_string_Include_on_IQueryable_with_Include_method_calls_that_method()
+            {
+                var mockQueryable = new Mock<IIncludable7>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable7>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable8 : IQueryable
+            {
+                IIncludable8 Include(object path);
+            }
+
+            [Fact]
+            public void Non_generic_object_Include_on_IQueryable_with_Include_method_calls_that_method()
+            {
+                var mockQueryable = new Mock<IIncludable8>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable8>().Object;
+                mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
+
+                var afterInclude = source.Include("FakeRelationship");
+
+                Assert.Same(result, afterInclude);
+            }
+
+            public interface IIncludable9 : IQueryable
+            {
+                IIncludable9 Include(string path);
+                IIncludable9 Include(object path);
+            }
+
+            [Fact]
+            public void Non_generic_multi_method_Include_on_IQueryable_with_Include_method_calls_string_method()
+            {
+                var mockQueryable = new Mock<IIncludable9>(MockBehavior.Strict);
+                IQueryable source = mockQueryable.Object;
+                var result = new Mock<IIncludable9>().Object;
                 mockQueryable.Setup(i => i.Include("FakeRelationship")).Returns(result);
 
                 var afterInclude = source.Include("FakeRelationship");
@@ -1653,6 +1816,211 @@ namespace System.Data.Entity
             testExpression.Compile()(queryableMock.Object);
         }
 
+        [Fact]
+        public void Async_extension_methods_throw_OperatationCanceledException_if_task_is_cancelled()
+        {
+            var source = CreateThrowingMockQueryable<int>();
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.FirstAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.FirstAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.FirstOrDefaultAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.FirstOrDefaultAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.SingleAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.SingleAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.SingleOrDefaultAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.SingleOrDefaultAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.ContainsAsync(42, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.AnyAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.AnyAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.AllAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.CountAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.CountAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.LongCountAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.LongCountAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.MinAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.MinAsync(n => true, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.MaxAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => source.MaxAsync(n => true, new CancellationToken(canceled: true)).Wait());
+        }
+
+        [Fact]
+        public void SumAsync_extension_methods_throw_OperatationCanceledException_if_task_is_cancelled()
+        {
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int?>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long?>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float?>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double?>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal?>().SumAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int>().SumAsync(f => 42, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int?>().SumAsync(f => (int?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long>().SumAsync(f => 42L, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long?>().SumAsync(f => (long?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float>().SumAsync(f => 42.0F, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float?>().SumAsync(f => (float?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double>().SumAsync(f => 42.0D, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double?>().SumAsync(f => (double?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal>().SumAsync(f => 42.0M, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal?>().SumAsync(f => (decimal?)null, new CancellationToken(canceled: true)).Wait());
+        }
+
+        [Fact]
+        public void AverageAsync_extension_methods_throw_OperatationCanceledException_if_task_is_cancelled()
+        {
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int?>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long?>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float?>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double?>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal?>().AverageAsync(new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int>().AverageAsync(f => 42, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<int?>().AverageAsync(f => (int?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long>().AverageAsync(f => 42L, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<long?>().AverageAsync(f => (long?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float>().AverageAsync(f => 42.0F, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<float?>().AverageAsync(f => (float?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double>().AverageAsync(f => 42.0D, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<double?>().AverageAsync(f => (double?)null, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal>().AverageAsync(f => 42.0M, new CancellationToken(canceled: true)).Wait());
+
+            Assert.Throws<OperationCanceledException>(
+                () => CreateThrowingMockQueryable<decimal?>().AverageAsync(f => (decimal?)null, new CancellationToken(canceled: true)).Wait());
+        }
+
+
+        private static IQueryable<T> CreateThrowingMockQueryable<T>()
+        {
+            var mockSource = new Mock<IQueryable<T>>();
+            mockSource
+                .Setup(s => s.Provider)
+                .Throws(new InvalidOperationException("Not expected to be invoked - task has been cancelled."));
+
+            return mockSource.Object;
+        }
+
 #endif
 
         #endregion
@@ -1698,12 +2066,21 @@ namespace System.Data.Entity
             [Fact]
             public void Parameterized_Skip_in_linq_to_entities_query_works_as_expected()
             {
-                using (var ctx = new Context())
+                string expectedSql = null;
+                var sqlVersion = DatabaseTestHelpers.GetSqlDatabaseVersion<Context>(() => new Context());
+                if (sqlVersion >= 11)
                 {
-                    var count = 2;
-                    var query = ctx.Entities.OrderBy(e => e.Name).Skip(() => count);
-
-                    Assert.Equal(
+                    expectedSql =
+@"SELECT 
+    [Extent1].[Id] AS [Id], 
+    [Extent1].[Name] AS [Name]
+    FROM [dbo].[Entities] AS [Extent1]
+    ORDER BY [Extent1].[Name] ASC
+    OFFSET @p__linq__0 ROWS ";
+                }
+                else
+                {
+                    expectedSql =
 @"SELECT 
     [Extent1].[Id] AS [Id], 
     [Extent1].[Name] AS [Name]
@@ -1711,8 +2088,16 @@ namespace System.Data.Entity
         FROM [dbo].[Entities] AS [Extent1]
     )  AS [Extent1]
     WHERE [Extent1].[row_number] > @p__linq__0
-    ORDER BY [Extent1].[Name] ASC",
-                       query.ToString());
+    ORDER BY [Extent1].[Name] ASC";
+                }
+
+                using (var ctx = new Context())
+                {
+
+                    var count = 2;
+                    var query = ctx.Entities.OrderBy(e => e.Name).Skip(() => count);
+
+                    Assert.Equal(expectedSql, query.ToString());
                 }
             }
 
@@ -1777,11 +2162,6 @@ namespace System.Data.Entity
 
             public class Context : DbContext
             {
-                public Context()
-                {
-                    Database.SetInitializer<Context>(null);
-                }
-
                 public DbSet<Entity> Entities { get; set; }
             }
         }

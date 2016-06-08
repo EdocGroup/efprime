@@ -5,6 +5,7 @@ namespace System.Data.Entity.ProductivityApi
     using System.Collections.Generic;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.TestHelpers;
     using System.Data.Entity.WrappingProvider;
     using System.Data.SqlClient;
     using System.Linq;
@@ -57,20 +58,25 @@ namespace System.Data.Entity.ProductivityApi
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void DbContext_timeout_is_used_for_updates()
         {
-            using (var context = new TimeoutContext())
-            {
-                context.Database.CommandTimeout = 66;
-
-                using (context.Database.BeginTransaction())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Space.Add(new SomeSpace());
-                    context.SaveChanges();
-                }
+                    using (var context = new TimeoutContext())
+                    {
+                        context.Database.CommandTimeout = 66;
 
-                Assert.Equal("66", GetLoggedTimeout());
-            }
+                        using (context.Database.BeginTransaction())
+                        {
+                            context.Space.Add(new SomeSpace());
+                            context.SaveChanges();
+                        }
+
+                        Assert.Equal("66", GetLoggedTimeout());
+                    }
+                });
         }
 
         [Fact]
@@ -158,19 +164,24 @@ namespace System.Data.Entity.ProductivityApi
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void DbContext_timeout_is_used_for_Database_ExecuteSqlCommand()
         {
-            using (var context = new TimeoutContext())
-            {
-                context.Database.CommandTimeout = 66;
-
-                using (context.Database.BeginTransaction())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Database.ExecuteSqlCommand("update SomeTimes set SpaceId = 1 where Id = 1");
-                }
+                    using (var context = new TimeoutContext())
+                    {
+                        context.Database.CommandTimeout = 66;
 
-                Assert.Equal("66", GetLoggedTimeout());
-            }
+                        using (context.Database.BeginTransaction())
+                        {
+                            context.Database.ExecuteSqlCommand("update SomeTimes set SpaceId = 1 where Id = 1");
+                        }
+
+                        Assert.Equal("66", GetLoggedTimeout());
+                    }
+                });
         }
 
         [Fact]
@@ -272,20 +283,25 @@ namespace System.Data.Entity.ProductivityApi
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void DbContext_timeout_is_used_for_async_updates()
         {
-            using (var context = new TimeoutContext())
-            {
-                context.Database.CommandTimeout = 66;
-
-                using (context.Database.BeginTransaction())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Space.Add(new SomeSpace());
-                    context.SaveChangesAsync().Wait();
-                }
+                    using (var context = new TimeoutContext())
+                    {
+                        context.Database.CommandTimeout = 66;
 
-                Assert.Equal("66", GetLoggedTimeout());
-            }
+                        using (context.Database.BeginTransaction())
+                        {
+                            context.Space.Add(new SomeSpace());
+                            context.SaveChangesAsync().Wait();
+                        }
+
+                        Assert.Equal("66", GetLoggedTimeout());
+                    }
+                });
         }
 
         [Fact]
@@ -361,19 +377,24 @@ namespace System.Data.Entity.ProductivityApi
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void DbContext_timeout_is_used_for_async_Database_ExecuteSqlCommand()
         {
-            using (var context = new TimeoutContext())
-            {
-                context.Database.CommandTimeout = 66;
-
-                using (context.Database.BeginTransaction())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    context.Database.ExecuteSqlCommandAsync("update SomeTimes set SpaceId = 1 where Id = 1").Wait();
-                }
+                    using (var context = new TimeoutContext())
+                    {
+                        context.Database.CommandTimeout = 66;
 
-                Assert.Equal("66", GetLoggedTimeout());
-            }
+                        using (context.Database.BeginTransaction())
+                        {
+                            context.Database.ExecuteSqlCommandAsync("update SomeTimes set SpaceId = 1 where Id = 1").Wait();
+                        }
+
+                        Assert.Equal("66", GetLoggedTimeout());
+                    }
+                });
         }
 
 #endif

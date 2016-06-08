@@ -29,10 +29,10 @@ namespace System.Data.Entity.Infrastructure
         private readonly IInternalQuery<TResult> _internalQuery;
         private IQueryProvider _provider;
 
-        /// <summary>
-        /// Creates a new query that will be backed by the given internal query object.
-        /// </summary>
-        /// <param name="internalQuery"> The backing query. </param>
+        // <summary>
+        // Creates a new query that will be backed by the given internal query object.
+        // </summary>
+        // <param name="internalQuery"> The backing query. </param>
         internal DbQuery(IInternalQuery<TResult> internalQuery)
         {
             _internalQuery = internalQuery;
@@ -91,6 +91,11 @@ namespace System.Data.Entity.Infrastructure
         }
 
         #endregion
+
+        internal virtual DbQuery<TResult> WithExecutionStrategy(IDbExecutionStrategy executionStrategy)
+        {
+            return _internalQuery == null ? this : new DbQuery<TResult>(_internalQuery.WithExecutionStrategy(executionStrategy));
+        }
 
         #region Data binding
 
@@ -203,7 +208,7 @@ namespace System.Data.Entity.Infrastructure
             {
                 return _provider ?? (_provider = new DbQueryProvider(
                                                      GetInternalQueryWithCheck("IQueryable.Provider").InternalContext,
-                                                     GetInternalQueryWithCheck("IQueryable.Provider").ObjectQueryProvider));
+                                                     GetInternalQueryWithCheck("IQueryable.Provider")));
             }
         }
 
@@ -211,17 +216,17 @@ namespace System.Data.Entity.Infrastructure
 
         #region Internal query
 
-        /// <summary>
-        /// The internal query object that is backing this DbQuery
-        /// </summary>
+        // <summary>
+        // The internal query object that is backing this DbQuery
+        // </summary>
         IInternalQuery IInternalQueryAdapter.InternalQuery
         {
             get { return _internalQuery; }
         }
 
-        /// <summary>
-        /// The internal query object that is backing this DbQuery
-        /// </summary>
+        // <summary>
+        // The internal query object that is backing this DbQuery
+        // </summary>
         internal IInternalQuery<TResult> InternalQuery
         {
             get { return _internalQuery; }
@@ -257,6 +262,7 @@ namespace System.Data.Entity.Infrastructure
         /// <summary>
         /// Returns a new instance of the non-generic <see cref="DbQuery" /> class for this query.
         /// </summary>
+        /// <param name="entry">The query.</param>
         /// <returns> A non-generic version. </returns>
         [SuppressMessage("Microsoft.Design", "CA1065:DoNotRaiseExceptionsInUnexpectedLocations")]
         [SuppressMessage("Microsoft.Usage", "CA2225:OperatorOverloadsHaveNamedAlternates",

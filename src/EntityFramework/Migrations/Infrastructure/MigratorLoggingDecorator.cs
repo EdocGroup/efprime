@@ -5,6 +5,7 @@ namespace System.Data.Entity.Migrations.Infrastructure
     using System.Collections.Generic;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Migrations.Model;
     using System.Data.Entity.Migrations.Sql;
     using System.Data.Entity.Resources;
@@ -36,7 +37,7 @@ namespace System.Data.Entity.Migrations.Infrastructure
         }
 
         internal override void AutoMigrate(
-            string migrationId, XDocument sourceModel, XDocument targetModel, bool downgrading)
+            string migrationId, VersionedModel sourceModel, VersionedModel targetModel, bool downgrading)
         {
             DebugCheck.NotEmpty(migrationId);
 
@@ -48,20 +49,21 @@ namespace System.Data.Entity.Migrations.Infrastructure
             base.AutoMigrate(migrationId, sourceModel, targetModel, downgrading);
         }
 
-        internal override void ExecuteSql(DbTransaction transaction, MigrationStatement migrationStatement)
+        internal override void ExecuteSql(
+            MigrationStatement migrationStatement, DbConnection connection, DbTransaction transaction,
+            DbInterceptionContext interceptionContext)
         {
-            DebugCheck.NotNull(transaction);
             DebugCheck.NotNull(migrationStatement);
+            DebugCheck.NotNull(connection);
 
             _logger.Verbose(migrationStatement.Sql);
 
-            var providerServices
-                = DbProviderServices.GetProviderServices(transaction.Connection);
+            var providerServices = DbProviderServices.GetProviderServices(connection);
 
             if (providerServices != null)
             {
                 providerServices.RegisterInfoMessageHandler(
-                    transaction.Connection,
+                    connection,
                     message =>
                         {
                             if (!string.Equals(message, _lastInfoMessage, StringComparison.OrdinalIgnoreCase))
@@ -74,7 +76,7 @@ namespace System.Data.Entity.Migrations.Infrastructure
                         });
             }
 
-            base.ExecuteSql(transaction, migrationStatement);
+            base.ExecuteSql(migrationStatement, connection, transaction, interceptionContext);
         }
 
         internal override void Upgrade(

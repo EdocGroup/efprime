@@ -25,10 +25,10 @@ namespace System.Data.Entity.Infrastructure
 
         private readonly InternalEntityEntry _internalEntityEntry;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DbEntityEntry{TEntity}" /> class.
-        /// </summary>
-        /// <param name="internalEntityEntry"> The internal entry. </param>
+        // <summary>
+        // Initializes a new instance of the <see cref="DbEntityEntry{TEntity}" /> class.
+        // </summary>
+        // <param name="internalEntityEntry"> The internal entry. </param>
         internal DbEntityEntry(InternalEntityEntry internalEntityEntry)
         {
             DebugCheck.NotNull(internalEntityEntry);
@@ -139,7 +139,7 @@ namespace System.Data.Entity.Infrastructure
         public async Task<DbPropertyValues> GetDatabaseValuesAsync(CancellationToken cancellationToken)
         {
             var storeValues =
-                await _internalEntityEntry.GetDatabaseValuesAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                await _internalEntityEntry.GetDatabaseValuesAsync(cancellationToken).WithCurrentCulture();
             return storeValues == null ? null : new DbPropertyValues(storeValues);
         }
 
@@ -429,6 +429,7 @@ namespace System.Data.Entity.Infrastructure
         /// Returns a new instance of the non-generic <see cref="DbEntityEntry" /> class for
         /// the tracked entity represented by this object.
         /// </summary>
+        /// <param name="entry">The object representing the tracked entity.</param>
         /// <returns> A non-generic version. </returns>
         [SuppressMessage("Microsoft.Usage", "CA2225:OperatorOverloadsHaveNamedAlternates",
             Justification = "Intentionally just implicit to reduce API clutter.")]
@@ -441,13 +442,15 @@ namespace System.Data.Entity.Infrastructure
 
         #region Validation
 
+        //TODO: cref seems to have an error in vNext that it will not resolve a reference to a protected method.
+        //      Restore to <see cref="DbContext.ValidateEntity(DbEntityEntry, IDictionary{object,object})" />
+        //      below when working.
         /// <summary>
         /// Validates this <see cref="DbEntityEntry{T}" /> instance and returns validation result.
         /// </summary>
         /// <returns>
         /// Entity validation result. Possibly null if
-        /// <see
-        ///     cref="DbContext.ValidateEntity(DbEntityEntry, IDictionary{object, object})" />
+        /// DbContext.ValidateEntity(DbEntityEntry, IDictionary{object, object})
         /// method is overridden.
         /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]

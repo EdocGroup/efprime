@@ -10,11 +10,22 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private string _summary = "";
         private string _longDescription = "";
 
-        /// <summary>
-        /// Default constructor - primarily created for supporting usage of this Documentation class by SOM.
-        /// </summary>
+        // <summary>
+        // Default constructor - primarily created for supporting usage of this Documentation class by SOM.
+        // </summary>
         internal Documentation()
         {
+        }
+
+        /// <summary>
+        /// Initializes a new Documentation instance.
+        /// </summary>
+        /// <param name="summary">A summary string.</param>
+        /// <param name="longDescription">A long description string.</param>
+        public Documentation(string summary, string longDescription)
+        {
+            Summary = summary;
+            LongDescription = longDescription;
         }
 
         /// <summary>
@@ -75,10 +86,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// This property is required to be implemented for inheriting from MetadataItem. As there can be atmost one
-        /// instance of a nested-Documentation, return the constant "Documentation" as it's identity.
-        /// </summary>
+        // <summary>
+        // This property is required to be implemented for inheriting from MetadataItem. As there can be atmost one
+        // instance of a nested-Documentation, return the constant "Documentation" as it's identity.
+        // </summary>
         internal override string Identity
         {
             get { return "Documentation"; }

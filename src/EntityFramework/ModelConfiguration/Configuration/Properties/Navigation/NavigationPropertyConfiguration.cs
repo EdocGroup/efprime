@@ -15,9 +15,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
     using System.Linq;
     using System.Reflection;
 
-    /// <summary>
-    /// Used to configure a navigation property.
-    /// </summary>
+    // <summary>
+    // Used to configure a navigation property.
+    // </summary>
     internal class NavigationPropertyConfiguration : PropertyConfiguration
     {
         private readonly PropertyInfo _navigationProperty;
@@ -68,9 +68,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             return new NavigationPropertyConfiguration(this);
         }
 
-        /// <summary>
-        /// Gets or sets the action to take when a delete operation is attempted.
-        /// </summary>
+        // <summary>
+        // Gets or sets the action to take when a delete operation is attempted.
+        // </summary>
         public OperationAction? DeleteAction { get; set; }
 
         internal PropertyInfo NavigationProperty
@@ -78,9 +78,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             get { return _navigationProperty; }
         }
 
-        /// <summary>
-        /// Gets or sets the multiplicity of this end of the navigation property.
-        /// </summary>
+        // <summary>
+        // Gets or sets the multiplicity of this end of the navigation property.
+        // </summary>
         public RelationshipMultiplicity? RelationshipMultiplicity
         {
             get { return _endKind; }
@@ -119,14 +119,14 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             }
         }
 
-        /// <summary>
-        /// Gets or sets the constraint associated with the navigation property.
-        /// </summary>
-        /// <remarks>
-        /// This property uses <see cref="ForeignKeyConstraintConfiguration" /> for
-        /// foreign key constraints and <see cref="IndependentConstraintConfiguration" />
-        /// for independent constraints.
-        /// </remarks>
+        // <summary>
+        // Gets or sets the constraint associated with the navigation property.
+        // </summary>
+        // <remarks>
+        // This property uses <see cref="ForeignKeyConstraintConfiguration" /> for
+        // foreign key constraints and <see cref="IndependentConstraintConfiguration" />
+        // for independent constraints.
+        // </remarks>
         public ConstraintConfiguration Constraint
         {
             get { return _constraint; }
@@ -138,9 +138,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             }
         }
 
-        /// <summary>
-        /// True if the NavigationProperty's declaring type is the principal end, false if it is not, null if it is not known
-        /// </summary>
+        // <summary>
+        // True if the NavigationProperty's declaring type is the principal end, false if it is not, null if it is not known
+        // </summary>
         internal bool? IsNavigationPropertyDeclaringTypePrincipal { get; set; }
 
         internal AssociationMappingConfiguration AssociationMappingConfiguration
@@ -160,7 +160,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             set
             {
                 DebugCheck.NotNull(value);
-                
+
                 _modificationStoredProceduresConfiguration = value;
             }
         }
@@ -183,7 +183,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             }
             else
             {
-                ValidateConsistency(configuration);
+                EnsureConsistency(configuration);
             }
 
             ConfigureInverse(associationType, model);
@@ -192,7 +192,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
         }
 
         internal void Configure(
-            StorageAssociationSetMapping associationSetMapping,
+            AssociationSetMapping associationSetMapping,
             DbDatabaseMapping databaseMapping,
             DbProviderManifest providerManifest)
         {
@@ -289,75 +289,113 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
         }
 
         [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
-        private void ValidateConsistency(NavigationPropertyConfiguration navigationPropertyConfiguration)
+        private void EnsureConsistency(NavigationPropertyConfiguration navigationPropertyConfiguration)
         {
             DebugCheck.NotNull(navigationPropertyConfiguration);
 
-            if ((navigationPropertyConfiguration.InverseEndKind != null)
-                && (RelationshipMultiplicity != null)
-                && (navigationPropertyConfiguration.InverseEndKind != RelationshipMultiplicity))
+            if (RelationshipMultiplicity != null)
             {
-                throw Error.ConflictingMultiplicities(
-                    NavigationProperty.Name, NavigationProperty.ReflectedType);
-            }
-
-            if ((navigationPropertyConfiguration.RelationshipMultiplicity != null)
-                && (InverseEndKind != null)
-                && (navigationPropertyConfiguration.RelationshipMultiplicity != InverseEndKind))
-            {
-                if (InverseNavigationProperty == null)
+                if (navigationPropertyConfiguration.InverseEndKind == null)
                 {
-                    // InverseNavigationProperty may be null if the association is bi-directional and is configured
-                    // from both sides but on one side the navigation property is not specified in the configuration.
-                    // See Dev11 330745.
-                    // In this case we use the navigation property that we do know about in the exception message.
+                    navigationPropertyConfiguration.InverseEndKind = RelationshipMultiplicity;
+                }
+                else if (navigationPropertyConfiguration.InverseEndKind != RelationshipMultiplicity)
+                {
                     throw Error.ConflictingMultiplicities(
                         NavigationProperty.Name, NavigationProperty.ReflectedType);
                 }
-                throw Error.ConflictingMultiplicities(
-                    InverseNavigationProperty.Name, InverseNavigationProperty.ReflectedType);
             }
 
-            if ((navigationPropertyConfiguration.DeleteAction != null)
-                && (DeleteAction != null)
-                && (navigationPropertyConfiguration.DeleteAction != DeleteAction))
+            if (InverseEndKind != null)
             {
-                throw Error.ConflictingCascadeDeleteOperation(
-                    NavigationProperty.Name, NavigationProperty.ReflectedType);
+                if (navigationPropertyConfiguration.RelationshipMultiplicity == null)
+                {
+                    navigationPropertyConfiguration.RelationshipMultiplicity = InverseEndKind;
+                }
+                else if (navigationPropertyConfiguration.RelationshipMultiplicity != InverseEndKind)
+                {
+                    if (InverseNavigationProperty == null)
+                    {
+                        // InverseNavigationProperty may be null if the association is bi-directional and is configured
+                        // from both sides but on one side the navigation property is not specified in the configuration.
+                        // See Dev11 330745.
+                        // In this case we use the navigation property that we do know about in the exception message.
+                        throw Error.ConflictingMultiplicities(
+                            NavigationProperty.Name, NavigationProperty.ReflectedType);
+                    }
+                    throw Error.ConflictingMultiplicities(
+                        InverseNavigationProperty.Name, InverseNavigationProperty.ReflectedType);
+                }
             }
 
-            if ((navigationPropertyConfiguration.Constraint != null)
-                && (Constraint != null)
-                && !Equals(navigationPropertyConfiguration.Constraint, Constraint))
+            if (DeleteAction != null)
             {
-                throw Error.ConflictingConstraint(
-                    NavigationProperty.Name, NavigationProperty.ReflectedType);
+                if (navigationPropertyConfiguration.DeleteAction == null)
+                {
+                    navigationPropertyConfiguration.DeleteAction = DeleteAction;
+                }
+                else if (navigationPropertyConfiguration.DeleteAction != DeleteAction)
+                {
+                    throw Error.ConflictingCascadeDeleteOperation(
+                        NavigationProperty.Name, NavigationProperty.ReflectedType);
+                }
             }
 
-            if ((navigationPropertyConfiguration.IsNavigationPropertyDeclaringTypePrincipal != null)
-                && (IsNavigationPropertyDeclaringTypePrincipal != null)
-                && navigationPropertyConfiguration.IsNavigationPropertyDeclaringTypePrincipal
-                == IsNavigationPropertyDeclaringTypePrincipal)
+            if (Constraint != null)
             {
-                throw Error.ConflictingConstraint(
-                    NavigationProperty.Name, NavigationProperty.ReflectedType);
+                if (navigationPropertyConfiguration.Constraint == null)
+                {
+                    navigationPropertyConfiguration.Constraint = Constraint;
+                }
+                else if (!Equals(navigationPropertyConfiguration.Constraint, Constraint))
+                {
+                    throw Error.ConflictingConstraint(
+                        NavigationProperty.Name, NavigationProperty.ReflectedType);
+                }
             }
 
-            if ((navigationPropertyConfiguration.AssociationMappingConfiguration != null)
-                && (AssociationMappingConfiguration != null)
-                && !Equals(
+            if (IsNavigationPropertyDeclaringTypePrincipal != null)
+            {
+                if (navigationPropertyConfiguration.IsNavigationPropertyDeclaringTypePrincipal == null)
+                {
+                    navigationPropertyConfiguration.IsNavigationPropertyDeclaringTypePrincipal =
+                        !IsNavigationPropertyDeclaringTypePrincipal;
+                }
+                else if (navigationPropertyConfiguration.IsNavigationPropertyDeclaringTypePrincipal
+                         == IsNavigationPropertyDeclaringTypePrincipal)
+                {
+                    throw Error.ConflictingConstraint(
+                        NavigationProperty.Name, NavigationProperty.ReflectedType);
+                }
+            }
+
+            if (AssociationMappingConfiguration != null)
+            {
+                if (navigationPropertyConfiguration.AssociationMappingConfiguration == null)
+                {
+                    navigationPropertyConfiguration.AssociationMappingConfiguration = AssociationMappingConfiguration;
+                }
+                else if (!Equals(
                     navigationPropertyConfiguration.AssociationMappingConfiguration, AssociationMappingConfiguration))
-            {
-                throw Error.ConflictingMapping(
-                    NavigationProperty.Name, NavigationProperty.ReflectedType);
+                {
+                    throw Error.ConflictingMapping(
+                        NavigationProperty.Name, NavigationProperty.ReflectedType);
+                }
             }
 
-            if ((navigationPropertyConfiguration.ModificationStoredProceduresConfiguration != null)
-                && (ModificationStoredProceduresConfiguration != null)
-                && !navigationPropertyConfiguration.ModificationStoredProceduresConfiguration.IsCompatibleWith(ModificationStoredProceduresConfiguration))
+            if (ModificationStoredProceduresConfiguration != null)
             {
-                throw Error.ConflictingFunctionsMapping(
-                    NavigationProperty.Name, NavigationProperty.ReflectedType);
+                if (navigationPropertyConfiguration.ModificationStoredProceduresConfiguration == null)
+                {
+                    navigationPropertyConfiguration.ModificationStoredProceduresConfiguration = ModificationStoredProceduresConfiguration;
+                }
+                else if (
+                    !navigationPropertyConfiguration.ModificationStoredProceduresConfiguration.IsCompatibleWith(
+                        ModificationStoredProceduresConfiguration))
+                {
+                    throw Error.ConflictingFunctionsMapping(
+                        NavigationProperty.Name, NavigationProperty.ReflectedType);
+                }
             }
         }
 
@@ -378,8 +416,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
                     associationType.MarkPrincipalConfigured();
 
                     var navProp = model.EntityTypes
-                                       .SelectMany(et => et.DeclaredNavigationProperties)
-                                       .Single(np => np.GetClrPropertyInfo().IsSameAs(NavigationProperty));
+                        .SelectMany(et => et.DeclaredNavigationProperties)
+                        .Single(
+                            np => np.RelationshipType.Equals(associationType) // CodePlex 546
+                                  && np.GetClrPropertyInfo().IsSameAs(NavigationProperty));
 
                     principalEnd = IsNavigationPropertyDeclaringTypePrincipal.Value
                                        ? associationType.GetOtherEnd(navProp.ResultEnd)
@@ -397,8 +437,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
 
                         var associationSet
                             = model.Containers
-                                   .SelectMany(ct => ct.AssociationSets)
-                                   .Single(aset => aset.ElementType == associationType);
+                                .SelectMany(ct => ct.AssociationSets)
+                                .Single(aset => aset.ElementType == associationType);
 
                         var sourceSet = associationSet.SourceSet;
 

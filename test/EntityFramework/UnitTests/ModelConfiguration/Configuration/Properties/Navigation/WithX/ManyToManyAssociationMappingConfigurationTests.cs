@@ -17,7 +17,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             var table = database.AddTable("OriginalName");
 
             var associationSetMapping
-                = new StorageAssociationSetMapping(
+                = new AssociationSetMapping(
                     new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)),
                     database.GetEntitySet(table))
                     .Initialize();
@@ -29,8 +29,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
 
             var mockPropertyInfo = new MockPropertyInfo();
 
-            associationSetMapping.SourceEndMapping.EndMember = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
-            associationSetMapping.SourceEndMapping.EndMember.SetClrPropertyInfo(mockPropertyInfo);
+            associationSetMapping.SourceEndMapping.AssociationEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationSetMapping.SourceEndMapping.AssociationEnd.SetClrPropertyInfo(mockPropertyInfo);
 
             manyToManyAssociationMappingConfiguration.Configure(associationSetMapping, database, mockPropertyInfo);
 
@@ -43,11 +43,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
         {
             var database = new EdmModel(DataSpace.CSpace);
             var associationSetMapping
-                = new StorageAssociationSetMapping(
+                = new AssociationSetMapping(
                     new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)), new EntitySet())
                     .Initialize();
-            var column = new EdmProperty("C");
-            associationSetMapping.SourceEndMapping.AddProperty(new StorageScalarPropertyMapping(new EdmProperty("PK"), column));
+            var column = new EdmProperty("C", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace }));
+            associationSetMapping.SourceEndMapping.AddPropertyMapping(new ScalarPropertyMapping(new EdmProperty("PK"), column));
 
             var manyToManyAssociationMappingConfiguration
                 = new ManyToManyAssociationMappingConfiguration();
@@ -56,8 +56,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
 
             var mockPropertyInfo = new MockPropertyInfo();
 
-            associationSetMapping.SourceEndMapping.EndMember = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
-            associationSetMapping.SourceEndMapping.EndMember.SetClrPropertyInfo(mockPropertyInfo);
+            associationSetMapping.SourceEndMapping.AssociationEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationSetMapping.SourceEndMapping.AssociationEnd.SetClrPropertyInfo(mockPropertyInfo);
 
             manyToManyAssociationMappingConfiguration.Configure(associationSetMapping, database, mockPropertyInfo);
 
@@ -70,14 +70,14 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             var database = new EdmModel(DataSpace.CSpace);
 
             var associationSetMapping
-                = new StorageAssociationSetMapping(
+                = new AssociationSetMapping(
                     new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)),
                     new EntitySet())
                     .Initialize();
 
-            var column = new EdmProperty("C");
+            var column = new EdmProperty("C", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace }));
 
-            associationSetMapping.TargetEndMapping.AddProperty(new StorageScalarPropertyMapping(new EdmProperty("PK"), column));
+            associationSetMapping.TargetEndMapping.AddPropertyMapping(new ScalarPropertyMapping(new EdmProperty("PK"), column));
 
             var manyToManyAssociationMappingConfiguration
                 = new ManyToManyAssociationMappingConfiguration();
@@ -86,8 +86,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
 
             var mockPropertyInfo = new MockPropertyInfo();
 
-            associationSetMapping.SourceEndMapping.EndMember = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
-            associationSetMapping.SourceEndMapping.EndMember.SetClrPropertyInfo(mockPropertyInfo);
+            associationSetMapping.SourceEndMapping.AssociationEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationSetMapping.SourceEndMapping.AssociationEnd.SetClrPropertyInfo(mockPropertyInfo);
 
             manyToManyAssociationMappingConfiguration.Configure(associationSetMapping, database, mockPropertyInfo);
 
@@ -100,7 +100,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             var database = new EdmModel(DataSpace.CSpace);
 
             var associationSetMapping
-                = new StorageAssociationSetMapping(
+                = new AssociationSetMapping(
                     new AssociationSet("AS", new AssociationType("A", XmlConstants.ModelNamespace_3, false, DataSpace.CSpace)),
                     new EntitySet())
                     .Initialize();
@@ -112,8 +112,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
 
             var mockPropertyInfo = new MockPropertyInfo();
 
-            associationSetMapping.SourceEndMapping.EndMember = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
-            associationSetMapping.SourceEndMapping.EndMember.SetClrPropertyInfo(mockPropertyInfo);
+            associationSetMapping.SourceEndMapping.AssociationEnd = new AssociationEndMember("S", new EntityType("E", "N", DataSpace.CSpace));
+            associationSetMapping.SourceEndMapping.AssociationEnd.SetClrPropertyInfo(mockPropertyInfo);
 
             Assert.Equal(
                 Strings.IncorrectColumnCount("Id1, Id2"),
@@ -140,7 +140,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
         }
 
         [Fact]
-        public void Equals_should_return_true_when_table_name_and_columns_equal()
+        public void Equals_should_return_true_when_table_name_columns_and_annotations_equal()
         {
             var manyToManyAssociationMappingConfiguration1 = new ManyToManyAssociationMappingConfiguration();
             manyToManyAssociationMappingConfiguration1.ToTable("Foo");
@@ -148,13 +148,37 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigat
             manyToManyAssociationMappingConfiguration1.MapLeftKey("Bar");
             manyToManyAssociationMappingConfiguration1.MapRightKey("Baz");
 
+            manyToManyAssociationMappingConfiguration1.HasTableAnnotation("A1", "V1");
+            manyToManyAssociationMappingConfiguration1.HasTableAnnotation("A2", "V2");
+
             var manyToManyAssociationMappingConfiguration2 = new ManyToManyAssociationMappingConfiguration();
             manyToManyAssociationMappingConfiguration2.ToTable("Foo");
 
             manyToManyAssociationMappingConfiguration2.MapLeftKey("Bar");
             manyToManyAssociationMappingConfiguration2.MapRightKey("Baz");
 
+            manyToManyAssociationMappingConfiguration2.HasTableAnnotation("A2", "V2");
+            manyToManyAssociationMappingConfiguration2.HasTableAnnotation("A1", "V1");
+
             Assert.Equal(manyToManyAssociationMappingConfiguration1, manyToManyAssociationMappingConfiguration2);
+        }
+
+        [Fact]
+        public void HasAnnotation_checks_arguments()
+        {
+            var configuration = new ManyToManyAssociationMappingConfiguration();
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation(null, null)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation(" ", null)).Message);
+
+            Assert.Equal(
+                Strings.BadAnnotationName("Cheese:Pickle"),
+                Assert.Throws<ArgumentException>(() => configuration.HasTableAnnotation("Cheese:Pickle", null)).Message);
         }
     }
 }

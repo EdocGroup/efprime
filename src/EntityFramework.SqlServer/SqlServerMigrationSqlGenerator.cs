@@ -22,6 +22,7 @@ namespace System.Data.Entity.SqlServer
     using System.Globalization;
     using System.IO;
     using System.Linq;
+    using System.Text;
     using System.Text.RegularExpressions;
 
     /// <summary>
@@ -363,7 +364,9 @@ namespace System.Data.Entity.SqlServer
         }
 
         /// <summary>
-        /// Generates SQL for a <see cref="CreateTableOperation" />.
+        /// Generates SQL for a <see cref="CreateTableOperation" />. This method differs from
+        /// <see cref="WriteCreateTable(System.Data.Entity.Migrations.Model.CreateTableOperation)" /> in that it will
+        /// create the target database schema if it does not already exist.
         /// Generated SQL should be added using the Statement method.
         /// </summary>
         /// <param name="createTableOperation"> The operation to produce SQL for. </param>
@@ -384,6 +387,18 @@ namespace System.Data.Entity.SqlServer
                 }
             }
 
+            WriteCreateTable(createTableOperation);
+        }
+
+        /// <summary>
+        /// Generates SQL for a <see cref="CreateTableOperation" />.
+        /// Generated SQL should be added using the Statement method.
+        /// </summary>
+        /// <param name="createTableOperation"> The operation to produce SQL for. </param>
+        protected virtual void WriteCreateTable(CreateTableOperation createTableOperation)
+        {
+            Check.NotNull(createTableOperation, "createTableOperation");
+
             using (var writer = Writer())
             {
                 WriteCreateTable(createTableOperation, writer);
@@ -392,10 +407,15 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        private void WriteCreateTable(CreateTableOperation createTableOperation, IndentedTextWriter writer)
+        /// <summary>
+        /// Writes CREATE TABLE SQL to the target writer.
+        /// </summary>
+        /// <param name="createTableOperation"> The operation to produce SQL for. </param>
+        /// <param name="writer"> The target writer. </param>
+        protected virtual void WriteCreateTable(CreateTableOperation createTableOperation, IndentedTextWriter writer)
         {
-            DebugCheck.NotNull(createTableOperation);
-            DebugCheck.NotNull(writer);
+            Check.NotNull(createTableOperation, "createTableOperation");
+            Check.NotNull(writer, "writer");
 
             writer.WriteLine("CREATE TABLE " + Name(createTableOperation.Name) + " (");
             writer.Indent++;
@@ -434,6 +454,18 @@ namespace System.Data.Entity.SqlServer
 
             writer.Indent--;
             writer.Write(")");
+        }
+
+        /// <summary>
+        /// Override this method to generate SQL when the definition of a table or its attributes are changed.
+        /// The default implementation of this method does nothing.
+        /// </summary>
+        /// <param name="alterTableOperation"> The operation describing changes to the table. </param>
+        protected internal virtual void Generate(AlterTableOperation alterTableOperation)
+        {
+            Check.NotNull(alterTableOperation, "alterTableOperation");
+
+            // Nothing to do since there is no inherent semantics associated with annotations
         }
 
         /// <summary>
@@ -736,13 +768,33 @@ namespace System.Data.Entity.SqlServer
 
             var column = alterColumnOperation.Column;
 
-            if ((column.DefaultValue != null)
-                || !string.IsNullOrWhiteSpace(column.DefaultValueSql))
+            using (var writer = Writer())
             {
-                using (var writer = Writer())
+                if ((column.DefaultValue != null)
+                    || !string.IsNullOrWhiteSpace(column.DefaultValueSql))
                 {
                     DropDefaultConstraint(alterColumnOperation.Table, column.Name, writer);
+                }
 
+                writer.Write("ALTER TABLE ");
+                writer.Write(Name(alterColumnOperation.Table));
+                writer.Write(" ALTER COLUMN ");
+                writer.Write(Quote(column.Name));
+                writer.Write(" ");
+                writer.Write(BuildColumnType(column));
+
+                if ((column.IsNullable != null)
+                    && !column.IsNullable.Value)
+                {
+                    writer.Write(" NOT");
+                }
+
+                writer.Write(" NULL");
+
+                if ((column.DefaultValue != null)
+                    || !string.IsNullOrWhiteSpace(column.DefaultValueSql))
+                {
+                    writer.WriteLine();
                     writer.Write("ALTER TABLE ");
                     writer.Write(Name(alterColumnOperation.Table));
                     writer.Write(" ADD CONSTRAINT ");
@@ -755,35 +807,25 @@ namespace System.Data.Entity.SqlServer
                         );
                     writer.Write(" FOR ");
                     writer.Write(Quote(column.Name));
-
-                    Statement(writer);
-                }
-            }
-
-            using (var writer = Writer())
-            {
-                writer.Write("ALTER TABLE ");
-                writer.Write(Name(alterColumnOperation.Table));
-                writer.Write(" ALTER COLUMN ");
-                writer.Write(Quote(column.Name));
-                writer.Write(" ");
-                writer.Write(BuildColumnType(column));
-
-                if ((column.IsNullable != null)
-                    && !column.IsNullable.Value)
-                {
-                    writer.Write(" NOT NULL");
                 }
 
                 Statement(writer);
             }
         }
 
-        private void DropDefaultConstraint(string table, string column, IndentedTextWriter writer)
+        /// <summary>
+        /// Call this method to generate SQL that will attempt to drop the default constraint created
+        /// when a column is created. This method is usually called by code that overrides the creation or
+        /// altering of columns.
+        /// </summary>
+        /// <param name="table">The table to which the constraint applies.</param>
+        /// <param name="column">The column to which the constraint applies.</param>
+        /// <param name="writer">The writer to which generated SQL should be written.</param>
+        protected internal virtual void DropDefaultConstraint(string table, string column, IndentedTextWriter writer)
         {
-            DebugCheck.NotEmpty(table);
-            DebugCheck.NotEmpty(column);
-            DebugCheck.NotNull(writer);
+            Check.NotEmpty(table, "table");
+            Check.NotEmpty(column, "column");
+            Check.NotNull(writer, "writer");
 
             var variable = "@var" + _variableCounter++;
 
@@ -832,14 +874,14 @@ namespace System.Data.Entity.SqlServer
 
         /// <summary>
         /// Generates SQL for a <see cref="SqlOperation" />.
-        /// Generated SQL should be added using the Statement method.
+        /// Generated SQL should be added using the Statement or StatementBatch methods.
         /// </summary>
         /// <param name="sqlOperation"> The operation to produce SQL for. </param>
         protected virtual void Generate(SqlOperation sqlOperation)
         {
             Check.NotNull(sqlOperation, "sqlOperation");
 
-            Statement(sqlOperation.Sql, sqlOperation.SuppressTransaction);
+            StatementBatch(sqlOperation.Sql, sqlOperation.SuppressTransaction);
         }
 
         /// <summary>
@@ -866,6 +908,29 @@ namespace System.Data.Entity.SqlServer
         }
 
         /// <summary>
+        /// Generates SQL for a <see cref="RenameIndexOperation" />.
+        /// Generated SQL should be added using the Statement method.
+        /// </summary>
+        /// <param name="renameIndexOperation"> The operation to produce SQL for. </param>
+        protected virtual void Generate(RenameIndexOperation renameIndexOperation)
+        {
+            Check.NotNull(renameIndexOperation, "renameIndexOperation");
+
+            using (var writer = Writer())
+            {
+                writer.Write("EXECUTE sp_rename @objname = N'");
+                writer.Write(Escape(renameIndexOperation.Table));
+                writer.Write(".");
+                writer.Write(Escape(renameIndexOperation.Name));
+                writer.Write("', @newname = N'");
+                writer.Write(Escape(renameIndexOperation.NewName));
+                writer.Write("', @objtype = N'INDEX'");
+
+                Statement(writer);
+            }
+        }
+
+        /// <summary>
         /// Generates SQL for a <see cref="RenameTableOperation" />.
         /// Generated SQL should be added using the Statement method.
         /// </summary>
@@ -877,6 +942,23 @@ namespace System.Data.Entity.SqlServer
             using (var writer = Writer())
             {
                 WriteRenameTable(renameTableOperation, writer);
+
+                // rename the PK constraint
+                var oldPkName = PrimaryKeyOperation.BuildDefaultName(renameTableOperation.Name);
+                var newPkName = PrimaryKeyOperation.BuildDefaultName(((RenameTableOperation)renameTableOperation.Inverse).Name);
+
+                writer.WriteLine();
+                writer.Write("IF object_id('");
+                writer.Write(Escape(Quote(oldPkName)));
+                writer.WriteLine("') IS NOT NULL BEGIN");
+                writer.Indent++;
+                writer.Write("EXECUTE sp_rename @objname = N'");
+                writer.Write(Escape(Quote(oldPkName)));
+                writer.Write("', @newname = N'");
+                writer.Write(Escape(newPkName));
+                writer.WriteLine("', @objtype = N'OBJECT'"); 
+                writer.Indent--;
+                writer.Write("END");
 
                 Statement(writer);
             }
@@ -1012,10 +1094,16 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        private void Generate(ColumnModel column, IndentedTextWriter writer)
+        /// <summary>
+        /// Generates SQL for the given column model. This method is called by other methods that
+        /// process columns and can be overridden to change the SQL generated.
+        /// </summary>
+        /// <param name="column">The column for which SQL is being generated.</param>
+        /// <param name="writer">The writer to which generated SQL should be written.</param>
+        protected internal virtual void Generate(ColumnModel column, IndentedTextWriter writer)
         {
-            DebugCheck.NotNull(column);
-            DebugCheck.NotNull(writer);
+            Check.NotNull(column, "column");
+            Check.NotNull(writer, "writer");
 
             writer.Write(Quote(column.Name));
             writer.Write(" ");
@@ -1229,7 +1317,7 @@ namespace System.Data.Entity.SqlServer
         protected virtual string Generate(object defaultValue)
         {
             Check.NotNull(defaultValue, "defaultValue");
-            Debug.Assert(defaultValue.GetType().IsValueType);
+            Debug.Assert(defaultValue.GetType().IsValueType());
 
             return string.Format(CultureInfo.InvariantCulture, "{0}", defaultValue);
         }
@@ -1252,6 +1340,7 @@ namespace System.Data.Entity.SqlServer
             return BuildPropertyType(columnModel);
         }
 
+        [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         private string BuildPropertyType(PropertyModel propertyModel)
         {
             DebugCheck.NotNull(propertyModel);
@@ -1355,6 +1444,7 @@ namespace System.Data.Entity.SqlServer
         /// </summary>
         /// <param name="sql"> The statement to be executed. </param>
         /// <param name="suppressTransaction"> Gets or sets a value indicating whether this statement should be performed outside of the transaction scope that is used to make the migration process transactional. If set to true, this operation will not be rolled back if the migration process fails. </param>
+        /// <param name="batchTerminator">The batch terminator for the database provider.</param>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         protected void Statement(string sql, bool suppressTransaction = false, string batchTerminator = null)
         {
@@ -1386,12 +1476,62 @@ namespace System.Data.Entity.SqlServer
         /// Adds a new Statement to be executed against the database.
         /// </summary>
         /// <param name="writer"> The writer containing the SQL to be executed. </param>
+        /// <param name="batchTerminator">The batch terminator for the database provider.</param>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         protected void Statement(IndentedTextWriter writer, string batchTerminator = null)
         {
             Check.NotNull(writer, "writer");
 
             Statement(writer.InnerWriter.ToString(), batchTerminator: batchTerminator);
+        }
+
+        /// <summary>
+        /// Breaks sql string into one or more statements, handling T-SQL utility statements as necessary.
+        /// </summary>
+        /// <param name="sqlBatch"> The SQL to split into one ore more statements to be executed. </param>
+        /// <param name="suppressTransaction"> Gets or sets a value indicating whether this statement should be performed outside of the transaction scope that is used to make the migration process transactional. If set to true, this operation will not be rolled back if the migration process fails. </param>
+        [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
+        protected void StatementBatch(string sqlBatch, bool suppressTransaction = false)
+        {
+            Check.NotNull(sqlBatch, "sqlBatch");
+
+            // Handle backslash utility statement (see http://technet.microsoft.com/en-us/library/dd207007.aspx)
+            sqlBatch = Regex.Replace(sqlBatch, @"\\(\r\n|\r|\n)", "");
+
+            // Handle batch splitting utility statement (see http://technet.microsoft.com/en-us/library/ms188037.aspx)
+            var batches = Regex.Split(sqlBatch,
+                String.Format(CultureInfo.InvariantCulture, @"^\s*({0}[ \t]+[0-9]+|{0})(?:\s+|$)", BatchTerminator), 
+                RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            
+            for (int i = 0; i < batches.Length; ++i)
+            {
+                // Skip batches that merely contain the batch terminator
+                if (batches[i].StartsWith(BatchTerminator, StringComparison.OrdinalIgnoreCase) || 
+                    (i == batches.Length - 1 && string.IsNullOrWhiteSpace(batches[i])))
+                {
+                    continue;
+                }
+
+                // Include batch terminator if the next element is a batch terminator
+                if (batches.Length > i + 1 &&
+                    batches[i + 1].StartsWith(BatchTerminator, StringComparison.OrdinalIgnoreCase))
+                {
+                    int repeatCount = 1;
+
+                    // Handle count parameter on the batch splitting utility statement
+                    if (! batches[i + 1].EqualsIgnoreCase(BatchTerminator))
+                    {
+                        repeatCount = int.Parse(Regex.Match(batches[i + 1], @"([0-9]+)").Value, CultureInfo.InvariantCulture);
+                    }
+
+                    for (int j = 0; j < repeatCount; ++j)
+                        Statement(batches[i], suppressTransaction, BatchTerminator);
+                }
+                else
+                {
+                    Statement(batches[i], suppressTransaction);
+                }
+            }
         }
 
         private static IEnumerable<MigrationOperation> DetectHistoryRebuild(
@@ -1460,11 +1600,11 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        /// <summary>
-        /// Creates a shallow copy of the source CreateTableOperation and the associated
-        /// AddPrimaryKeyOperation but renames the table and the primary key in order
-        /// to avoid name conflicts with existing objects.
-        /// </summary>
+        // <summary>
+        // Creates a shallow copy of the source CreateTableOperation and the associated
+        // AddPrimaryKeyOperation but renames the table and the primary key in order
+        // to avoid name conflicts with existing objects.
+        // </summary>
         private static CreateTableOperation ResolveNameConflicts(CreateTableOperation source)
         {
             DebugCheck.NotNull(source);

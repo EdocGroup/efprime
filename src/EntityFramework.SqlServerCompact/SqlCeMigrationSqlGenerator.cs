@@ -1,6 +1,10 @@
 // Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
+#if SQLSERVERCOMPACT35
+namespace System.Data.Entity.SqlServerCompact.Legacy
+#else
 namespace System.Data.Entity.SqlServerCompact
+#endif
 {
     using System.Collections.Generic;
     using System.Data.Common;
@@ -21,6 +25,7 @@ namespace System.Data.Entity.SqlServerCompact
     using System.Globalization;
     using System.IO;
     using System.Linq;
+    using System.Text.RegularExpressions;
 
     /// <summary>
     /// Provider to convert provider agnostic migration operations into SQL commands
@@ -108,7 +113,7 @@ namespace System.Data.Entity.SqlServerCompact
         /// <returns> An empty connection for the current provider. </returns>
         protected virtual DbConnection CreateConnection()
         {
-            return DbConfiguration.DependencyResolver.GetService<DbProviderFactory>("System.Data.SqlServerCe.4.0").CreateConnection();
+            return DbConfiguration.DependencyResolver.GetService<DbProviderFactory>(SqlCeProviderManifest.ProviderInvariantName).CreateConnection();
         }
 
         /// <summary>
@@ -197,6 +202,18 @@ namespace System.Data.Entity.SqlServerCompact
         }
 
         /// <summary>
+        /// Override this method to generate SQL when the definition of a table or its attributes are changed.
+        /// The default implementation of this method does nothing.
+        /// </summary>
+        /// <param name="alterTableOperation"> The operation describing changes to the table. </param>
+        protected internal virtual void Generate(AlterTableOperation alterTableOperation)
+        {
+            Check.NotNull(alterTableOperation, "alterTableOperation");
+
+            // Nothing to do since there is no inherent semantics associated with annotations
+        }
+        
+        /// <summary>
         /// Generates SQL to mark a table as a system table.
         /// Generated SQL should be added using the Statement method.
         /// </summary>
@@ -276,10 +293,7 @@ namespace System.Data.Entity.SqlServerCompact
                     writer.Write("UNIQUE ");
                 }
 
-                if (createIndexOperation.IsClustered)
-                {
-                    writer.Write("CLUSTERED ");
-                }
+                // Note: SQL CE only supports NONCLUSTERED, so ignore clustered config
 
                 writer.Write("INDEX ");
                 writer.Write(Quote(createIndexOperation.Name));
@@ -450,8 +464,10 @@ namespace System.Data.Entity.SqlServerCompact
                 if ((column.IsNullable != null)
                     && !column.IsNullable.Value)
                 {
-                    writer.Write(" NOT NULL");
+                    writer.Write(" NOT");
                 }
+
+                writer.Write(" NULL");
 
                 Statement(writer);
             }
@@ -508,14 +524,14 @@ namespace System.Data.Entity.SqlServerCompact
 
         /// <summary>
         /// Generates SQL for a <see cref="SqlOperation" />.
-        /// Generated SQL should be added using the Statement method.
+        /// Generated SQL should be added using the Statement or StatementBatch methods.
         /// </summary>
         /// <param name="sqlOperation"> The operation to produce SQL for. </param>
         protected virtual void Generate(SqlOperation sqlOperation)
         {
             Check.NotNull(sqlOperation, "sqlOperation");
 
-            Statement(sqlOperation.Sql, sqlOperation.SuppressTransaction);
+            StatementBatch(sqlOperation.Sql, sqlOperation.SuppressTransaction);
         }
 
         /// <summary>
@@ -526,6 +542,16 @@ namespace System.Data.Entity.SqlServerCompact
         protected virtual void Generate(RenameColumnOperation renameColumnOperation)
         {
             throw Error.SqlCeColumnRenameNotSupported();
+        }
+
+        /// <summary>
+        /// Generates SQL for a <see cref="RenameIndexOperation" />.
+        /// Generated SQL should be added using the Statement method.
+        /// </summary>
+        /// <param name="renameIndexOperation"> The operation to produce SQL for. </param>
+        protected virtual void Generate(RenameIndexOperation renameIndexOperation)
+        {
+            throw Error.SqlCeIndexRenameNotSupported();
         }
 
         /// <summary>
@@ -574,10 +600,16 @@ namespace System.Data.Entity.SqlServerCompact
         {
         }
 
-        private void Generate(ColumnModel column, IndentedTextWriter writer)
+        /// <summary>
+        /// Generates SQL for the given column model. This method is called by other methods that
+        /// process columns and can be overridden to change the SQL generated.
+        /// </summary>
+        /// <param name="column">The column for which SQL is being generated.</param>
+        /// <param name="writer">The writer to which generated SQL should be written.</param>
+        protected internal void Generate(ColumnModel column, IndentedTextWriter writer)
         {
-            DebugCheck.NotNull(column);
-            DebugCheck.NotNull(writer);
+            Check.NotNull(column, "column");
+            Check.NotNull(writer, "writer");
 
             writer.Write(Quote(column.Name));
             writer.Write(" ");
@@ -808,6 +840,7 @@ namespace System.Data.Entity.SqlServerCompact
             return BuildPropertyType(columnModel);
         }
 
+        [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         private string BuildPropertyType(PropertyModel propertyModel)
         {
             DebugCheck.NotNull(propertyModel);
@@ -940,5 +973,48 @@ namespace System.Data.Entity.SqlServerCompact
 
             Statement(writer.InnerWriter.ToString());
         }
+
+        /// <summary>
+        /// Breaks string into one or more statements, handling T-SQL utility statements as necessary.
+        /// </summary>
+        /// <param name="sqlBatch">The SQL to split into one ore more statements to be executed.</param>
+        /// <param name="suppressTransaction"> Gets or sets a value indicating whether this statement should be performed outside of the transaction scope that is used to make the migration process transactional. If set to true, this operation will not be rolled back if the migration process fails. </param>
+        [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
+        protected void StatementBatch(string sqlBatch, bool suppressTransaction = false)
+        {
+            Check.NotNull(sqlBatch, "sqlBatch");
+
+            // Handle backslash utility statement (see http://technet.microsoft.com/en-us/library/dd207007.aspx)
+            sqlBatch = Regex.Replace(sqlBatch, @"\\(\r\n|\r|\n)", "");
+
+            // Handle batch splitting utility statement (see http://technet.microsoft.com/en-us/library/ms188037.aspx)
+            var batches = Regex.Split(sqlBatch, 
+                String.Format(CultureInfo.InvariantCulture, @"^\s*({0}[ \t]+[0-9]+|{0})(?:\s+|$)", BatchTerminator),
+                RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            
+            for (int i = 0; i < batches.Length; ++i)
+            {
+                // Skip batches that merely contain the batch terminator
+                if (batches[i].StartsWith(BatchTerminator, StringComparison.OrdinalIgnoreCase) || 
+                    (i == batches.Length - 1 && string.IsNullOrWhiteSpace(batches[i])))
+                {
+                    continue;
+                }
+
+                int repeatCount = 1;
+                
+                // Handle count parameter on the batch splitting utility statement
+                if (batches.Length > i + 1 &&
+                    batches[i + 1].StartsWith(BatchTerminator, StringComparison.OrdinalIgnoreCase) && 
+                    ! batches[i + 1].EqualsIgnoreCase(BatchTerminator))
+                {
+                    repeatCount = int.Parse(Regex.Match(batches[i + 1], @"([0-9]+)").Value, CultureInfo.InvariantCulture);
+                }
+
+                for (int j = 0; j < repeatCount; ++j)
+                    Statement(batches[i], suppressTransaction);
+            }       
+        }
+
     }
 }

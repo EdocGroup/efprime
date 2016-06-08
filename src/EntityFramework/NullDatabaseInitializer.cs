@@ -12,11 +12,12 @@ namespace System.Data.Entity
     /// When <see cref="IDbDependencyResolver" /> is being used to resolve initializers an instance of
     /// this class must be used to disable initialization.
     /// </summary>
+    /// <typeparam name="TContext">The type of the context.</typeparam>
     public class NullDatabaseInitializer<TContext> : IDatabaseInitializer<TContext>
         where TContext : DbContext
     {
         /// <inheritdoc />
-        public void InitializeDatabase(TContext context)
+        public virtual void InitializeDatabase(TContext context)
         {
             Check.NotNull(context, "context");
         }

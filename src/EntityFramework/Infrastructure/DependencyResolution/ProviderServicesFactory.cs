@@ -7,9 +7,9 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Data.Entity.Utilities;
     using System.Reflection;
 
-    /// <summary>
-    /// Responsible for obtaining <see cref="DbProviderServices" /> Singleton instances.
-    /// </summary>
+    // <summary>
+    // Responsible for obtaining <see cref="DbProviderServices" /> Singleton instances.
+    // </summary>
     internal class ProviderServicesFactory
     {
         public virtual DbProviderServices TryGetInstance(string providerTypeName)
@@ -41,7 +41,8 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             DebugCheck.NotNull(providerType);
 
             const BindingFlags bindingFlags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-            var instanceMember = providerType.GetProperty("Instance", bindingFlags)
+
+            var instanceMember = providerType.GetStaticProperty("Instance")
                                  ?? (MemberInfo)providerType.GetField("Instance", bindingFlags);
             if (instanceMember == null)
             {

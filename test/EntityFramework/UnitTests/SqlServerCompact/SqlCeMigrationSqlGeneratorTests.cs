@@ -2,6 +2,8 @@
 
 namespace System.Data.Entity.SqlServerCompact
 {
+    using System.Data.Entity.SqlServerCompact.Resources;
+    using Moq;
     using System.Data.Common;
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Metadata.Edm;
@@ -10,12 +12,12 @@ namespace System.Data.Entity.SqlServerCompact
     using System.Data.Entity.Migrations.History;
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Model;
-    using System.Data.Entity.Resources;
+    using System.Data.Entity.TestHelpers;
     using System.Data.Entity.Utilities;
     using System.Globalization;
+    using System.IO;
     using System.Linq;
     using System.Threading;
-    using Moq;
     using Xunit;
 
     public class SqlCeMigrationSqlGeneratorTests
@@ -28,6 +30,7 @@ namespace System.Data.Entity.SqlServerCompact
 
             var historyRepository
                 = new HistoryRepository(
+                    Mock.Of<InternalContextForMock>(),
                     new SqlCeConnectionFactory(providerInvariantName)
                         .CreateConnection("Foo").ConnectionString,
                     DbProviderFactories.GetFactory(providerInvariantName),
@@ -48,29 +51,49 @@ namespace System.Data.Entity.SqlServerCompact
         [Fact]
         public void Generate_should_throw_when_column_rename()
         {
-            var migrationProvider = new SqlCeMigrationSqlGenerator();
+            if (LocalizationTestHelpers.IsEnglishLocale())
+            {
+                var migrationProvider = new SqlCeMigrationSqlGenerator();
+                var renameColumnOperation = new RenameColumnOperation("T", "c", "c'");
 
-            var renameColumnOperation = new RenameColumnOperation("T", "c", "c'");
+                Assert.Equal(
+                    Strings.SqlCeColumnRenameNotSupported,
+                    Assert.Throws<MigrationsException>(() => migrationProvider.Generate(new[] { renameColumnOperation }, "4.0").ToList()).
+                        Message);
+            }
+        }
 
-            Assert.Equal(
-                Strings.SqlCeColumnRenameNotSupported,
-                Assert.Throws<MigrationsException>(() => migrationProvider.Generate(new[] { renameColumnOperation }, "4.0").ToList()).
-                    Message);
+        [Fact]
+        public void Generate_should_throw_when_index_rename()
+        {
+            if (LocalizationTestHelpers.IsEnglishLocale())
+            {
+                var migrationProvider = new SqlCeMigrationSqlGenerator();
+                var renameIndexOperation = new RenameIndexOperation("T", "c", "c'");
+
+                Assert.Equal(
+                    Strings.SqlCeIndexRenameNotSupported,
+                    Assert.Throws<MigrationsException>(() => migrationProvider.Generate(new[] { renameIndexOperation }, "4.0").ToList()).
+                        Message);
+            }
         }
 
         [Fact]
         public void Generate_throws_when_operation_unknown()
         {
-            var migrationSqlGenerator = new SqlCeMigrationSqlGenerator();
-            var unknownOperation = new Mock<MigrationOperation>(null).Object;
+            if (LocalizationTestHelpers.IsEnglishLocale())
+            {
+                var migrationSqlGenerator = new SqlCeMigrationSqlGenerator();
+                var unknownOperation = new Mock<MigrationOperation>(null).Object;
 
-            var ex = Assert.Throws<InvalidOperationException>(
-                () => migrationSqlGenerator.Generate(new[] { unknownOperation }, "4.0"));
+                var ex = Assert.Throws<InvalidOperationException>(
+                    () => migrationSqlGenerator.Generate(new[] { unknownOperation }, "4.0"));
 
-            Assert.Equal(
-                Strings.SqlServerMigrationSqlGenerator_UnknownOperation(
-                    typeof(SqlCeMigrationSqlGenerator).Name, unknownOperation.GetType().FullName),
-                ex.Message);
+                Assert.Equal(
+                    Strings.SqlServerMigrationSqlGenerator_UnknownOperation(
+                        typeof(SqlCeMigrationSqlGenerator).Name, unknownOperation.GetType().FullName),
+                    ex.Message);
+            }
         }
 
         [Fact]
@@ -106,7 +129,7 @@ namespace System.Data.Entity.SqlServerCompact
             var sql = migrationSqlGenerator
                 .Generate(new[] { alterColumnOperation }, "4.0").Join(s => s.Sql, Environment.NewLine);
 
-            Assert.Equal(@"ALTER TABLE [Foo] ALTER COLUMN [Bar] [int]
+            Assert.Equal(@"ALTER TABLE [Foo] ALTER COLUMN [Bar] [int] NULL
 ALTER TABLE [Foo] ALTER COLUMN [Bar] DROP DEFAULT
 ALTER TABLE [Foo] ALTER COLUMN [Bar] SET DEFAULT 42", sql);
         }
@@ -255,6 +278,32 @@ ALTER TABLE [Foo] ALTER COLUMN [Bar] SET DEFAULT 42", sql);
         }
 
         [Fact]
+        public void Generate_should_output_column_nullability_for_altered_nullable_columns()
+        {
+            var migrationSqlGenerator = new SqlCeMigrationSqlGenerator();
+
+            var alterColumnOperation = 
+                new AlterColumnOperation("Customers", new ColumnModel(PrimitiveTypeKind.Int32) { Name = "Baz", IsNullable = true }, false);
+
+            var sql = migrationSqlGenerator.Generate(new[] { alterColumnOperation }, "4.0").Join(s => s.Sql, Environment.NewLine);
+
+            Assert.Contains("ALTER TABLE [Customers] ALTER COLUMN [Baz] [int] NULL", sql);
+        }
+
+        [Fact]
+        public void Generate_should_output_column_nullability_for_altered_non_nullable_columns()
+        {
+            var migrationSqlGenerator = new SqlCeMigrationSqlGenerator();
+
+            var alterColumnOperation =
+                new AlterColumnOperation("Customers", new ColumnModel(PrimitiveTypeKind.Int32) { Name = "Baz", IsNullable = false }, false);
+
+            var sql = migrationSqlGenerator.Generate(new[] { alterColumnOperation }, "4.0").Join(s => s.Sql, Environment.NewLine);
+
+            Assert.Contains("ALTER TABLE [Customers] ALTER COLUMN [Baz] [int] NOT NULL", sql);
+        }
+
+        [Fact]
         public void Generate_can_output_drop_column()
         {
             var migrationSqlGenerator = new SqlCeMigrationSqlGenerator();
@@ -293,6 +342,24 @@ ALTER TABLE [Foo] ALTER COLUMN [Bar] SET DEFAULT 42", sql);
                 s => s.Sql, Environment.NewLine);
 
             Assert.Contains(@"insert into foo", sql);
+        }
+
+        [Fact]
+        public void Generate_should_output_batched_custom_sql_operation()
+        {
+            var migrationSqlGenerator = new SqlCeMigrationSqlGenerator();
+
+            var statementBatch = File.ReadAllText("TestDataFiles/SqlOperation_Batch.sql");
+
+            var statements = migrationSqlGenerator
+                .Generate(new[] { new SqlOperation(statementBatch) }, "4.0")
+                .ToList();
+
+            Assert.Equal(3, statements.Count);
+
+            Assert.Equal("insert into foo", statements[0].Sql.Trim());
+            Assert.Equal("insert into bar VALUES ('ab')", statements[1].Sql.Trim());
+            Assert.Equal("insert into bar VALUES ('ab')", statements[2].Sql.Trim());
         }
 
         [Fact]
@@ -368,6 +435,19 @@ ALTER TABLE [Foo] ALTER COLUMN [Bar] SET DEFAULT 42", sql);
         }
 
         [Fact]
+        public void Generate_can_output_rename_table_statements()
+        {
+            var renameTableOperation = new RenameTableOperation("dbo.Foo", "Bar");
+
+            var migrationSqlGenerator = new SqlCeMigrationSqlGenerator();
+
+            var sql = migrationSqlGenerator.Generate(new[] { renameTableOperation }, "2008").Join(s => s.Sql, Environment.NewLine);
+
+            Assert.Contains(
+                @"EXECUTE sp_rename @objname = N'Foo', @newname = N'Bar', @objtype = N'OBJECT'", sql);
+        }
+
+        [Fact]
         public void Generate_can_output_create_index_statement()
         {
             var createTableOperation = new CreateTableOperation("Customers");
@@ -410,7 +490,7 @@ ALTER TABLE [Foo] ALTER COLUMN [Bar] SET DEFAULT 42", sql);
         }
 
         [Fact]
-        public void Generate_can_output_create_index_statement_clustered()
+        public void Generate_ignores_clustered_configuration_since_it_is_not_supported_on_CE()
         {
             var createTableOperation = new CreateTableOperation("Customers");
             var idColumn = new ColumnModel(PrimitiveTypeKind.Int32)
@@ -449,7 +529,7 @@ ALTER TABLE [Foo] ALTER COLUMN [Bar] SET DEFAULT 42", sql);
                     "4.0").Join(s => s.Sql, Environment.NewLine);
 
             Assert.Contains(
-                @"CREATE UNIQUE CLUSTERED INDEX [IX_Id] ON [Customers]([Id])", sql);
+                @"CREATE UNIQUE INDEX [IX_Id] ON [Customers]([Id])", sql);
         }
 
         [Fact]
@@ -657,6 +737,16 @@ WHERE (([MigrationId] = N'House Lannister') AND ([ContextKey] = N'The pointy end
             var sql = migrationSqlGenerator.Generate(new[] { addColumnOperation }, "4.0").Join(s => s.Sql, Environment.NewLine);
 
             Assert.Contains("ALTER TABLE [Foo] ADD [Bar] [int] NOT NULL DEFAULT 0", sql);
+        }
+
+        [Fact]
+        public void Generate_for_AlterTableAnnotationsOperation_checks_its_arguments()
+        {
+            var generator = new SqlCeMigrationSqlGenerator();
+
+            Assert.Equal(
+                "alterTableOperation",
+                Assert.Throws<ArgumentNullException>(() => generator.Generate((AlterTableOperation)null)).ParamName);
         }
     }
 }

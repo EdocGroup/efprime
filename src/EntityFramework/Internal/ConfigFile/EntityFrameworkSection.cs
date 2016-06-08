@@ -1,19 +1,21 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Internal.ConfigFile
 {
     using System.Configuration;
     using System.Diagnostics.CodeAnalysis;
 
-    /// <summary>
-    /// Represents all Entity Framework related configuration
-    /// </summary>
+    // <summary>
+    // Represents all Entity Framework related configuration
+    // </summary>
     internal class EntityFrameworkSection : ConfigurationSection
     {
         private const string DefaultConnectionFactoryKey = "defaultConnectionFactory";
         private const string ContextsKey = "contexts";
         private const string ProviderKey = "providers";
         private const string ConfigurationTypeKey = "codeConfigurationType";
+        private const string InterceptorsKey = "interceptors";
+        private const string QueryCacheKey = "queryCache";
 
         [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         [ConfigurationProperty(DefaultConnectionFactoryKey)]
@@ -40,6 +42,19 @@ namespace System.Data.Entity.Internal.ConfigFile
         public virtual ContextCollection Contexts
         {
             get { return (ContextCollection)base[ContextsKey]; }
+        }
+
+        [ConfigurationProperty(InterceptorsKey)]
+        public virtual InterceptorsCollection Interceptors
+        {
+            get { return (InterceptorsCollection)base[InterceptorsKey]; }
+        }
+
+        [ConfigurationProperty(QueryCacheKey)]
+        public virtual QueryCacheElement QueryCache
+        {
+            get { return (QueryCacheElement)this[QueryCacheKey]; }
+            set { this[QueryCacheKey] = value; }
         }
     }
 }

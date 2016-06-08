@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Common.Internal.Materialization
 {
@@ -20,105 +20,90 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
     {
         #region Static Reflection info used in emitters
 
-        internal static readonly MethodInfo CodeGenEmitter_BinaryEquals = typeof(CodeGenEmitter).GetMethod(
-            "BinaryEquals", BindingFlags.NonPublic | BindingFlags.Static);
-
-        internal static readonly MethodInfo CodeGenEmitter_CheckedConvert = typeof(CodeGenEmitter).GetMethod(
-            "CheckedConvert", BindingFlags.NonPublic | BindingFlags.Static);
-
-        internal static readonly MethodInfo CodeGenEmitter_Compile = typeof(CodeGenEmitter).GetMethod(
-            "Compile", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(Expression) }, null);
-
-        internal static readonly MethodInfo DbDataReader_GetValue = typeof(DbDataReader).GetMethod("GetValue");
-        internal static readonly MethodInfo DbDataReader_GetString = typeof(DbDataReader).GetMethod("GetString");
-        internal static readonly MethodInfo DbDataReader_GetInt16 = typeof(DbDataReader).GetMethod("GetInt16");
-        internal static readonly MethodInfo DbDataReader_GetInt32 = typeof(DbDataReader).GetMethod("GetInt32");
-        internal static readonly MethodInfo DbDataReader_GetInt64 = typeof(DbDataReader).GetMethod("GetInt64");
-        internal static readonly MethodInfo DbDataReader_GetBoolean = typeof(DbDataReader).GetMethod("GetBoolean");
-        internal static readonly MethodInfo DbDataReader_GetDecimal = typeof(DbDataReader).GetMethod("GetDecimal");
-        internal static readonly MethodInfo DbDataReader_GetFloat = typeof(DbDataReader).GetMethod("GetFloat");
-        internal static readonly MethodInfo DbDataReader_GetDouble = typeof(DbDataReader).GetMethod("GetDouble");
-        internal static readonly MethodInfo DbDataReader_GetDateTime = typeof(DbDataReader).GetMethod("GetDateTime");
-        internal static readonly MethodInfo DbDataReader_GetGuid = typeof(DbDataReader).GetMethod("GetGuid");
-        internal static readonly MethodInfo DbDataReader_GetByte = typeof(DbDataReader).GetMethod("GetByte");
-        internal static readonly MethodInfo DbDataReader_IsDBNull = typeof(DbDataReader).GetMethod("IsDBNull");
+        internal static readonly MethodInfo CodeGenEmitter_BinaryEquals = typeof(CodeGenEmitter).GetOnlyDeclaredMethod("BinaryEquals");
+        internal static readonly MethodInfo CodeGenEmitter_CheckedConvert = typeof(CodeGenEmitter).GetOnlyDeclaredMethod("CheckedConvert");
+        internal static readonly MethodInfo CodeGenEmitter_Compile = typeof(CodeGenEmitter).GetDeclaredMethod("Compile", typeof(Expression));
+        internal static readonly MethodInfo DbDataReader_GetValue = typeof(DbDataReader).GetOnlyDeclaredMethod("GetValue");
+        internal static readonly MethodInfo DbDataReader_GetString = typeof(DbDataReader).GetOnlyDeclaredMethod("GetString");
+        internal static readonly MethodInfo DbDataReader_GetInt16 = typeof(DbDataReader).GetOnlyDeclaredMethod("GetInt16");
+        internal static readonly MethodInfo DbDataReader_GetInt32 = typeof(DbDataReader).GetOnlyDeclaredMethod("GetInt32");
+        internal static readonly MethodInfo DbDataReader_GetInt64 = typeof(DbDataReader).GetOnlyDeclaredMethod("GetInt64");
+        internal static readonly MethodInfo DbDataReader_GetBoolean = typeof(DbDataReader).GetOnlyDeclaredMethod("GetBoolean");
+        internal static readonly MethodInfo DbDataReader_GetDecimal = typeof(DbDataReader).GetOnlyDeclaredMethod("GetDecimal");
+        internal static readonly MethodInfo DbDataReader_GetFloat = typeof(DbDataReader).GetOnlyDeclaredMethod("GetFloat");
+        internal static readonly MethodInfo DbDataReader_GetDouble = typeof(DbDataReader).GetOnlyDeclaredMethod("GetDouble");
+        internal static readonly MethodInfo DbDataReader_GetDateTime = typeof(DbDataReader).GetOnlyDeclaredMethod("GetDateTime");
+        internal static readonly MethodInfo DbDataReader_GetGuid = typeof(DbDataReader).GetOnlyDeclaredMethod("GetGuid");
+        internal static readonly MethodInfo DbDataReader_GetByte = typeof(DbDataReader).GetOnlyDeclaredMethod("GetByte");
+        internal static readonly MethodInfo DbDataReader_IsDBNull = typeof(DbDataReader).GetOnlyDeclaredMethod("IsDBNull");
 
         internal static readonly ConstructorInfo EntityKey_ctor_SingleKey =
-            typeof(EntityKey).GetConstructor(
-                BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { typeof(EntitySet), typeof(object) }, null);
+            typeof(EntityKey).GetDeclaredConstructor(typeof(EntitySetBase), typeof(object));
 
         internal static readonly ConstructorInfo EntityKey_ctor_CompositeKey =
-            typeof(EntityKey).GetConstructor(
-                BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { typeof(EntitySet), typeof(object[]) }, null);
+            typeof(EntityKey).GetDeclaredConstructor(typeof(EntitySetBase), typeof(object[]));
 
         internal static readonly MethodInfo EntityWrapperFactory_GetEntityWithChangeTrackerStrategyFunc =
-            typeof(EntityWrapperFactory).GetMethod("GetEntityWithChangeTrackerStrategyFunc", BindingFlags.NonPublic | BindingFlags.Static);
+            typeof(EntityWrapperFactory).GetOnlyDeclaredMethod("GetEntityWithChangeTrackerStrategyFunc");
 
         internal static readonly MethodInfo EntityWrapperFactory_GetEntityWithKeyStrategyStrategyFunc =
-            typeof(EntityWrapperFactory).GetMethod("GetEntityWithKeyStrategyStrategyFunc", BindingFlags.NonPublic | BindingFlags.Static);
+            typeof(EntityWrapperFactory).GetOnlyDeclaredMethod("GetEntityWithKeyStrategyStrategyFunc");
 
-        internal static readonly MethodInfo EntityProxyTypeInfo_SetEntityWrapper = typeof(EntityProxyTypeInfo).GetMethod(
-            "SetEntityWrapper", BindingFlags.NonPublic | BindingFlags.Instance);
+        internal static readonly MethodInfo EntityProxyTypeInfo_SetEntityWrapper = typeof(EntityProxyTypeInfo).GetOnlyDeclaredMethod(
+            "SetEntityWrapper");
 
         internal static readonly MethodInfo EntityWrapperFactory_GetNullPropertyAccessorStrategyFunc =
-            typeof(EntityWrapperFactory).GetMethod("GetNullPropertyAccessorStrategyFunc", BindingFlags.NonPublic | BindingFlags.Static);
+            typeof(EntityWrapperFactory).GetOnlyDeclaredMethod("GetNullPropertyAccessorStrategyFunc");
 
         internal static readonly MethodInfo EntityWrapperFactory_GetPocoEntityKeyStrategyFunc =
-            typeof(EntityWrapperFactory).GetMethod("GetPocoEntityKeyStrategyFunc", BindingFlags.NonPublic | BindingFlags.Static);
+            typeof(EntityWrapperFactory).GetOnlyDeclaredMethod("GetPocoEntityKeyStrategyFunc");
 
         internal static readonly MethodInfo EntityWrapperFactory_GetPocoPropertyAccessorStrategyFunc =
-            typeof(EntityWrapperFactory).GetMethod("GetPocoPropertyAccessorStrategyFunc", BindingFlags.NonPublic | BindingFlags.Static);
+            typeof(EntityWrapperFactory).GetOnlyDeclaredMethod("GetPocoPropertyAccessorStrategyFunc");
 
         internal static readonly MethodInfo EntityWrapperFactory_GetSnapshotChangeTrackingStrategyFunc =
-            typeof(EntityWrapperFactory).GetMethod("GetSnapshotChangeTrackingStrategyFunc", BindingFlags.NonPublic | BindingFlags.Static);
+            typeof(EntityWrapperFactory).GetOnlyDeclaredMethod("GetSnapshotChangeTrackingStrategyFunc");
 
-        internal static readonly PropertyInfo EntityWrapperFactory_NullWrapper = typeof(NullEntityWrapper).GetProperty(
-            "NullWrapper", BindingFlags.Static | BindingFlags.NonPublic);
+        internal static readonly PropertyInfo EntityWrapperFactory_NullWrapper = typeof(NullEntityWrapper).GetDeclaredProperty("NullWrapper");
 
-        internal static readonly PropertyInfo IEntityWrapper_Entity = typeof(IEntityWrapper).GetProperty("Entity");
+        internal static readonly PropertyInfo IEntityWrapper_Entity = typeof(IEntityWrapper).GetDeclaredProperty("Entity");
 
-        internal static readonly MethodInfo IEqualityComparerOfString_Equals = typeof(IEqualityComparer<string>).GetMethod(
-            "Equals", new[] { typeof(string), typeof(string) });
+        internal static readonly MethodInfo IEqualityComparerOfString_Equals = typeof(IEqualityComparer<string>).GetDeclaredMethod(
+            "Equals", typeof(string), typeof(string));
 
-        internal static readonly ConstructorInfo MaterializedDataRecord_ctor = typeof(MaterializedDataRecord).GetConstructor(
-            BindingFlags.NonPublic | BindingFlags.Instance,
-            null, new[] { typeof(MetadataWorkspace), typeof(TypeUsage), typeof(object[]) },
-            null);
+        internal static readonly ConstructorInfo MaterializedDataRecord_ctor = typeof(MaterializedDataRecord).GetDeclaredConstructor(
+            typeof(MetadataWorkspace), typeof(TypeUsage), typeof(object[]));
 
-        internal static readonly MethodInfo RecordState_GatherData = typeof(RecordState).GetMethod(
-            "GatherData", BindingFlags.NonPublic | BindingFlags.Instance);
-
-        internal static readonly MethodInfo RecordState_SetNullRecord = typeof(RecordState).GetMethod(
-            "SetNullRecord", BindingFlags.NonPublic | BindingFlags.Instance);
-
-        internal static readonly MethodInfo Shaper_Discriminate = typeof(Shaper).GetMethod("Discriminate");
+        internal static readonly MethodInfo RecordState_GatherData = typeof(RecordState).GetOnlyDeclaredMethod("GatherData");
+        internal static readonly MethodInfo RecordState_SetNullRecord = typeof(RecordState).GetOnlyDeclaredMethod("SetNullRecord");
+        internal static readonly MethodInfo Shaper_Discriminate = typeof(Shaper).GetOnlyDeclaredMethod("Discriminate");
 
         internal static readonly MethodInfo Shaper_GetPropertyValueWithErrorHandling =
-            typeof(Shaper).GetMethod("GetPropertyValueWithErrorHandling");
+            typeof(Shaper).GetOnlyDeclaredMethod("GetPropertyValueWithErrorHandling");
 
         internal static readonly MethodInfo Shaper_GetColumnValueWithErrorHandling =
-            typeof(Shaper).GetMethod("GetColumnValueWithErrorHandling");
+            typeof(Shaper).GetOnlyDeclaredMethod("GetColumnValueWithErrorHandling");
 
-        internal static readonly MethodInfo Shaper_GetGeographyColumnValue = typeof(Shaper).GetMethod("GetGeographyColumnValue");
-        internal static readonly MethodInfo Shaper_GetGeometryColumnValue = typeof(Shaper).GetMethod("GetGeometryColumnValue");
+        internal static readonly MethodInfo Shaper_GetGeographyColumnValue = typeof(Shaper).GetOnlyDeclaredMethod("GetGeographyColumnValue");
+        internal static readonly MethodInfo Shaper_GetGeometryColumnValue = typeof(Shaper).GetOnlyDeclaredMethod("GetGeometryColumnValue");
 
         internal static readonly MethodInfo Shaper_GetSpatialColumnValueWithErrorHandling =
-            typeof(Shaper).GetMethod("GetSpatialColumnValueWithErrorHandling");
+            typeof(Shaper).GetOnlyDeclaredMethod("GetSpatialColumnValueWithErrorHandling");
 
         internal static readonly MethodInfo Shaper_GetSpatialPropertyValueWithErrorHandling =
-            typeof(Shaper).GetMethod("GetSpatialPropertyValueWithErrorHandling");
+            typeof(Shaper).GetOnlyDeclaredMethod("GetSpatialPropertyValueWithErrorHandling");
 
-        internal static readonly MethodInfo Shaper_HandleEntity = typeof(Shaper).GetMethod("HandleEntity");
-        internal static readonly MethodInfo Shaper_HandleEntityAppendOnly = typeof(Shaper).GetMethod("HandleEntityAppendOnly");
-        internal static readonly MethodInfo Shaper_HandleEntityNoTracking = typeof(Shaper).GetMethod("HandleEntityNoTracking");
-        internal static readonly MethodInfo Shaper_HandleFullSpanCollection = typeof(Shaper).GetMethod("HandleFullSpanCollection");
-        internal static readonly MethodInfo Shaper_HandleFullSpanElement = typeof(Shaper).GetMethod("HandleFullSpanElement");
-        internal static readonly MethodInfo Shaper_HandleIEntityWithKey = typeof(Shaper).GetMethod("HandleIEntityWithKey");
-        internal static readonly MethodInfo Shaper_HandleRelationshipSpan = typeof(Shaper).GetMethod("HandleRelationshipSpan");
-        internal static readonly MethodInfo Shaper_SetColumnValue = typeof(Shaper).GetMethod("SetColumnValue");
-        internal static readonly MethodInfo Shaper_SetEntityRecordInfo = typeof(Shaper).GetMethod("SetEntityRecordInfo");
-        internal static readonly MethodInfo Shaper_SetState = typeof(Shaper).GetMethod("SetState");
-        internal static readonly MethodInfo Shaper_SetStatePassthrough = typeof(Shaper).GetMethod("SetStatePassthrough");
+        internal static readonly MethodInfo Shaper_HandleEntity = typeof(Shaper).GetOnlyDeclaredMethod("HandleEntity");
+        internal static readonly MethodInfo Shaper_HandleEntityAppendOnly = typeof(Shaper).GetOnlyDeclaredMethod("HandleEntityAppendOnly");
+        internal static readonly MethodInfo Shaper_HandleEntityNoTracking = typeof(Shaper).GetOnlyDeclaredMethod("HandleEntityNoTracking");
+        internal static readonly MethodInfo Shaper_HandleFullSpanCollection = typeof(Shaper).GetOnlyDeclaredMethod("HandleFullSpanCollection");
+        internal static readonly MethodInfo Shaper_HandleFullSpanElement = typeof(Shaper).GetOnlyDeclaredMethod("HandleFullSpanElement");
+        internal static readonly MethodInfo Shaper_HandleIEntityWithKey = typeof(Shaper).GetOnlyDeclaredMethod("HandleIEntityWithKey");
+        internal static readonly MethodInfo Shaper_HandleRelationshipSpan = typeof(Shaper).GetOnlyDeclaredMethod("HandleRelationshipSpan");
+        internal static readonly MethodInfo Shaper_SetColumnValue = typeof(Shaper).GetOnlyDeclaredMethod("SetColumnValue");
+        internal static readonly MethodInfo Shaper_SetEntityRecordInfo = typeof(Shaper).GetOnlyDeclaredMethod("SetEntityRecordInfo");
+        internal static readonly MethodInfo Shaper_SetState = typeof(Shaper).GetOnlyDeclaredMethod("SetState");
+        internal static readonly MethodInfo Shaper_SetStatePassthrough = typeof(Shaper).GetOnlyDeclaredMethod("SetStatePassthrough");
 
         #endregion
 
@@ -134,18 +119,18 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
         internal static readonly Expression Shaper_Context = Expression.Field(Shaper_Parameter, typeof(Shaper).GetField("Context"));
 
         internal static readonly Expression Shaper_Context_Options = Expression.Property(
-            Shaper_Context, typeof(ObjectContext).GetProperty("ContextOptions"));
+            Shaper_Context, typeof(ObjectContext).GetDeclaredProperty("ContextOptions"));
 
         internal static readonly Expression Shaper_ProxyCreationEnabled = Expression.Property(
-            Shaper_Context_Options, typeof(ObjectContextOptions).GetProperty("ProxyCreationEnabled"));
+            Shaper_Context_Options, typeof(ObjectContextOptions).GetDeclaredProperty("ProxyCreationEnabled"));
 
         #endregion
 
-        /// <summary>
-        /// Helper method used in expressions generated by Emit_Equal to perform a
-        /// byte-by-byte comparison of two byte arrays.  There really ought to be
-        /// a way to do this in the framework but I'm unaware of it.
-        /// </summary>
+        // <summary>
+        // Helper method used in expressions generated by Emit_Equal to perform a
+        // byte-by-byte comparison of two byte arrays.  There really ought to be
+        // a way to do this in the framework but I'm unaware of it.
+        // </summary>
         internal static bool BinaryEquals(byte[] left, byte[] right)
         {
             if (null == left)
@@ -172,10 +157,10 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return true;
         }
 
-        /// <summary>
-        /// Compiles a delegate taking a Shaper instance and returning values. Used to compile
-        /// Expressions produced by the emitter.
-        /// </summary>
+        // <summary>
+        // Compiles a delegate taking a Shaper instance and returning values. Used to compile
+        // Expressions produced by the emitter.
+        // </summary>
         internal static Func<Shaper, TResult> Compile<TResult>(Expression body)
         {
             return BuildShaperLambda<TResult>(body).Compile();
@@ -188,10 +173,10 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                        : Expression.Lambda<Func<Shaper, TResult>>(body, Shaper_Parameter);
         }
 
-        /// <summary>
-        /// Non-generic version of Compile (where the result type is passed in as an argument rather
-        /// than a type parameter)
-        /// </summary>
+        // <summary>
+        // Non-generic version of Compile (where the result type is passed in as an argument rather
+        // than a type parameter)
+        // </summary>
         internal static object Compile(Type resultType, Expression body)
         {
             var compile = CodeGenEmitter_Compile.MakeGenericMethod(resultType);
@@ -200,9 +185,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
 
         #region Lightweight CodeGen emitters
 
-        /// <summary>
-        /// Create expression to AndAlso the expressions and return the result.
-        /// </summary>
+        // <summary>
+        // Create expression to AndAlso the expressions and return the result.
+        // </summary>
         internal static Expression Emit_AndAlso(IEnumerable<Expression> operands)
         {
             Expression result = null;
@@ -220,9 +205,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to bitwise-or the expressions and return the result.
-        /// </summary>
+        // <summary>
+        // Create expression to bitwise-or the expressions and return the result.
+        // </summary>
         internal static Expression Emit_BitwiseOr(IEnumerable<Expression> operands)
         {
             Expression result = null;
@@ -240,14 +225,14 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Creates an expression with null value. If the given type cannot be assigned
-        /// a null value, we create a value that throws when materializing. We don't throw statically
-        /// because we consistently defer type checks until materialization.
-        /// See SQL BU 588980.
-        /// </summary>
-        /// <param name="type"> Type of null expression. </param>
-        /// <returns> Null expression. </returns>
+        // <summary>
+        // Creates an expression with null value. If the given type cannot be assigned
+        // a null value, we create a value that throws when materializing. We don't throw statically
+        // because we consistently defer type checks until materialization.
+        // See SQL BU 588980.
+        // </summary>
+        // <param name="type"> Type of null expression. </param>
+        // <returns> Null expression. </returns>
         internal static Expression Emit_NullConstant(Type type)
         {
             Expression nullConstant;
@@ -267,20 +252,20 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return nullConstant;
         }
 
-        /// <summary>
-        /// Emits an expression that represnts a NullEntityWrapper instance.
-        /// </summary>
-        /// <returns> An expression represnting a wrapped null </returns>
+        // <summary>
+        // Emits an expression that represnts a NullEntityWrapper instance.
+        // </summary>
+        // <returns> An expression represnting a wrapped null </returns>
         internal static Expression Emit_WrappedNullConstant()
         {
             return Expression.Property(null, EntityWrapperFactory_NullWrapper);
         }
 
-        /// <summary>
-        /// Create expression that guarantees the input expression is of the specified
-        /// type; no Convert is added if the expression is already of the same type.
-        /// Internal because it is called from the TranslatorResult.
-        /// </summary>
+        // <summary>
+        // Create expression that guarantees the input expression is of the specified
+        // type; no Convert is added if the expression is already of the same type.
+        // Internal because it is called from the TranslatorResult.
+        // </summary>
         internal static Expression Emit_EnsureType(Expression input, Type type)
         {
             var result = input;
@@ -303,24 +288,24 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Uses Emit_EnsureType and then wraps the result in an IEntityWrapper instance.
-        /// </summary>
-        /// <param name="input"> The expression that creates the entity to be wrapped </param>
-        /// <param name="keyReader"> Expression to read the entity key </param>
-        /// <param name="entitySetReader"> Expression to read the entity set </param>
-        /// <param name="requestedType"> The type that was actuall requested by the client--may be object </param>
-        /// <param name="identityType"> The type of the identity type of the entity being materialized--never a proxy type </param>
-        /// <param name="actualType"> The actual type being materialized--may be a proxy type </param>
-        /// <param name="mergeOption"> Either NoTracking or AppendOnly depending on whether the entity is to be tracked </param>
-        /// <param name="isProxy"> If true, then a proxy is being created </param>
-        /// <returns> An expression representing the IEntityWrapper for the new entity </returns>
+        // <summary>
+        // Uses Emit_EnsureType and then wraps the result in an IEntityWrapper instance.
+        // </summary>
+        // <param name="input"> The expression that creates the entity to be wrapped </param>
+        // <param name="keyReader"> Expression to read the entity key </param>
+        // <param name="entitySetReader"> Expression to read the entity set </param>
+        // <param name="requestedType"> The type that was actuall requested by the client--may be object </param>
+        // <param name="identityType"> The type of the identity type of the entity being materialized--never a proxy type </param>
+        // <param name="actualType"> The actual type being materialized--may be a proxy type </param>
+        // <param name="mergeOption"> Either NoTracking or AppendOnly depending on whether the entity is to be tracked </param>
+        // <param name="isProxy"> If true, then a proxy is being created </param>
+        // <returns> An expression representing the IEntityWrapper for the new entity </returns>
         internal static Expression Emit_EnsureTypeAndWrap(
             Expression input, Expression keyReader, Expression entitySetReader, Type requestedType, Type identityType, Type actualType,
             MergeOption mergeOption, bool isProxy)
         {
             var result = Emit_EnsureType(input, requestedType); // Needed to ensure appropriate exception is thrown
-            if (!requestedType.IsClass)
+            if (!requestedType.IsClass())
             {
                 result = Emit_EnsureType(input, typeof(object));
             }
@@ -328,9 +313,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return CreateEntityWrapper(result, keyReader, entitySetReader, actualType, identityType, mergeOption, isProxy);
         }
 
-        /// <summary>
-        /// Returns an expression that creates an IEntityWrapper appropriate for the type of entity being materialized.
-        /// </summary>
+        // <summary>
+        // Returns an expression that creates an IEntityWrapper appropriate for the type of entity being materialized.
+        // </summary>
         internal static Expression CreateEntityWrapper(
             Expression input, Expression keyReader, Expression entitySetReader, Type actualType, Type identityType, MergeOption mergeOption,
             bool isProxy)
@@ -350,10 +335,8 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                 // This is the case where all our interfaces are implemented by the entity and we are not creating a proxy.
                 // This is the case that absolutely must be kept fast.  It is a simple call to the wrapper constructor.
                 var genericType = typeof(LightweightEntityWrapper<>).MakeGenericType(actualType);
-                var ci = genericType.GetConstructor(
-                    BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.CreateInstance, null,
-                    new[] { actualType, typeof(EntityKey), typeof(EntitySet), typeof(ObjectContext), typeof(MergeOption), typeof(Type), typeof(bool) },
-                    null);
+                var ci = genericType.GetDeclaredConstructor(
+                    actualType, typeof(EntityKey), typeof(EntitySet), typeof(ObjectContext), typeof(MergeOption), typeof(Type), typeof(bool));
                 result = Expression.New(
                     ci, input, keyReader, entitySetReader, Shaper_Context, Expression.Constant(mergeOption, typeof(MergeOption)),
                     Expression.Constant(identityType, typeof(Type)), Expression.Constant(overridesEquals, typeof(bool)));
@@ -380,14 +363,11 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
                                       ? typeof(EntityWrapperWithRelationships<>).MakeGenericType(actualType)
                                       : typeof(EntityWrapperWithoutRelationships<>).MakeGenericType(actualType);
 
-                var ci = genericType.GetConstructor(
-                    BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.CreateInstance, null,
-                    new[]
-                        {
-                            actualType, typeof(EntityKey), typeof(EntitySet), typeof(ObjectContext), typeof(MergeOption), typeof(Type),
-                            typeof(Func<object, IPropertyAccessorStrategy>), typeof(Func<object, IChangeTrackingStrategy>),
-                            typeof(Func<object, IEntityKeyStrategy>), typeof(bool)
-                        }, null);
+                var ci = genericType.GetDeclaredConstructor(
+                    actualType, typeof(EntityKey), typeof(EntitySet), typeof(ObjectContext), typeof(MergeOption), typeof(Type),
+                    typeof(Func<object, IPropertyAccessorStrategy>), typeof(Func<object, IChangeTrackingStrategy>),
+                    typeof(Func<object, IEntityKeyStrategy>), typeof(bool));
+             
                 result = Expression.New(
                     ci, input, keyReader, entitySetReader, Shaper_Context, Expression.Constant(mergeOption, typeof(MergeOption)),
                     Expression.Constant(identityType, typeof(Type)),
@@ -398,19 +378,19 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Takes an expression that represents an IEntityWrapper instance and creates a new
-        /// expression that extracts the raw entity from this.
-        /// </summary>
+        // <summary>
+        // Takes an expression that represents an IEntityWrapper instance and creates a new
+        // expression that extracts the raw entity from this.
+        // </summary>
         internal static Expression Emit_UnwrapAndEnsureType(Expression input, Type type)
         {
             return Emit_EnsureType(Expression.Property(input, IEntityWrapper_Entity), type);
         }
 
-        /// <summary>
-        /// Method that the generated expression calls when the types are not
-        /// assignable
-        /// </summary>
+        // <summary>
+        // Method that the generated expression calls when the types are not
+        // assignable
+        // </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA1806:DoNotIgnoreMethodResults", MessageId = "System.DateTimeOffset.TryParse(System.String,System.DateTimeOffset@)"), System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Globalization", "CA1305:SpecifyIFormatProvider", MessageId = "System.DateTimeOffset.Parse(System.String)")]
         internal static TTarget CheckedConvert<TSource, TTarget>(TSource value)
         {
@@ -446,7 +426,7 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
 
                     // In the case of CompensatingCollection<T>, simply report IEnumerable<T> in the
                     // exception message because the user has no reason to know what the type represents.
-                    if (valueType.IsGenericType
+                    if (valueType.IsGenericType()
                         && valueType.GetGenericTypeDefinition() == typeof(CompensatingCollection<>))
                     {
                         valueType = typeof(IEnumerable<>).MakeGenericType(valueType.GetGenericArguments());
@@ -460,10 +440,10 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             }
         }
 
-        /// <summary>
-        /// Create expression to compare the results of two expressions and return
-        /// whether they are equal.  Note we have special case logic for byte arrays.
-        /// </summary>
+        // <summary>
+        // Create expression to compare the results of two expressions and return
+        // whether they are equal.  Note we have special case logic for byte arrays.
+        // </summary>
         internal static Expression Emit_Equal(Expression left, Expression right)
         {
             DebugCheck.NotNull(left);
@@ -483,10 +463,10 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression that verifies that the entityKey has a value.  Note we just
-        /// presume that if the first key is non-null, all the keys will be valid.
-        /// </summary>
+        // <summary>
+        // Create expression that verifies that the entityKey has a value.  Note we just
+        // presume that if the first key is non-null, all the keys will be valid.
+        // </summary>
         internal static Expression Emit_EntityKey_HasValue(SimpleColumnMap[] keyColumns)
         {
             Debug.Assert(0 < keyColumns.Length);
@@ -497,9 +477,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to call the GetValue method of the shaper's source data reader
-        /// </summary>
+        // <summary>
+        // Create expression to call the GetValue method of the shaper's source data reader
+        // </summary>
         internal static Expression Emit_Reader_GetValue(int ordinal, Type type)
         {
             // (type)shaper.Reader.GetValue(ordinal)
@@ -507,9 +487,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to call the IsDBNull method of the shaper's source data reader
-        /// </summary>
+        // <summary>
+        // Create expression to call the IsDBNull method of the shaper's source data reader
+        // </summary>
         internal static Expression Emit_Reader_IsDBNull(int ordinal)
         {
             // shaper.Reader.IsDBNull(ordinal)
@@ -517,10 +497,10 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to call the IsDBNull method of the shaper's source data reader
-        /// for the scalar column represented by the column map.
-        /// </summary>
+        // <summary>
+        // Create expression to call the IsDBNull method of the shaper's source data reader
+        // for the scalar column represented by the column map.
+        // </summary>
         internal static Expression Emit_Reader_IsDBNull(ColumnMap columnMap)
         {
             var result = Emit_Reader_IsDBNull(((ScalarColumnMap)columnMap).ColumnPos);
@@ -614,9 +594,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to read a property value with error handling
-        /// </summary>
+        // <summary>
+        // Create expression to read a property value with error handling
+        // </summary>
         internal static Expression Emit_Shaper_GetPropertyValueWithErrorHandling(
             Type propertyType, int ordinal, string propertyName, string typeName, TypeUsage columnType)
         {
@@ -639,9 +619,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to read a column value with error handling
-        /// </summary>
+        // <summary>
+        // Create expression to read a column value with error handling
+        // </summary>
         internal static Expression Emit_Shaper_GetColumnValueWithErrorHandling(Type resultType, int ordinal, TypeUsage columnType)
         {
             // shaper.GetSpatialColumnValueWithErrorHandling(ordinal, primitiveColumnType) OR shaper.GetColumnValueWithErrorHandling(ordinal)
@@ -664,9 +644,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to read a column value of type System.Data.Entity.Spatial.DbGeography by delegating to the DbSpatialServices implementation of the underlying provider
-        /// </summary>
+        // <summary>
+        // Create expression to read a column value of type System.Data.Entity.Spatial.DbGeography by delegating to the DbSpatialServices implementation of the underlying provider
+        // </summary>
         internal static Expression Emit_Shaper_GetGeographyColumnValue(int ordinal)
         {
             // shaper.GetGeographyColumnValue(ordinal)
@@ -674,9 +654,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to read a column value of type System.Data.Entity.Spatial.DbGeometry by delegating to the DbSpatialServices implementation of the underlying provider
-        /// </summary>
+        // <summary>
+        // Create expression to read a column value of type System.Data.Entity.Spatial.DbGeometry by delegating to the DbSpatialServices implementation of the underlying provider
+        // </summary>
         internal static Expression Emit_Shaper_GetGeometryColumnValue(int ordinal)
         {
             // shaper.GetGeometryColumnValue(ordinal)
@@ -684,9 +664,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to read an item from the shaper's state array
-        /// </summary>
+        // <summary>
+        // Create expression to read an item from the shaper's state array
+        // </summary>
         internal static Expression Emit_Shaper_GetState(int stateSlotNumber, Type type)
         {
             // (type)shaper.State[stateSlotNumber]
@@ -694,9 +674,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to set an item in the shaper's state array
-        /// </summary>
+        // <summary>
+        // Create expression to set an item in the shaper's state array
+        // </summary>
         internal static Expression Emit_Shaper_SetState(int stateSlotNumber, Expression value)
         {
             // shaper.SetState<T>(stateSlotNumber, value)
@@ -705,9 +685,9 @@ namespace System.Data.Entity.Core.Common.Internal.Materialization
             return result;
         }
 
-        /// <summary>
-        /// Create expression to set an item in the shaper's state array
-        /// </summary>
+        // <summary>
+        // Create expression to set an item in the shaper's state array
+        // </summary>
         internal static Expression Emit_Shaper_SetStatePassthrough(int stateSlotNumber, Expression value)
         {
             // shaper.SetState<T>(stateSlotNumber, value)

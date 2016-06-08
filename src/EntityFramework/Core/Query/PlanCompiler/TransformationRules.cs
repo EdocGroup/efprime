@@ -7,51 +7,54 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
     using System.Data.Entity.Core.Query.InternalTrees;
     using System.Diagnostics.CodeAnalysis;
 
-    /// <summary>
-    /// The list of all transformation rules to apply
-    /// </summary>
+    // <summary>
+    // The list of all transformation rules to apply
+    // </summary>
     internal static class TransformationRules
     {
-        /// <summary>
-        /// A lookup table for built from all rules
-        /// The lookup table is an array indexed by OpType and each entry has a list of rules.
-        /// </summary>
+        // <summary>
+        // A lookup table for built from all rules
+        // The lookup table is an array indexed by OpType and each entry has a list of rules.
+        // </summary>
         internal static readonly ReadOnlyCollection<ReadOnlyCollection<Rule>> AllRulesTable = BuildLookupTableForRules(AllRules);
 
-        /// <summary>
-        /// A lookup table for built only from ProjectRules
-        /// The lookup table is an array indexed by OpType and each entry has a list of rules.
-        /// </summary>
+        // <summary>
+        // A lookup table for built only from ProjectRules
+        // The lookup table is an array indexed by OpType and each entry has a list of rules.
+        // </summary>
         internal static readonly ReadOnlyCollection<ReadOnlyCollection<Rule>> ProjectRulesTable =
             BuildLookupTableForRules(ProjectOpRules.Rules);
 
-        /// <summary>
-        /// A lookup table built only from rules that use key info
-        /// The lookup table is an array indexed by OpType and each entry has a list of rules.
-        /// </summary>
+        // <summary>
+        // A lookup table built only from rules that use key info
+        // The lookup table is an array indexed by OpType and each entry has a list of rules.
+        // </summary>
         internal static readonly ReadOnlyCollection<ReadOnlyCollection<Rule>> PostJoinEliminationRulesTable =
             BuildLookupTableForRules(PostJoinEliminationRules);
 
-        /// <summary>
-        /// A lookup table built only from rules that rely on nullability of vars and other rules
-        /// that may be able to perform simplificatios if these have been applied.
-        /// The lookup table is an array indexed by OpType and each entry has a list of rules.
-        /// </summary>
+        // <summary>
+        // A lookup table built only from rules that rely on nullability of vars and other rules
+        // that may be able to perform simplificatios if these have been applied.
+        // The lookup table is an array indexed by OpType and each entry has a list of rules.
+        // </summary>
         internal static readonly ReadOnlyCollection<ReadOnlyCollection<Rule>> NullabilityRulesTable =
             BuildLookupTableForRules(NullabilityRules);
 
-        /// <summary>
-        /// A look-up table of rules that may cause modifications such that projection pruning may be useful
-        /// after they have been applied.
-        /// </summary>
+        // <summary>
+        // A look-up table of rules that may cause modifications such that projection pruning may be useful
+        // after they have been applied.
+        // </summary>
         internal static readonly HashSet<Rule> RulesRequiringProjectionPruning = InitializeRulesRequiringProjectionPruning();
 
-        /// <summary>
-        /// A look-up table of rules that may cause modifications such that reapplying the nullability rules
-        /// may be useful after they have been applied.
-        /// </summary>
+        // <summary>
+        // A look-up table of rules that may cause modifications such that reapplying the nullability rules
+        // may be useful after they have been applied.
+        // </summary>
         internal static readonly HashSet<Rule> RulesRequiringNullabilityRulesToBeReapplied =
             InitializeRulesRequiringNullabilityRulesToBeReapplied();
+
+        internal static readonly ReadOnlyCollection<ReadOnlyCollection<Rule>> NullSemanticsRulesTable =
+            BuildLookupTableForRules(NullSemanticsRules);
 
         #region private state maintenance
 
@@ -93,6 +96,7 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     //these don't use key info per-se, but can help after the distinct op rules.
                     postJoinEliminationRules.AddRange(DistinctOpRules.Rules);
                     postJoinEliminationRules.AddRange(FilterOpRules.Rules);
+                    postJoinEliminationRules.AddRange(ApplyOpRules.Rules);
                     postJoinEliminationRules.AddRange(JoinOpRules.Rules);
                     postJoinEliminationRules.AddRange(NullabilityRules);
                 }
@@ -116,6 +120,31 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     nullabilityRules.Add(ScalarOpRules.Rule_NotOverConstantPred);
                 }
                 return nullabilityRules;
+            }
+        }
+
+        private static List<Rule> nullSemanticsRules;
+
+        private static List<Rule> NullSemanticsRules
+        {
+            get
+            {
+                if (nullSemanticsRules == null)
+                {
+                    nullSemanticsRules = new List<Rule>();
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_IsNullOverAnything);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_NullCast);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_EqualsOverConstant);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_AndOverConstantPred1);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_AndOverConstantPred2);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_OrOverConstantPred1);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_OrOverConstantPred2);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_NotOverConstantPred);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_LikeOverConstants);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_SimplifyCase);
+                    nullSemanticsRules.Add(ScalarOpRules.Rule_FlattenCase);
+                }
+                return nullSemanticsRules;
             }
         }
 
@@ -185,9 +214,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #endregion
 
-        /// <summary>
-        /// Apply the rules that belong to the specified group to the given query tree.
-        /// </summary>
+        // <summary>
+        // Apply the rules that belong to the specified group to the given query tree.
+        // </summary>
         internal static bool Process(PlanCompiler compilerState, TransformationRulesGroup rulesGroup)
         {
             ReadOnlyCollection<ReadOnlyCollection<Rule>> rulesTable = null;
@@ -201,6 +230,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     break;
                 case TransformationRulesGroup.Project:
                     rulesTable = ProjectRulesTable;
+                    break;
+                case TransformationRulesGroup.NullSemantics:
+                    rulesTable = NullSemanticsRulesTable;
                     break;
             }
 
@@ -216,14 +248,11 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return projectionPrunningRequired;
         }
 
-        /// <summary>
-        /// Apply the rules that belong to the specified rules table to the given query tree.
-        /// </summary>
-        /// <param name="compilerState"> </param>
-        /// <param name="rulesTable"> </param>
-        /// <param name="projectionPruningRequired"> is projection pruning required after the rule application </param>
-        /// <returns> Whether any rule has been applied after which reapplying nullability rules may be useful </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Apply the rules that belong to the specified rules table to the given query tree.
+        // </summary>
+        // <param name="projectionPruningRequired"> is projection pruning required after the rule application </param>
+        // <returns> Whether any rule has been applied after which reapplying nullability rules may be useful </returns>
         private static bool Process(
             PlanCompiler compilerState, ReadOnlyCollection<ReadOnlyCollection<Rule>> rulesTable, out bool projectionPruningRequired)
         {

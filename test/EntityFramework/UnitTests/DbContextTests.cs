@@ -18,12 +18,14 @@ namespace ProductivityApiUnitTests
     using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.Infrastructure.MappingViews;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Migrations.Utilities;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.ModelConfiguration.Internal.UnitTests;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.Data.SqlServerCe;
     using System.Linq;
@@ -31,6 +33,7 @@ namespace ProductivityApiUnitTests
     using Moq.Protected;
     using Xunit;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Threading;
 
     #region Context types for testing database name generation
 
@@ -80,27 +83,6 @@ namespace ProductivityApiUnitTests
     /// </summary>
     public class DbContextTests : TestBase
     {
-        public DbContextTests()
-        {
-            // Ensure the basic-auth test user exists
-
-            using (var connection = new SqlConnection(SimpleConnectionString("master")))
-            {
-                connection.Open();
-
-                using (var command = connection.CreateCommand())
-                {
-                    command.CommandText
-                        = @"IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = N'EFTestUser')
-BEGIN
-  CREATE LOGIN [EFTestUser] WITH PASSWORD=N'Password1', DEFAULT_DATABASE=[master], DEFAULT_LANGUAGE=[us_english], CHECK_EXPIRATION=OFF, CHECK_POLICY=OFF
-  EXEC sys.sp_addsrvrolemember @loginame = N'EFTestUser', @rolename = N'sysadmin'
-END";
-                    command.ExecuteNonQuery();
-                }
-            }
-        }
-
         #region Using EF connection string/EntityConnection in combination with DbCompiledModel
 
         private const string EntityConnectionString =
@@ -259,6 +241,21 @@ END";
             mockContext.Object.Dispose();
 
             mockContext.Verify();
+        }
+
+        #endregion
+
+        #region Database
+
+        public class DatabaseTests : TestBase
+        {
+            [Fact]
+            public void Get_caches_created_Database()
+            {
+                var dbContext = new SimpleContextClass();
+
+                Assert.Equal(dbContext.Database, dbContext.Database);
+            }
         }
 
         #endregion
@@ -441,6 +438,7 @@ END";
         [Fact]
         public void Can_initialize_database_when_using_secure_connection_string_with_sql_server_authentication_and_lazy_connection()
         {
+            EnsureEfTestUserExists();
             var connectionString
                 = SimpleConnectionStringWithCredentials<PersistSecurityInfoContext>(
                     "EFTestUser",
@@ -465,6 +463,7 @@ END";
         [Fact]
         public void Can_initialize_database_when_using_secure_connection_string_with_sql_server_authentication_and_eager_connection()
         {
+            EnsureEfTestUserExists();
             var connectionString
                 = SimpleConnectionStringWithCredentials<PersistSecurityInfoContext>(
                     "EFTestUser",
@@ -491,6 +490,7 @@ END";
         [Fact]
         public void Can_use_ddl_ops_when_using_secure_connection_string_with_sql_server_authentication_and_eager_context()
         {
+            EnsureEfTestUserExists();
             var connectionString
                 = SimpleConnectionStringWithCredentials<PersistSecurityInfoContext>(
                     "EFTestUser",
@@ -526,6 +526,141 @@ END";
             }
         }
 
+        [Fact]
+        public void Can_initialize_database_when_using_secure_connection_string_with_sql_server_authentication_and_CommitFailureHandler()
+        {
+            EnsureEfTestUserExists();
+            var connectionString
+                = SimpleConnectionStringWithCredentials<PersistSecurityInfoContext>(
+                    "EFTestUser",
+                    "Password1");
+
+            var context = new PersistSecurityInfoContext(connectionString);
+            
+            MutableResolver.AddResolver<Func<TransactionHandler>>(
+                new TransactionHandlerResolver(() => new CommitFailureHandler(), null, null));
+
+            try
+            {
+                context.Database.Delete();
+                context.Database.Initialize(true);
+                
+                CommitFailureHandler.FromContext(context).ClearTransactionHistory();
+            }
+            finally
+            {
+                MutableResolver.ClearResolvers();
+                context.Database.Delete();
+            }
+        }
+
+
+        [Fact] // CodePlex 2362
+        public void Initialize_database_happens_once_without_persistence_of_security_info()
+        {
+            EnsureEfTestUserExists();
+
+            var connectionString = SimpleConnectionStringWithCredentials<OneContextToRuleThemAll>("EFTestUser", "Password1");
+
+            using (var context = new OneContextToRuleThemAll(connectionString))
+            {
+                context.Database.Initialize(force: false);
+                Assert.Equal(1, OneInitializerToRuleThemAll.CalledCount);
+            }
+
+            using (var context = new OneContextToRuleThemAll(connectionString))
+            {
+                context.Database.Connection.Open();
+                context.Database.Connection.Close();
+
+                context.Database.Initialize(force: false);
+                Assert.Equal(1, OneInitializerToRuleThemAll.CalledCount);
+            }
+        }
+
+        private class OneContextToRuleThemAll : PersistSecurityInfoContext
+        {
+            static OneContextToRuleThemAll()
+            {
+                Database.SetInitializer(new OneInitializerToRuleThemAll());
+            }
+
+            public OneContextToRuleThemAll(string nameOrConnectionString)
+                : base(nameOrConnectionString)
+            {
+            }
+        }
+
+        private class OneInitializerToRuleThemAll : DropCreateDatabaseAlways<OneContextToRuleThemAll>
+        {
+            public static int CalledCount { get; set; }
+
+            public override void InitializeDatabase(OneContextToRuleThemAll context)
+            {
+                CalledCount++;
+
+                base.InitializeDatabase(context);
+            }
+        }
+
+        private void EnsureEfTestUserExists()
+        {
+            using (var connection = new SqlConnection(SimpleConnectionString("master")))
+            {
+                connection.Open();
+                if (DatabaseTestHelpers.IsSqlAzure(connection.ConnectionString))
+                {
+                    var loginExists = ExecuteScalarReturnsOne(
+                        connection,
+                        "SELECT COUNT(*) FROM sys.sql_logins WHERE name = N'EFTestUser'");
+
+                    if (!loginExists)
+                    {
+                        ExecuteNonQuery(connection, "CREATE LOGIN [EFTestUser] WITH PASSWORD=N'Password1'");
+                    }
+
+                    var userExists = ExecuteScalarReturnsOne(
+                        connection,
+                        "SELECT COUNT(*) FROM sys.sysusers WHERE name = N'EFTestUser'");
+
+                    if (!userExists)
+                    {
+                        ExecuteNonQuery(connection, "CREATE USER [EFTestUser] FROM LOGIN [EFTestUser]");
+                        ExecuteNonQuery(connection, "EXEC sp_addrolemember 'loginmanager', 'EFTestUser'");
+                        ExecuteNonQuery(connection, "EXEC sp_addrolemember 'dbmanager', 'EFTestUser'");
+                    }
+                }
+                else
+                {
+                    ExecuteNonQuery(
+                        connection,
+@"IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = N'EFTestUser')
+BEGIN
+    CREATE LOGIN [EFTestUser] WITH PASSWORD=N'Password1', DEFAULT_DATABASE=[master], DEFAULT_LANGUAGE=[us_english], CHECK_EXPIRATION=OFF, CHECK_POLICY=OFF
+    EXEC sys.sp_addsrvrolemember @loginame = N'EFTestUser', @rolename = N'sysadmin'
+END");
+                }
+            }
+        }
+
+        private static void ExecuteNonQuery(SqlConnection connection, string commandText)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = commandText;
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static bool ExecuteScalarReturnsOne(SqlConnection connection, string commandText)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = commandText;
+                return (int)command.ExecuteScalar() == 1;
+            }
+        }
+
         #endregion
 
         #region Replace connection tests
@@ -540,6 +675,7 @@ END";
             {
                 using (var newConnection =
                     new LazyInternalConnection(
+                        context,
                         new DbConnectionInfo(
                             @"Server=.\SQLEXPRESS;Database=NewReplaceConnectionContextDatabase;Trusted_Connection=True;",
                             "System.Data.SqlClient")))
@@ -567,6 +703,7 @@ END";
             {
                 using (var newConnection =
                     new LazyInternalConnection(
+                        context,
                         new DbConnectionInfo(
                             "Data Source=NewReplaceConnectionContextDatabase.sdf",
                             "System.Data.SqlServerCe.4.0")))
@@ -591,7 +728,7 @@ END";
         {
             using (var context = new ReplaceConnectionContext())
             {
-                using (var newConnection = new EagerInternalConnection(new EntityConnection(), connectionOwned: true))
+                using (var newConnection = new EagerInternalConnection(context, new EntityConnection(), connectionOwned: true))
                 {
                     Assert.Equal(
                         Strings.LazyInternalContext_CannotReplaceDbConnectionWithEfConnection,
@@ -826,6 +963,22 @@ END";
  	            throw new NotImplementedException();
             }
         }
+
+#if !NET40
+
+        [Fact]
+        public void SaveChangesAsync_throws_OperationCanceledException_if_task_is_cancelled()
+        {
+            using (var dbContext = new DbContext("fakeConnString"))
+            {
+                Assert.Throws<OperationCanceledException>(
+                    () => dbContext.SaveChangesAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+        }
+
+#endif
+
         #endregion
     }
 }

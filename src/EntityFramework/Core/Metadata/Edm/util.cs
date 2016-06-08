@@ -7,16 +7,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
 
-    /// <summary>
-    /// Class holding utility functions for metadata
-    /// </summary>
+    // <summary>
+    // Class holding utility functions for metadata
+    // </summary>
     internal static class Util
     {
-        /// <summary>
-        /// Throws an appropriate exception if the given item is a readonly, used when an attempt is made to change
-        /// a property
-        /// </summary>
-        /// <param name="item"> The item whose readonly is being tested </param>
+        // <summary>
+        // Throws an appropriate exception if the given item is a readonly, used when an attempt is made to change
+        // a property
+        // </summary>
+        // <param name="item"> The item whose readonly is being tested </param>
         internal static void ThrowIfReadOnly(MetadataItem item)
         {
             DebugCheck.NotNull(item);
@@ -26,21 +26,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Check to make sure the given item do have identity
-        /// </summary>
-        /// <param name="item"> The item to check for valid identity </param>
-        /// <param name="argumentName"> The name of the argument </param>
+        // <summary>
+        // Check to make sure the given item do have identity
+        // </summary>
+        // <param name="item"> The item to check for valid identity </param>
+        // <param name="argumentName"> The name of the argument </param>
         [Conditional("DEBUG")]
         internal static void AssertItemHasIdentity(MetadataItem item, string argumentName)
         {
-            DebugCheck.NotEmpty(item.Identity);
             Check.NotNull(item, argumentName);
+            DebugCheck.NotEmpty(item.Identity);
         }
 
-        /// <summary>
-        /// Retrieves a mapping to CLR type for the given EDM type. Assumes the MetadataWorkspace has no
-        /// </summary>
+        // <summary>
+        // Retrieves a mapping to CLR type for the given EDM type. Assumes the MetadataWorkspace has no
+        // </summary>
         internal static ObjectTypeMapping GetObjectMapping(EdmType type, MetadataWorkspace workspace)
         {
             // Check if the workspace has cspace item collection registered with it. If not, then its a case

@@ -4,16 +4,17 @@ namespace System.Data.Entity.Core.Objects.Internal
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Reflection;
     using System.Reflection.Emit;
     using System.Runtime.Serialization;
     using System.Security;
 
-    /// <summary>
-    /// This class determines if the proxied type implements ISerializable with the special serialization constructor.
-    /// If it does, it adds the appropriate members to the proxy type.
-    /// </summary>
+    // <summary>
+    // This class determines if the proxied type implements ISerializable with the special serialization constructor.
+    // If it does, it adds the appropriate members to the proxy type.
+    // </summary>
     internal sealed class SerializableImplementor
     {
         private readonly Type _baseClrType;
@@ -22,10 +23,19 @@ namespace System.Data.Entity.Core.Objects.Internal
         private readonly MethodInfo _getObjectDataMethod;
         private readonly ConstructorInfo _serializationConstructor;
 
+        internal static readonly MethodInfo GetTypeFromHandleMethod 
+            = typeof(Type).GetDeclaredMethod("GetTypeFromHandle", typeof(RuntimeTypeHandle));
+        
+        internal static readonly MethodInfo AddValueMethod 
+            = typeof(SerializationInfo).GetDeclaredMethod("AddValue", typeof(string), typeof(object), typeof(Type));
+        
+        internal static readonly MethodInfo GetValueMethod 
+            = typeof(SerializationInfo).GetDeclaredMethod("GetValue", typeof(string), typeof(Type));
+
         internal SerializableImplementor(EntityType ospaceEntityType)
         {
             _baseClrType = ospaceEntityType.ClrType;
-            _baseImplementsISerializable = _baseClrType.IsSerializable && typeof(ISerializable).IsAssignableFrom(_baseClrType);
+            _baseImplementsISerializable = _baseClrType.IsSerializable() && typeof(ISerializable).IsAssignableFrom(_baseClrType);
 
             if (_baseImplementsISerializable)
             {
@@ -42,14 +52,14 @@ namespace System.Data.Entity.Core.Objects.Internal
                     // Determine if proxied type provides the special serialization constructor.
                     // In order for the proxy class to properly support ISerializable, this constructor must not be private.
                     _serializationConstructor =
-                        _baseClrType.GetConstructor(
-                            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
-                            new[] { typeof(SerializationInfo), typeof(StreamingContext) }, null);
+                        _baseClrType.GetDeclaredConstructor(
+                            c => c.IsPublic || c.IsFamily || c.IsFamilyOrAssembly,
+                            new[] { typeof(SerializationInfo), typeof(StreamingContext) },
+                            new[] { typeof(SerializationInfo), typeof(object) },
+                            new[] { typeof(object), typeof(StreamingContext) },
+                            new[] { typeof(object), typeof(object) });
 
-                    _canOverride = _serializationConstructor != null
-                                   &&
-                                   (_serializationConstructor.IsPublic || _serializationConstructor.IsFamily
-                                    || _serializationConstructor.IsFamilyOrAssembly);
+                    _canOverride = _serializationConstructor != null;
                 }
 
                 Debug.Assert(
@@ -79,9 +89,6 @@ namespace System.Data.Entity.Core.Objects.Internal
             if (_baseImplementsISerializable && _canOverride)
             {
                 var parameterTypes = new[] { typeof(SerializationInfo), typeof(StreamingContext) };
-                var getTypeFromHandle = typeof(Type).GetMethod("GetTypeFromHandle", new[] { typeof(RuntimeTypeHandle) });
-                var addValue = typeof(SerializationInfo).GetMethod("AddValue", new[] { typeof(string), typeof(object), typeof(Type) });
-                var getValue = typeof(SerializationInfo).GetMethod("GetValue", new[] { typeof(string), typeof(Type) });
 
                 //
                 // Define GetObjectData method override
@@ -97,7 +104,7 @@ namespace System.Data.Entity.Core.Objects.Internal
 
                 proxyGetObjectData.SetCustomAttribute(
                     new CustomAttributeBuilder(
-                        typeof(SecurityCriticalAttribute).GetConstructor(Type.EmptyTypes), new object[0]));
+                        typeof(SecurityCriticalAttribute).GetDeclaredConstructor(), new object[0]));
 
                 {
                     var generator = proxyGetObjectData.GetILGenerator();
@@ -110,8 +117,8 @@ namespace System.Data.Entity.Core.Objects.Internal
                         generator.Emit(OpCodes.Ldarg_0);
                         generator.Emit(OpCodes.Ldfld, field);
                         generator.Emit(OpCodes.Ldtoken, field.FieldType);
-                        generator.Emit(OpCodes.Call, getTypeFromHandle);
-                        generator.Emit(OpCodes.Callvirt, addValue);
+                        generator.Emit(OpCodes.Call, GetTypeFromHandleMethod);
+                        generator.Emit(OpCodes.Callvirt, AddValueMethod);
                     }
 
                     // Emit call to base method
@@ -148,8 +155,8 @@ namespace System.Data.Entity.Core.Objects.Internal
                         generator.Emit(OpCodes.Ldarg_1);
                         generator.Emit(OpCodes.Ldstr, field.Name);
                         generator.Emit(OpCodes.Ldtoken, field.FieldType);
-                        generator.Emit(OpCodes.Call, getTypeFromHandle);
-                        generator.Emit(OpCodes.Callvirt, getValue);
+                        generator.Emit(OpCodes.Call, GetTypeFromHandleMethod);
+                        generator.Emit(OpCodes.Callvirt, GetValueMethod);
                         generator.Emit(OpCodes.Castclass, field.FieldType);
                         generator.Emit(OpCodes.Stfld, field);
                     }

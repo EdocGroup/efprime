@@ -434,6 +434,18 @@ namespace ProductivityApiTests
                 });
         }
 
+        [Fact]
+		public void Scenario_Query_With_Skip_And_Take_On_SqlCe40()
+		{
+			using (var context = new SimpleModelContext())
+			{
+				var products = context.Products.OrderBy(p => p.Name).Skip(3).Take(2).ToList();
+
+				Assert.Equal(2, products.Count);
+				Assert.True(products.TrueForAll(p => GetStateEntry(context, p).State == EntityState.Unchanged));
+			}
+		}
+
         #endregion
 
         #region Helpers

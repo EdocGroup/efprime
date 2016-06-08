@@ -36,7 +36,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             _fieldTypes = columnTypes;
             _columnNames = columnNames;
             _fieldNameLookup = new Lazy<FieldNameLookup>(
-                () => new FieldNameLookup(new ReadOnlyCollection<string>(columnNames), -1), isThreadSafe: false);
+                () => new FieldNameLookup(new ReadOnlyCollection<string>(columnNames)), isThreadSafe: false);
         }
 
         public bool IsDataReady { get; protected set; }

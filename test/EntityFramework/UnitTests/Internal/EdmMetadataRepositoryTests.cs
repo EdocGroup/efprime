@@ -6,6 +6,7 @@ namespace System.Data.Entity.Internal
     using System.Data.Entity;
     using System.Data.Entity.Core;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.SqlClient;
     using System.Linq;
     using Moq;
@@ -14,9 +15,34 @@ namespace System.Data.Entity.Internal
     public class EdmMetadataRepositoryTests : TestBase
     {
         [Fact]
+        public void QueryForModelHash_uses_interception()
+        {
+            var dbConnectionInterceptorMock = new Mock<IDbConnectionInterceptor>();
+            DbInterception.Add(dbConnectionInterceptorMock.Object);
+            try
+            {
+                var mockContext = CreateMockContext("Hash");
+                var repository = new EdmMetadataRepository(Mock.Of<InternalContextForMock>(), "Database=Foo", SqlClientFactory.Instance);
+
+                repository.QueryForModelHash(c => mockContext.Object);
+            }
+            finally
+            {
+                DbInterception.Remove(dbConnectionInterceptorMock.Object);
+            }
+
+            dbConnectionInterceptorMock.Verify(
+                m => m.ConnectionStringGetting(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Once());
+            dbConnectionInterceptorMock.Verify(
+                m => m.ConnectionStringGot(It.IsAny<DbConnection>(), It.IsAny<DbConnectionInterceptionContext<string>>()),
+                Times.Once());
+        }
+
+        [Fact]
         public void QueryForModelHash_returns_the_model_hash_if_it_exists()
         {
-            var repository = new EdmMetadataRepository("Database=Foo", SqlClientFactory.Instance);
+            var repository = new EdmMetadataRepository(Mock.Of<InternalContextForMock>(), "Database=Foo", SqlClientFactory.Instance);
             var mockContext = CreateMockContext("Hash");
 
             Assert.Equal("Hash", repository.QueryForModelHash(c => mockContext.Object));
@@ -25,7 +51,7 @@ namespace System.Data.Entity.Internal
         [Fact]
         public void QueryForModelHash_returns_the_last_model_hash_if_more_than_one_exists()
         {
-            var repository = new EdmMetadataRepository("Database=Foo", SqlClientFactory.Instance);
+            var repository = new EdmMetadataRepository(Mock.Of<InternalContextForMock>(), "Database=Foo", SqlClientFactory.Instance);
             var mockContext = CreateMockContext("Hash1", "Hash2", "Hash3");
 
             Assert.Equal("Hash3", repository.QueryForModelHash(c => mockContext.Object));
@@ -34,7 +60,7 @@ namespace System.Data.Entity.Internal
         [Fact]
         public void QueryForModelHash_returns_null_if_the_EdmMetadata_table_is_missing()
         {
-            var repository = new EdmMetadataRepository("Database=Foo", SqlClientFactory.Instance);
+            var repository = new EdmMetadataRepository(Mock.Of<InternalContextForMock>(), "Database=Foo", SqlClientFactory.Instance);
             var mockContext = CreateMockContext("Hash");
             mockContext.Setup(m => m.Metadata).Throws(new EntityCommandExecutionException());
 
@@ -44,7 +70,7 @@ namespace System.Data.Entity.Internal
         [Fact]
         public void QueryForModelHash_returns_null_if_the_EdmMetadata_has_no_rows()
         {
-            var repository = new EdmMetadataRepository("Database=Foo", SqlClientFactory.Instance);
+            var repository = new EdmMetadataRepository(Mock.Of<InternalContextForMock>(), "Database=Foo", SqlClientFactory.Instance);
             var mockContext = CreateMockContext();
 
             Assert.Null(repository.QueryForModelHash(c => mockContext.Object));
@@ -53,7 +79,7 @@ namespace System.Data.Entity.Internal
         [Fact]
         public void QueryForModelHash_returns_null_if_the_EdmMetadata_has_row_with_null_model_hash()
         {
-            var repository = new EdmMetadataRepository("Database=Foo", SqlClientFactory.Instance);
+            var repository = new EdmMetadataRepository(Mock.Of<InternalContextForMock>(), "Database=Foo", SqlClientFactory.Instance);
             var mockContext = CreateMockContext((string)null);
 
             Assert.Null(repository.QueryForModelHash(c => mockContext.Object));
@@ -61,7 +87,7 @@ namespace System.Data.Entity.Internal
 
         private Mock<EdmMetadataContext> CreateMockContext(params string[] hashValues)
         {
-            var mockContext = new Mock<EdmMetadataContext>(new Mock<DbConnection>().Object, true)
+            var mockContext = new Mock<EdmMetadataContext>(new Mock<DbConnection>().Object)
                                   {
                                       CallBase = true
                                   };

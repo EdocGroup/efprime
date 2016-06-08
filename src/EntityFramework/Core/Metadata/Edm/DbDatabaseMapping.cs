@@ -3,7 +3,6 @@
 namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections.Generic;
-    using System.Collections.ObjectModel;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Infrastructure;
@@ -12,8 +11,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
     // TODO: METADATA: Rename or remove?
     internal class DbDatabaseMapping
     {
-        private readonly List<StorageEntityContainerMapping> _entityContainerMappings
-            = new List<StorageEntityContainerMapping>();
+        private readonly List<EntityContainerMapping> _entityContainerMappings
+            = new List<EntityContainerMapping>();
 
         public EdmModel Model { get; set; }
         public EdmModel Database { get; set; }
@@ -28,12 +27,12 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return Database.ProviderManifest; }
         }
 
-        internal ReadOnlyCollection<StorageEntityContainerMapping> EntityContainerMappings
+        internal IList<EntityContainerMapping> EntityContainerMappings
         {
-            get { return _entityContainerMappings.AsReadOnly(); }
+            get { return _entityContainerMappings; }
         }
 
-        internal void AddEntityContainerMapping(StorageEntityContainerMapping entityContainerMapping)
+        internal void AddEntityContainerMapping(EntityContainerMapping entityContainerMapping)
         {
             Check.NotNull(entityContainerMapping, "entityContainerMapping");
 

@@ -3,7 +3,10 @@
 namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
+    using System.Linq;
+    using System.Text;
 
     /// <summary>
     /// This class represents a referential constraint between two entities specifying the "to" and "from" ends of the relationship.
@@ -61,9 +64,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return BuiltInTypeKind.ReferentialConstraint; }
         }
 
-        /// <summary>
-        /// Returns the identity for this constraint
-        /// </summary>
+        // <summary>
+        // Returns the identity for this constraint
+        // </summary>
         internal override string Identity
         {
             get { return FromRole.Name + "_" + ToRole.Name; }
@@ -118,6 +121,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
                 _toRole = value;
             }
+        }
+
+        internal AssociationEndMember PrincipalEnd
+        {
+            get { return (AssociationEndMember)FromRole; }
         }
 
         internal AssociationEndMember DependentEnd
@@ -194,9 +202,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return FromRole.Name + "_" + ToRole.Name;
         }
 
-        /// <summary>
-        /// Sets this item to be read-only, once this is set, the item will never be writable again.
-        /// </summary>
+        // <summary>
+        // Sets this item to be read-only, once this is set, the item will never be writable again.
+        // </summary>
         internal override void SetReadOnly()
         {
             if (!IsReadOnly)
@@ -218,6 +226,29 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     toRole.SetReadOnly();
                 }
             }
+        }
+
+        internal string BuildConstraintExceptionMessage()
+        {
+            var fromType = FromProperties.First().DeclaringType.Name;
+            var toType = ToProperties.First().DeclaringType.Name;
+
+            var fromProps = new StringBuilder();
+            var toProps = new StringBuilder();
+            for (var i = 0; i < FromProperties.Count; ++i)
+            {
+                if (i > 0)
+                {
+                    fromProps.Append(", ");
+                    toProps.Append(", ");
+                }
+
+                fromProps.Append(fromType).Append('.').Append(FromProperties[i]);
+                toProps.Append(toType).Append('.').Append(ToProperties[i]);
+            }
+
+            return Strings.RelationshipManager_InconsistentReferentialConstraintProperties(
+                fromProps.ToString(), toProps.ToString());
         }
     }
 }

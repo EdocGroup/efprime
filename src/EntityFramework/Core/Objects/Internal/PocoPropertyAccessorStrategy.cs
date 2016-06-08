@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Objects.Internal
 {
@@ -6,28 +6,29 @@ namespace System.Data.Entity.Core.Objects.Internal
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects.DataClasses;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Linq.Expressions;
     using System.Reflection;
 
-    /// <summary>
-    /// Implementation of the property accessor strategy that gets and sets values on POCO entities.  That is,
-    /// entities that do not implement IEntityWithRelationships.
-    /// </summary>
+    // <summary>
+    // Implementation of the property accessor strategy that gets and sets values on POCO entities.  That is,
+    // entities that do not implement IEntityWithRelationships.
+    // </summary>
     internal sealed class PocoPropertyAccessorStrategy : IPropertyAccessorStrategy
     {
-        private static readonly MethodInfo _addToCollectionGeneric =
-            typeof(PocoPropertyAccessorStrategy).GetMethod("AddToCollection", BindingFlags.NonPublic | BindingFlags.Static);
+        internal static readonly MethodInfo AddToCollectionGeneric 
+            = typeof(PocoPropertyAccessorStrategy).GetOnlyDeclaredMethod("AddToCollection");
 
-        private static readonly MethodInfo _removeFromCollectionGeneric =
-            typeof(PocoPropertyAccessorStrategy).GetMethod("RemoveFromCollection", BindingFlags.NonPublic | BindingFlags.Static);
+        internal static readonly MethodInfo RemoveFromCollectionGeneric 
+            = typeof(PocoPropertyAccessorStrategy).GetOnlyDeclaredMethod("RemoveFromCollection");
 
         private readonly object _entity;
 
-        /// <summary>
-        /// Constructs a strategy object to work with the given entity.
-        /// </summary>
-        /// <param name="entity"> The entity to use </param>
+        // <summary>
+        // Constructs a strategy object to work with the given entity.
+        // </summary>
+        // <param name="entity"> The entity to use </param>
         public PocoPropertyAccessorStrategy(object entity)
         {
             _entity = entity;
@@ -46,15 +47,16 @@ namespace System.Data.Entity.Core.Objects.Internal
                 if (relatedEnd.TargetAccessor.ValueGetter == null)
                 {
                     var type = GetDeclaringType(relatedEnd);
-                    var propertyInfo = EntityUtil.GetTopProperty(ref type, relatedEnd.TargetAccessor.PropertyName);
+                    var propertyInfo = type.GetTopProperty(relatedEnd.TargetAccessor.PropertyName);
                     if (propertyInfo == null)
                     {
                         throw new EntityException(
                             Strings.PocoEntityWrapper_UnableToSetFieldOrProperty(relatedEnd.TargetAccessor.PropertyName, type.FullName));
                     }
                     var factory = new EntityProxyFactory();
-                    relatedEnd.TargetAccessor.ValueGetter = factory.CreateBaseGetter(type, propertyInfo);
+                    relatedEnd.TargetAccessor.ValueGetter = factory.CreateBaseGetter(propertyInfo.DeclaringType, propertyInfo);
                 }
+                var loadingState = relatedEnd.DisableLazyLoading();
                 try
                 {
                     navPropValue = relatedEnd.TargetAccessor.ValueGetter(_entity);
@@ -64,6 +66,10 @@ namespace System.Data.Entity.Core.Objects.Internal
                     throw new EntityException(
                         Strings.PocoEntityWrapper_UnableToSetFieldOrProperty(
                             relatedEnd.TargetAccessor.PropertyName, _entity.GetType().FullName), ex);
+                }
+                finally
+                {
+                    relatedEnd.ResetLazyLoading(loadingState);
                 }
             }
             return navPropValue;
@@ -81,14 +87,14 @@ namespace System.Data.Entity.Core.Objects.Internal
                 if (relatedEnd.TargetAccessor.ValueSetter == null)
                 {
                     var type = GetDeclaringType(relatedEnd);
-                    var propertyInfo = EntityUtil.GetTopProperty(ref type, relatedEnd.TargetAccessor.PropertyName);
+                    var propertyInfo = type.GetTopProperty(relatedEnd.TargetAccessor.PropertyName);
                     if (propertyInfo == null)
                     {
                         throw new EntityException(
                             Strings.PocoEntityWrapper_UnableToSetFieldOrProperty(relatedEnd.TargetAccessor.PropertyName, type.FullName));
                     }
                     var factory = new EntityProxyFactory();
-                    relatedEnd.TargetAccessor.ValueSetter = factory.CreateBaseSetter(type, propertyInfo);
+                    relatedEnd.TargetAccessor.ValueSetter = factory.CreateBaseSetter(propertyInfo.DeclaringType, propertyInfo);
                 }
                 try
                 {
@@ -120,7 +126,7 @@ namespace System.Data.Entity.Core.Objects.Internal
         private static Type GetNavigationPropertyType(Type entityType, string propertyName)
         {
             Type navPropType;
-            var property = EntityUtil.GetTopProperty(entityType, propertyName);
+            var property = entityType.GetTopProperty(propertyName);
             if (property != null)
             {
                 navPropType = property.PropertyType;
@@ -171,7 +177,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                 if (relatedEnd.TargetAccessor.CollectionAdd == null)
                 {
                     relatedEnd.TargetAccessor.CollectionAdd = CreateCollectionAddFunction(
-                        entity.GetType(), relatedEnd.TargetAccessor.PropertyName);
+                        GetDeclaringType(relatedEnd), relatedEnd.TargetAccessor.PropertyName);
                 }
 
                 relatedEnd.TargetAccessor.CollectionAdd(collection, value);
@@ -191,7 +197,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             var navPropType = GetNavigationPropertyType(type, propertyName);
             var elementType = EntityUtil.GetCollectionElementType(navPropType);
 
-            var addToCollection = _addToCollectionGeneric.MakeGenericMethod(elementType);
+            var addToCollection = AddToCollectionGeneric.MakeGenericMethod(elementType);
             return (Action<object, object>)addToCollection.Invoke(null, null);
         }
 
@@ -232,7 +238,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                     if (relatedEnd.TargetAccessor.CollectionRemove == null)
                     {
                         relatedEnd.TargetAccessor.CollectionRemove = CreateCollectionRemoveFunction(
-                            entity.GetType(), relatedEnd.TargetAccessor.PropertyName);
+                            GetDeclaringType(relatedEnd), relatedEnd.TargetAccessor.PropertyName);
                     }
 
                     return relatedEnd.TargetAccessor.CollectionRemove(collection, value);
@@ -253,7 +259,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             var navPropType = GetNavigationPropertyType(type, propertyName);
             var elementType = EntityUtil.GetCollectionElementType(navPropType);
 
-            var removeFromCollection = _removeFromCollectionGeneric.MakeGenericMethod(elementType);
+            var removeFromCollection = RemoveFromCollectionGeneric.MakeGenericMethod(elementType);
             return (Func<object, object, bool>)removeFromCollection.Invoke(null, null);
         }
 
@@ -287,7 +293,7 @@ namespace System.Data.Entity.Core.Objects.Internal
             {
                 if (relatedEnd.TargetAccessor.CollectionCreate == null)
                 {
-                    var entityType = _entity.GetType();
+                    var entityType = GetDeclaringType(relatedEnd);
                     var propName = relatedEnd.TargetAccessor.PropertyName;
                     var navPropType = GetNavigationPropertyType(entityType, propName);
                     relatedEnd.TargetAccessor.CollectionCreate = CreateCollectionCreateDelegate(navPropType, propName);
@@ -296,10 +302,10 @@ namespace System.Data.Entity.Core.Objects.Internal
             }
         }
 
-        /// <summary>
-        /// We only get here if a navigation property getter returns null.  In this case, we try to set the
-        /// navigation property to some collection that will work.
-        /// </summary>
+        // <summary>
+        // We only get here if a navigation property getter returns null.  In this case, we try to set the
+        // navigation property to some collection that will work.
+        // </summary>
         private static Func<object> CreateCollectionCreateDelegate(Type navigationPropertyType, string propName)
         {
             var typeToInstantiate = EntityUtil.DetermineCollectionType(navigationPropertyType);

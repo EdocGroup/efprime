@@ -5,7 +5,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
     using System.Collections.Generic;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
-    using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
 
@@ -24,14 +23,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
         }
 
         /// <summary>
-        /// The constructor for constructing the EntityContainer object with the name, namespaceName, and version.
+        /// Creates an entity container with the specified name and data space.
         /// </summary>
-        /// <param name="name"> The name of this entity container </param>
-        /// <param name="dataSpace"> dataSpace in which this entity container belongs to </param>
-        /// <exception cref="System.ArgumentNullException">Thrown if the name argument is null</exception>
-        /// <exception cref="System.ArgumentException">Thrown if the name argument is empty string</exception>
+        /// <param name="name">The entity container name.</param>
+        /// <param name="dataSpace">The entity container data space.</param>
+        /// <exception cref="System.ArgumentNullException">Thrown if the name argument is null.</exception>
+        /// <exception cref="System.ArgumentException">Thrown if the name argument is empty string.</exception>
         [SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
-        internal EntityContainer(string name, DataSpace dataSpace)
+        public EntityContainer(string name, DataSpace dataSpace)
         {
             Check.NotEmpty(name, "name");
 
@@ -55,9 +54,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return BuiltInTypeKind.EntityContainer; }
         }
 
-        /// <summary>
-        /// Gets the identity for this item as a string
-        /// </summary>
+        // <summary>
+        // Gets the identity for this item as a string
+        // </summary>
         internal override string Identity
         {
             get { return Name; }
@@ -100,16 +99,50 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return _baseEntitySets; }
         }
 
+        private readonly object _baseEntitySetsLock = new object();
+        private ReadOnlyMetadataCollection<AssociationSet> _associationSetsCache;
+
         /// <summary> Gets the association sets for this entity container. </summary>
         /// <returns> The association sets for this entity container .</returns>
         public ReadOnlyMetadataCollection<AssociationSet> AssociationSets
         {
             get
             {
-                return new FilteredReadOnlyMetadataCollection<AssociationSet, EntitySetBase>(
-                    _baseEntitySets, Helper.IsAssociationSet);
+                // PERF: this code written this way since it's part of a hotpath, consider its performance when refactoring
+                var assiationSets = _associationSetsCache;
+                if (assiationSets == null)
+                {
+                    lock (_baseEntitySetsLock)
+                    {
+                        if (_associationSetsCache == null)
+                        {
+                            _baseEntitySets.SourceAccessed += ResetAssociationSetsCache;
+                            _associationSetsCache = new FilteredReadOnlyMetadataCollection<AssociationSet, EntitySetBase>(
+                                _baseEntitySets, Helper.IsAssociationSet);
+                        }
+                        assiationSets = _associationSetsCache;
+                    }
+                }
+                return assiationSets;
             }
         }
+
+        private void ResetAssociationSetsCache(object sender, EventArgs e)
+        {
+            if (_associationSetsCache != null)
+            {
+                lock (_baseEntitySetsLock)
+                {
+                    if (_associationSetsCache != null)
+                    {
+                        _associationSetsCache = null;
+                        _baseEntitySets.SourceAccessed -= ResetAssociationSetsCache;
+                    }
+                }
+            }
+        }
+
+        private ReadOnlyMetadataCollection<EntitySet> _entitySetsCache;
 
         /// <summary> Gets the entity sets for this entity container. </summary>
         /// <returns> The entity sets for this entity container .</returns>
@@ -117,8 +150,37 @@ namespace System.Data.Entity.Core.Metadata.Edm
         {
             get
             {
-                return new FilteredReadOnlyMetadataCollection<EntitySet, EntitySetBase>(
-                    _baseEntitySets, Helper.IsEntitySet);
+                // PERF: this code written this way since it's part of a hotpath, consider its performance when refactoring
+                var entitySets = _entitySetsCache;
+                if (entitySets == null)
+                {
+                    lock (_baseEntitySetsLock)
+                    {
+                        if (_entitySetsCache == null)
+                        {
+                            _baseEntitySets.SourceAccessed += ResetEntitySetsCache;
+                            _entitySetsCache = new FilteredReadOnlyMetadataCollection<EntitySet, EntitySetBase>(
+                                _baseEntitySets, Helper.IsEntitySet);
+                        }
+                        entitySets = _entitySetsCache;
+                    }
+                }
+                return entitySets;
+            }
+        }
+
+        private void ResetEntitySetsCache(object sender, EventArgs e)
+        {
+            if (_entitySetsCache != null)
+            {
+                lock (_baseEntitySetsLock)
+                {
+                    if (_entitySetsCache != null)
+                    {
+                        _entitySetsCache = null;
+                        _baseEntitySets.SourceAccessed -= ResetEntitySetsCache;
+                    }
+                }
             }
         }
 
@@ -137,9 +199,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return _functionImports; }
         }
 
-        /// <summary>
-        /// Sets this item to be readonly, once this is set, the item will never be writable again.
-        /// </summary>
+        // <summary>
+        // Sets this item to be readonly, once this is set, the item will never be writable again.
+        // </summary>
         internal override void SetReadOnly()
         {
             if (!IsReadOnly)
@@ -247,9 +309,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return Name;
         }
 
-        internal void AddEntitySetBase(EntitySetBase entitySetBase)
+        /// <summary>
+        /// Adds the specified entity set to the container.
+        /// </summary>
+        /// <param name="entitySetBase">The entity set to add.</param>
+        public void AddEntitySetBase(EntitySetBase entitySetBase)
         {
+            Check.NotNull(entitySetBase, "entitySetBase");
+            Util.ThrowIfReadOnly(this);
+
             _baseEntitySets.Source.Add(entitySetBase);
+            entitySetBase.ChangeEntityContainerWithoutCollectionFixup(this);
         }
 
         /// <summary>Removes a specific entity set from the container.</summary>
@@ -263,10 +333,19 @@ namespace System.Data.Entity.Core.Metadata.Edm
             entitySetBase.ChangeEntityContainerWithoutCollectionFixup(null);
         }
 
-        internal void AddFunctionImport(EdmFunction function)
+        /// <summary>
+        /// Adds a function import to the container.
+        /// </summary>
+        /// <param name="function">The function import to add.</param>
+        public void AddFunctionImport(EdmFunction function)
         {
-            DebugCheck.NotNull(function);
-            Debug.Assert(function.IsFunctionImport, "function.IsFunctionImport");
+            Check.NotNull(function, "function");
+            Util.ThrowIfReadOnly(this);
+            if (!function.IsFunctionImport)
+            {
+                throw new ArgumentException(Strings.OnlyFunctionImportsCanBeAddedToEntityContainer(function.Name));
+            }
+
             _functionImports.Source.Add(function);
         }
 
@@ -278,8 +357,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <param name="entitySets">Entity sets that will be included in the new container. Can be null.</param>
         /// <param name="functionImports">Functions that will be included in the new container. Can be null.</param>
         /// <param name="metadataProperties">Metadata properties to be associated with the instance.</param>
+        /// <returns>The EntityContainer object.</returns>
         /// <exception cref="System.ArgumentException">Thrown if the name argument is null or empty string.</exception>
-        /// <notes>The newly created EntityContainer will be read only.</notes>
+        /// <remarks>The newly created EntityContainer will be read only.</remarks>
         public static EntityContainer Create(
             string name, DataSpace dataSpace, IEnumerable<EntitySetBase> entitySets,
             IEnumerable<EdmFunction> functionImports, IEnumerable<MetadataProperty> metadataProperties)
@@ -318,9 +398,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return entityContainer;
         }
 
-        internal virtual void NotifyItemIdentityChanged()
+        internal virtual void NotifyItemIdentityChanged(EntitySetBase item, string initialIdentity)
         {
-            _baseEntitySets.Source.InvalidateCache();
+            _baseEntitySets.Source.HandleIdentityChange(item, initialIdentity);
         }
     }
 }

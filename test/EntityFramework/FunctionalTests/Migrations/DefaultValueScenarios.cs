@@ -69,6 +69,35 @@ namespace System.Data.Entity.Migrations
             migrator.Update();
         }
 
+        private class AlterColumnTypeAndDefaultConstraintMigration : DbMigration
+        {
+            public override void Up()
+            {
+                CreateTable(
+                    "TableA",
+                    c => new
+                    {
+                        c = c.Short(nullable: false)
+                    });
+
+                AlterColumn("TableA", "c", c => c.Int(nullable: false, defaultValueSql: "10"));
+            }
+        }
+
+        [MigrationsTheory]
+        public void Can_alter_column_type_and_default_constraint()
+        {
+            ResetDatabase();
+
+            var migrator = CreateMigrator<BlankSlate>(new AlterColumnTypeAndDefaultConstraintMigration());
+
+            migrator.Update();
+
+            var column = Info.Columns.Single(c => c.TableName == "TableA" && c.Name == "c");
+            Assert.Equal("int", column.Type);
+            Assert.True(column.Default.Contains("10"));
+        }
+
         private class DefaultValuesMigration : DbMigration
         {
             public override void Up()
@@ -122,7 +151,7 @@ namespace System.Data.Entity.Migrations
 
             var table = Info.Tables.Single(t => t.Name == "DefaultValues");
             Assert.True(table.Columns.Any(c => c.Name == "Binary" && c.Default.Contains("0x")));
-            Assert.True(table.Columns.Any(c => c.Name == "Boolean" && c.Default.Contains('1')));
+            Assert.True(table.Columns.Any(c => c.Name == "Boolean" && c.Default.Contains("1")));
             Assert.True(table.Columns.Any(c => c.Name == "Byte" && c.Default.Contains("42")));
             Assert.True(table.Columns.Any(c => c.Name == "DateTime" && c.Default.Contains("'0001-01-01T00:00:00.000'")));
             Assert.True(table.Columns.Any(c => c.Name == "Decimal" && c.Default.Contains("42.23")));

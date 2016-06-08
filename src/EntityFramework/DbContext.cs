@@ -61,6 +61,9 @@ namespace System.Data.Entity
         // Handles lazy creation of an underlying ObjectContext
         private InternalContext _internalContext;
 
+        private Database _database;
+
+        
         /// <summary>
         /// Constructs a new context instance using conventions to create the name of the database to
         /// which a connection will be made.  The by-convention name is the full name (namespace + class name)
@@ -71,7 +74,7 @@ namespace System.Data.Entity
         [SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         protected DbContext()
         {
-            InitializeLazyInternalContext(new LazyInternalConnection(GetType().DatabaseName()));
+            InitializeLazyInternalContext(new LazyInternalConnection(this, GetType().DatabaseName()));
         }
 
         /// <summary>
@@ -87,7 +90,7 @@ namespace System.Data.Entity
         {
             Check.NotNull(model, "model");
 
-            InitializeLazyInternalContext(new LazyInternalConnection(GetType().DatabaseName()), model);
+            InitializeLazyInternalContext(new LazyInternalConnection(this, GetType().DatabaseName()), model);
         }
 
         /// <summary>
@@ -102,7 +105,7 @@ namespace System.Data.Entity
         {
             Check.NotEmpty(nameOrConnectionString, "nameOrConnectionString");
 
-            InitializeLazyInternalContext(new LazyInternalConnection(nameOrConnectionString));
+            InitializeLazyInternalContext(new LazyInternalConnection(this, nameOrConnectionString));
         }
 
         /// <summary>
@@ -119,7 +122,7 @@ namespace System.Data.Entity
             Check.NotEmpty(nameOrConnectionString, "nameOrConnectionString");
             Check.NotNull(model, "model");
 
-            InitializeLazyInternalContext(new LazyInternalConnection(nameOrConnectionString), model);
+            InitializeLazyInternalContext(new LazyInternalConnection(this, nameOrConnectionString), model);
         }
 
         /// <summary>
@@ -137,7 +140,7 @@ namespace System.Data.Entity
         {
             Check.NotNull(existingConnection, "existingConnection");
 
-            InitializeLazyInternalContext(new EagerInternalConnection(existingConnection, contextOwnsConnection));
+            InitializeLazyInternalContext(new EagerInternalConnection(this, existingConnection, contextOwnsConnection));
         }
 
         /// <summary>
@@ -158,7 +161,7 @@ namespace System.Data.Entity
             Check.NotNull(existingConnection, "existingConnection");
             Check.NotNull(model, "model");
 
-            InitializeLazyInternalContext(new EagerInternalConnection(existingConnection, contextOwnsConnection), model);
+            InitializeLazyInternalContext(new EagerInternalConnection(this, existingConnection, contextOwnsConnection), model);
         }
 
         /// <summary>
@@ -178,9 +181,11 @@ namespace System.Data.Entity
             DiscoverAndInitializeSets();
         }
 
-        /// <summary>
-        /// Initializes the internal context, discovers and initializes sets, and initializes from a model if one is provided.
-        /// </summary>
+        // <summary>
+        // Initializes the internal context, discovers and initializes sets, and initializes from a model if one is provided.
+        // </summary>
+        // <param name="internalConnection"> The internal connection object with which to initialize. </param>
+        // <param name="model"> An optional <see cref="DbCompiledModel" /> with which to initialize. </param>
         internal virtual void InitializeLazyInternalContext(IInternalConnection internalConnection, DbCompiledModel model = null)
         {
             DbConfigurationManager.Instance.EnsureLoadedForContext(GetType());
@@ -192,9 +197,9 @@ namespace System.Data.Entity
             DiscoverAndInitializeSets();
         }
 
-        /// <summary>
-        /// Discovers DbSets and initializes them.
-        /// </summary>
+        // <summary>
+        // Discovers DbSets and initializes them.
+        // </summary>
         private void DiscoverAndInitializeSets()
         {
             new DbSetDiscoveryService(this).InitializeSets();
@@ -223,10 +228,10 @@ namespace System.Data.Entity
         {
         }
 
-        /// <summary>
-        /// Internal method used to make the call to the real OnModelCreating method.
-        /// </summary>
-        /// <param name="modelBuilder"> The model builder. </param>
+        // <summary>
+        // Internal method used to make the call to the real OnModelCreating method.
+        // </summary>
+        // <param name="modelBuilder"> The model builder. </param>
         internal void CallOnModelCreating(DbModelBuilder modelBuilder)
         {
             OnModelCreating(modelBuilder);
@@ -242,7 +247,15 @@ namespace System.Data.Entity
         /// </summary>
         public Database Database
         {
-            get { return new Database(InternalContext); }
+            get 
+            { 
+                if (_database == null)
+                {
+                    _database = new Database(InternalContext);
+                }
+
+                return _database; 
+            }
         }
 
         #endregion
@@ -250,29 +263,39 @@ namespace System.Data.Entity
         #region Context methods
 
         /// <summary>
-        /// Returns a DbSet instance for access to entities of the given type in the context,
-        /// the ObjectStateManager, and the underlying store.
+        /// Returns a <see cref="DbSet{TEntity}"/> instance for access to entities of the given type in the context
+        /// and the underlying store.
         /// </summary>
         /// <remarks>
-        /// See the DbSet class for more details.
+        /// Note that Entity Framework requires that this method return the same instance each time that it is called
+        /// for a given context instance and entity type. Also, the non-generic <see cref="DbSet"/> returned by the
+        /// <see cref="Set(Type)"/> method must wrap the same underlying query and set of entities. These invariants must
+        /// be maintained if this method is overridden for anything other than creating test doubles for unit testing.
+        /// See the <see cref="DbSet{TEntity}"/> class for more details.
         /// </remarks>
         /// <typeparam name="TEntity"> The type entity for which a set should be returned. </typeparam>
         /// <returns> A set for the given entity type. </returns>
-        public DbSet<TEntity> Set<TEntity>() where TEntity : class
+        [SuppressMessage("Microsoft.Naming", "CA1716:IdentifiersShouldNotMatchKeywords", MessageId = "Set")]
+        public virtual DbSet<TEntity> Set<TEntity>() where TEntity : class
         {
             return (DbSet<TEntity>)InternalContext.Set<TEntity>();
         }
 
         /// <summary>
-        /// Returns a non-generic DbSet instance for access to entities of the given type in the context,
-        /// the ObjectStateManager, and the underlying store.
+        /// Returns a non-generic <see cref="DbSet"/> instance for access to entities of the given type in the context
+        /// and the underlying store.
         /// </summary>
         /// <param name="entityType"> The type of entity for which a set should be returned. </param>
         /// <returns> A set for the given entity type. </returns>
         /// <remarks>
-        /// See the DbSet class for more details.
+        /// Note that Entity Framework requires that this method return the same instance each time that it is called
+        /// for a given context instance and entity type. Also, the generic <see cref="DbSet{TEntity}"/> returned by the
+        /// <see cref="Set"/> method must wrap the same underlying query and set of entities. These invariants must
+        /// be maintained if this method is overridden for anything other than creating test doubles for unit testing.
+        /// See the <see cref="DbSet"/> class for more details.
         /// </remarks>
-        public DbSet Set(Type entityType)
+        [SuppressMessage("Microsoft.Naming", "CA1716:IdentifiersShouldNotMatchKeywords", MessageId = "Set")]
+        public virtual DbSet Set(Type entityType)
         {
             Check.NotNull(entityType, "entityType");
 
@@ -282,8 +305,28 @@ namespace System.Data.Entity
         /// <summary>
         /// Saves all changes made in this context to the underlying database.
         /// </summary>
-        /// <returns> The number of objects written to the underlying database. </returns>
-        /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
+        /// <returns> 
+        /// The number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
+        /// </returns>
+        /// <exception cref="DbUpdateException">An error occurred sending updates to the database.</exception>
+        /// <exception cref="DbUpdateConcurrencyException">
+        /// A database command did not affect the expected number of rows. This usually indicates an optimistic 
+        /// concurrency violation; that is, a row has been changed in the database since it was queried.
+        /// </exception>
+        /// <exception cref="DbEntityValidationException">
+        /// The save was aborted because validation of entity property values failed.
+        /// </exception>
+        /// <exception cref="NotSupportedException">
+        /// An attempt was made to use unsupported behavior such as executing multiple asynchronous commands concurrently
+        /// on the same context instance.</exception>
+        /// <exception cref="ObjectDisposedException">The context or connection have been disposed.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Some error occurred attempting to process entities in the context either before or after sending commands
+        /// to the database.
+        /// </exception>
         public virtual int SaveChanges()
         {
             return InternalContext.SaveChanges();
@@ -300,9 +343,27 @@ namespace System.Data.Entity
         /// </remarks>
         /// <returns>
         /// A task that represents the asynchronous save operation.
-        /// The task result contains the number of objects written to the underlying database.
+        /// The task result contains the number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
-        /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
+        /// <exception cref="DbUpdateException">An error occurred sending updates to the database.</exception>
+        /// <exception cref="DbUpdateConcurrencyException">
+        /// A database command did not affect the expected number of rows. This usually indicates an optimistic 
+        /// concurrency violation; that is, a row has been changed in the database since it was queried.
+        /// </exception>
+        /// <exception cref="DbEntityValidationException">
+        /// The save was aborted because validation of entity property values failed.
+        /// </exception>
+        /// <exception cref="NotSupportedException">
+        /// An attempt was made to use unsupported behavior such as executing multiple asynchronous commands concurrently
+        /// on the same context instance.</exception>
+        /// <exception cref="ObjectDisposedException">The context or connection have been disposed.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Some error occurred attempting to process entities in the context either before or after sending commands
+        /// to the database.
+        /// </exception>
         public virtual Task<int> SaveChangesAsync()
         {
             return SaveChangesAsync(CancellationToken.None);
@@ -320,7 +381,10 @@ namespace System.Data.Entity
         /// </param>
         /// <returns>
         /// A task that represents the asynchronous save operation.
-        /// The task result contains the number of objects written to the underlying database.
+        /// The task result contains the number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="InvalidOperationException">Thrown if the context has been disposed.</exception>
         [SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", MessageId = "cancellationToken")]
@@ -422,11 +486,11 @@ namespace System.Data.Entity
             return entityEntry.InternalEntry.GetValidationResult(items);
         }
 
-        /// <summary>
-        /// Internal method that calls the protected ValidateEntity method.
-        /// </summary>
-        /// <param name="entityEntry"> DbEntityEntry instance to be validated. </param>
-        /// <returns> Entity validation result. Possibly null when ValidateEntity is overridden. </returns>
+        // <summary>
+        // Internal method that calls the protected ValidateEntity method.
+        // </summary>
+        // <param name="entityEntry"> DbEntityEntry instance to be validated. </param>
+        // <returns> Entity validation result. Possibly null when ValidateEntity is overridden. </returns>
         internal virtual DbEntityValidationResult CallValidateEntity(DbEntityEntry entityEntry)
         {
             return ValidateEntity(entityEntry, new Dictionary<object, object>());
@@ -511,16 +575,16 @@ namespace System.Data.Entity
         /// </param>
         protected virtual void Dispose(bool disposing)
         {
-            InternalContext.Dispose();
+            _internalContext.Dispose();
         }
 
         #endregion
 
         #region InternalContext access
 
-        /// <summary>
-        /// Provides access to the underlying InternalContext for other parts of the internal design.
-        /// </summary>
+        // <summary>
+        // Provides access to the underlying InternalContext for other parts of the internal design.
+        // </summary>
         internal virtual InternalContext InternalContext
         {
             get { return _internalContext; }

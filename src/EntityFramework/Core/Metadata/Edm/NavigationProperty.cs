@@ -3,6 +3,7 @@
 namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Diagnostics.CodeAnalysis;
@@ -13,13 +14,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
     /// </summary>
     public sealed class NavigationProperty : EdmMember
     {
-        /// <summary>
-        /// Initializes a new instance of the navigation property class
-        /// </summary>
-        /// <param name="name"> name of the navigation property </param>
-        /// <param name="typeUsage"> TypeUsage object containing the navigation property type and its facets </param>
-        /// <exception cref="System.ArgumentNullException">Thrown if name or typeUsage arguments are null</exception>
-        /// <exception cref="System.ArgumentException">Thrown if name argument is empty string</exception>
+        // <summary>
+        // Initializes a new instance of the navigation property class
+        // </summary>
+        // <param name="name"> name of the navigation property </param>
+        // <param name="typeUsage"> TypeUsage object containing the navigation property type and its facets </param>
+        // <exception cref="System.ArgumentNullException">Thrown if name or typeUsage arguments are null</exception>
+        // <exception cref="System.ArgumentException">Thrown if name argument is empty string</exception>
         internal NavigationProperty(string name, TypeUsage typeUsage)
             : base(name, typeUsage)
         {
@@ -46,9 +47,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
         internal const string RelationshipTypeNamePropertyName = "RelationshipType";
         internal const string ToEndMemberNamePropertyName = "ToEndMember";
 
-        /// <summary>
-        /// cached dynamic methods to access the property values from a CLR instance
-        /// </summary>
+        // <summary>
+        // cached dynamic methods to access the property values from a CLR instance
+        // </summary>
         private readonly NavigationPropertyAccessor _accessor;
 
         /// <summary>Gets the relationship type that this navigation property operates on.</summary>
@@ -113,7 +114,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     {
                         dependantProperties.Add(rc.ToProperties[rc.FromProperties.IndexOf(((EdmProperty)keyMembers[i]))]);
                     }
-                    return dependantProperties.AsReadOnly();
+                    return new ReadOnlyCollection<EdmProperty>(dependantProperties);
                 }
             }
 
@@ -141,6 +142,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <param name="relationshipType">The relationship type for the navigation.</param>
         /// <param name="from">The source end member in the navigation.</param>
         /// <param name="to">The target end member in the navigation.</param>
+        /// <param name="metadataProperties">The metadata properties of the navigation property.</param>
         /// <returns>The newly created NavigationProperty instance.</returns>
         public static NavigationProperty Create(
             string name,

@@ -7,6 +7,7 @@ namespace ProductivityApiTests
     using System.Data.Entity;
     using System.Data.Entity.Core;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.TestHelpers;
     using System.IO;
     using System.Linq;
     using System.Runtime.Serialization.Formatters.Binary;
@@ -20,8 +21,8 @@ namespace ProductivityApiTests
     using Xunit.Extensions;
 
     /// <summary>
-    /// Functional tests for concurrency exceptions.
-    /// Unit tests also exist in the unit tests project.
+    ///     Functional tests for concurrency exceptions.
+    ///     Unit tests also exist in the unit tests project.
     /// </summary>
     public class ConcurrencyTests : FunctionalTestBase
     {
@@ -45,256 +46,256 @@ namespace ProductivityApiTests
         #region Concurrency resolution with FK associations
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_client_values()
         {
             ConcurrencyTest(
                 ClientPodiums, (c, ex) =>
-                                   {
-                                       var driverEntry = ex.Entries.Single();
-                                       driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues());
-                                   });
+                {
+                    var driverEntry = ex.Entries.Single();
+                    driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues());
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_store_values()
         {
             ConcurrencyTest(
                 StorePodiums, (c, ex) =>
-                                  {
-                                      var driverEntry = ex.Entries.Single();
-                                      var storeValues = driverEntry.GetDatabaseValues();
-                                      driverEntry.CurrentValues.SetValues(storeValues);
-                                      driverEntry.OriginalValues.SetValues(storeValues);
-                                  });
+                {
+                    var driverEntry = ex.Entries.Single();
+                    var storeValues = driverEntry.GetDatabaseValues();
+                    driverEntry.CurrentValues.SetValues(storeValues);
+                    driverEntry.OriginalValues.SetValues(storeValues);
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_new_values()
         {
             ConcurrencyTest(
                 10, (c, ex) =>
-                        {
-                            var driverEntry = ex.Entries.Single().Cast<Driver>();
-                            driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues());
-                            driverEntry.Entity.Podiums = 10;
-                        });
+                {
+                    var driverEntry = ex.Entries.Single().Cast<Driver>();
+                    driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues());
+                    driverEntry.Entity.Podiums = 10;
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_client_values_using_objects()
         {
             ConcurrencyTest(
                 ClientPodiums, (c, ex) =>
-                                   {
-                                       var driverEntry = ex.Entries.Single();
-                                       driverEntry.OriginalValues.SetValues(
-                                           driverEntry.GetDatabaseValues().ToObject());
-                                   });
+                {
+                    var driverEntry = ex.Entries.Single();
+                    driverEntry.OriginalValues.SetValues(
+                        driverEntry.GetDatabaseValues().ToObject());
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_store_values_using_objects()
         {
             ConcurrencyTest(
                 StorePodiums, (c, ex) =>
-                                  {
-                                      var driverEntry = ex.Entries.Single();
-                                      var storeObject = driverEntry.GetDatabaseValues().ToObject();
-                                      driverEntry.CurrentValues.SetValues(storeObject);
-                                      driverEntry.OriginalValues.SetValues(storeObject);
-                                  });
+                {
+                    var driverEntry = ex.Entries.Single();
+                    var storeObject = driverEntry.GetDatabaseValues().ToObject();
+                    driverEntry.CurrentValues.SetValues(storeObject);
+                    driverEntry.OriginalValues.SetValues(storeObject);
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_new_values_using_objects()
         {
             ConcurrencyTest(
                 10, (c, ex) =>
-                        {
-                            var driverEntry = ex.Entries.Single().Cast<Driver>();
-                            driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues().ToObject());
-                            driverEntry.Entity.Podiums = 10;
-                        });
+                {
+                    var driverEntry = ex.Entries.Single().Cast<Driver>();
+                    driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues().ToObject());
+                    driverEntry.Entity.Podiums = 10;
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_client_values_using_cloned_property_values()
         {
             ConcurrencyTest(
                 ClientPodiums, (c, ex) =>
-                                   {
-                                       var driverEntry = ex.Entries.Single();
-                                       driverEntry.OriginalValues.SetValues(
-                                           driverEntry.GetDatabaseValues().Clone());
-                                   });
+                {
+                    var driverEntry = ex.Entries.Single();
+                    driverEntry.OriginalValues.SetValues(
+                        driverEntry.GetDatabaseValues().Clone());
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_store_values_using_cloned_property_values()
         {
             ConcurrencyTest(
                 StorePodiums, (c, ex) =>
-                                  {
-                                      var driverEntry = ex.Entries.Single();
-                                      var storeValues = driverEntry.GetDatabaseValues().Clone();
-                                      driverEntry.CurrentValues.SetValues(storeValues);
-                                      driverEntry.OriginalValues.SetValues(storeValues);
-                                  });
+                {
+                    var driverEntry = ex.Entries.Single();
+                    var storeValues = driverEntry.GetDatabaseValues().Clone();
+                    driverEntry.CurrentValues.SetValues(storeValues);
+                    driverEntry.OriginalValues.SetValues(storeValues);
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_new_values_using_cloned_property_values()
         {
             ConcurrencyTest(
                 10, (c, ex) =>
-                        {
-                            var driverEntry = ex.Entries.Single().Cast<Driver>();
-                            driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues().Clone());
-                            driverEntry.Entity.Podiums = 10;
-                        });
+                {
+                    var driverEntry = ex.Entries.Single().Cast<Driver>();
+                    driverEntry.OriginalValues.SetValues(driverEntry.GetDatabaseValues().Clone());
+                    driverEntry.Entity.Podiums = 10;
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_store_values_using_equivalent_of_accept_changes()
         {
             ConcurrencyTest(
                 StorePodiums, (c, ex) =>
-                                  {
-                                      var driverEntry = ex.Entries.Single();
-                                      driverEntry.CurrentValues.SetValues(driverEntry.GetDatabaseValues());
-                                      driverEntry.State = EntityState.Unchanged;
-                                  });
+                {
+                    var driverEntry = ex.Entries.Single();
+                    driverEntry.CurrentValues.SetValues(driverEntry.GetDatabaseValues());
+                    driverEntry.State = EntityState.Unchanged;
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Simple_concurrency_exception_can_be_resolved_with_store_values_using_Reload()
         {
             ConcurrencyTest(StorePodiums, (c, ex) => ex.Entries.Single().Reload());
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Two_concurrency_issues_in_one_to_one_related_entities_can_be_handled_by_dealing_with_dependent_first()
         {
             ConcurrencyTest(
                 c =>
-                    {
-                        var team = c.Teams.Find(Team.McLaren);
-                        team.Chassis.Name = "MP4-25b";
-                        team.Principal = "Larry David";
-                    },
+                {
+                    var team = c.Teams.Find(Team.McLaren);
+                    team.Chassis.Name = "MP4-25b";
+                    team.Principal = "Larry David";
+                },
                 c =>
+                {
+                    var team = c.Teams.Find(Team.McLaren);
+                    team.Chassis.Name = "MP4-25c";
+                    team.Principal = "Jerry Seinfeld";
+                }, (c, ex) =>
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Chassis>(entry.Entity);
+                    entry.Reload();
+
+                    try
                     {
-                        var team = c.Teams.Find(Team.McLaren);
-                        team.Chassis.Name = "MP4-25c";
-                        team.Principal = "Jerry Seinfeld";
-                    }, (c, ex) =>
-                           {
-                               Assert.IsType<DbUpdateConcurrencyException>(ex);
-
-                               var entry = ex.Entries.Single();
-                               Assert.IsAssignableFrom<Chassis>(entry.Entity);
-                               entry.Reload();
-
-                               try
-                               {
-                                   c.SaveChanges();
-                                   Assert.True(false, "Expected second exception due to conflict in principals.");
-                               }
-                               catch (DbUpdateConcurrencyException ex2)
-                               {
-                                   var entry2 = ex2.Entries.Single();
-                                   Assert.IsAssignableFrom<Team>(entry2.Entity);
-                                   entry2.Reload();
-                               }
-                           },
+                        c.SaveChanges();
+                        Assert.True(false, "Expected second exception due to conflict in principals.");
+                    }
+                    catch (DbUpdateConcurrencyException ex2)
+                    {
+                        var entry2 = ex2.Entries.Single();
+                        Assert.IsAssignableFrom<Team>(entry2.Entity);
+                        entry2.Reload();
+                    }
+                },
                 c =>
-                    {
-                        var team = c.Teams.Find(Team.McLaren);
-                        Assert.Equal("MP4-25b", team.Chassis.Name);
-                        Assert.Equal("Larry David", team.Principal);
-                    });
+                {
+                    var team = c.Teams.Find(Team.McLaren);
+                    Assert.Equal("MP4-25b", team.Chassis.Name);
+                    Assert.Equal("Larry David", team.Principal);
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void
             Two_concurrency_issues_in_one_to_many_related_entities_can_be_handled_by_dealing_with_dependent_first()
         {
             ConcurrencyTest(
                 c =>
-                    {
-                        var team = c.Teams.Find(Team.McLaren);
-                        team.Drivers.Single(d => d.Name == "Jenson Button").Poles = 1;
-                        team.Principal = "Larry David";
-                    },
+                {
+                    var team = c.Teams.Find(Team.McLaren);
+                    team.Drivers.Single(d => d.Name == "Jenson Button").Poles = 1;
+                    team.Principal = "Larry David";
+                },
                 c =>
+                {
+                    var team = c.Teams.Find(Team.McLaren);
+                    team.Drivers.Single(d => d.Name == "Jenson Button").Poles = 2;
+                    team.Principal = "Jerry Seinfeld";
+                }, (c, ex) =>
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Driver>(entry.Entity);
+                    entry.Reload();
+
+                    try
                     {
-                        var team = c.Teams.Find(Team.McLaren);
-                        team.Drivers.Single(d => d.Name == "Jenson Button").Poles = 2;
-                        team.Principal = "Jerry Seinfeld";
-                    }, (c, ex) =>
-                           {
-                               Assert.IsType<DbUpdateConcurrencyException>(ex);
-
-                               var entry = ex.Entries.Single();
-                               Assert.IsAssignableFrom<Driver>(entry.Entity);
-                               entry.Reload();
-
-                               try
-                               {
-                                   c.SaveChanges();
-                                   Assert.True(false, "Expected second exception due to conflict in principals.");
-                               }
-                               catch (DbUpdateConcurrencyException ex2)
-                               {
-                                   var entry2 = ex2.Entries.Single();
-                                   Assert.IsAssignableFrom<Team>(entry2.Entity);
-                                   entry2.Reload();
-                               }
-                           },
+                        c.SaveChanges();
+                        Assert.True(false, "Expected second exception due to conflict in principals.");
+                    }
+                    catch (DbUpdateConcurrencyException ex2)
+                    {
+                        var entry2 = ex2.Entries.Single();
+                        Assert.IsAssignableFrom<Team>(entry2.Entity);
+                        entry2.Reload();
+                    }
+                },
                 c =>
-                    {
-                        var team = c.Teams.Find(Team.McLaren);
-                        Assert.Equal(1, team.Drivers.Single(d => d.Name == "Jenson Button").Poles);
-                        Assert.Equal("Larry David", team.Principal);
-                    });
+                {
+                    var team = c.Teams.Find(Team.McLaren);
+                    Assert.Equal(1, team.Drivers.Single(d => d.Name == "Jenson Button").Poles);
+                    Assert.Equal("Larry David", team.Principal);
+                });
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Concurrency_issue_where_the_FK_is_the_concurrency_token_can_be_handled()
         {
             ConcurrencyTest(
                 c =>
-                c.Engines.Single(e => e.Name == "056").EngineSupplierId =
-                c.EngineSuppliers.Single(s => s.Name == "Cosworth").Id,
+                    c.Engines.Single(e => e.Name == "056").EngineSupplierId =
+                        c.EngineSuppliers.Single(s => s.Name == "Cosworth").Id,
                 c =>
-                c.Engines.Single(e => e.Name == "056").EngineSupplier =
-                c.EngineSuppliers.Single(s => s.Name == "Renault"),
+                    c.Engines.Single(e => e.Name == "056").EngineSupplier =
+                        c.EngineSuppliers.Single(s => s.Name == "Renault"),
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
 
-                        var entry = ex.Entries.Single();
-                        Assert.IsAssignableFrom<Engine>(entry.Entity);
-                        entry.Reload();
-                    },
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Engine>(entry.Entity);
+                    entry.Reload();
+                },
                 c =>
-                Assert.Equal(
-                    "Cosworth",
-                    c.Engines.Include(e => e.EngineSupplier).Single(e => e.Name == "056").EngineSupplier.Name));
+                    Assert.Equal(
+                        "Cosworth",
+                        c.Engines.Include(e => e.EngineSupplier).Single(e => e.Name == "056").EngineSupplier.Name));
         }
 
         #endregion
@@ -312,70 +313,70 @@ namespace ProductivityApiTests
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Change_in_independent_association_results_in_independent_association_exception()
         {
             ConcurrencyTest(
                 c => c.Teams.Single(t => t.Id == Team.Ferrari).Engine = c.Engines.Single(s => s.Name == "FO 108X"),
                 (c, ex) =>
-                    {
-                        VerifyIndependentAssociationUpdateMessage(ex.Message);
-                        Assert.Null(ex.Entries.SingleOrDefault());
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
-                    },
+                {
+                    VerifyIndependentAssociationUpdateMessage(ex.Message);
+                    Assert.Null(ex.Entries.SingleOrDefault());
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                },
                 null);
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void
             Change_in_independent_association_after_change_in_different_concurrency_token_results_in_independent_association_exception()
         {
             ConcurrencyTest(
                 c => c.Teams.Single(t => t.Id == Team.Ferrari).FastestLaps = 0,
                 c =>
-                c.Teams.Single(t => t.Constructor == "Ferrari").Engine =
-                c.Engines.Single(s => s.Name == "FO 108X"),
+                    c.Teams.Single(t => t.Constructor == "Ferrari").Engine =
+                        c.Engines.Single(s => s.Name == "FO 108X"),
                 (c, ex) =>
-                    {
-                        VerifyIndependentAssociationUpdateMessage(ex.Message);
-                        Assert.Null(ex.Entries.SingleOrDefault());
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
-                    },
+                {
+                    VerifyIndependentAssociationUpdateMessage(ex.Message);
+                    Assert.Null(ex.Entries.SingleOrDefault());
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                },
                 null);
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void
             Attempting_to_delete_same_relationship_twice_for_many_to_many_results_in_independent_association_exception()
         {
             ConcurrencyTest(
                 c =>
-                c.Teams.Single(t => t.Id == Team.McLaren).Sponsors.Add(c.Sponsors.Single(s => s.Name.Contains("Shell"))),
+                    c.Teams.Single(t => t.Id == Team.McLaren).Sponsors.Add(c.Sponsors.Single(s => s.Name.Contains("Shell"))),
                 (c, ex) =>
-                    {
-                        VerifyIndependentAssociationUpdateMessage(ex.Message);
-                        Assert.Null(ex.Entries.SingleOrDefault());
-                        Assert.IsType<UpdateException>(ex.InnerException);
-                    },
+                {
+                    VerifyIndependentAssociationUpdateMessage(ex.Message);
+                    Assert.Null(ex.Entries.SingleOrDefault());
+                    Assert.IsType<UpdateException>(ex.InnerException);
+                },
                 null);
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void
             Attempting_to_add_same_relationship_twice_for_many_to_many_results_in_independent_association_exception()
         {
             ConcurrencyTest(
                 c =>
-                c.Teams.Single(t => t.Id == Team.McLaren).Sponsors.Remove(c.Sponsors.Single(s => s.Name.Contains("FIA"))),
+                    c.Teams.Single(t => t.Id == Team.McLaren).Sponsors.Remove(c.Sponsors.Single(s => s.Name.Contains("FIA"))),
                 (c, ex) =>
-                    {
-                        VerifyIndependentAssociationUpdateMessage(ex.Message);
-                        Assert.Null(ex.Entries.SingleOrDefault());
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
-                    },
+                {
+                    VerifyIndependentAssociationUpdateMessage(ex.Message);
+                    Assert.Null(ex.Entries.SingleOrDefault());
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                },
                 null);
         }
 
@@ -384,21 +385,21 @@ namespace ProductivityApiTests
         #region Concurrency exceptions with complex types
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Concurrency_issue_where_a_complex_type_nested_member_is_the_concurrency_token_can_be_handled()
         {
             ConcurrencyTest(
                 c => c.Engines.Single(s => s.Name == "CA2010").StorageLocation.Latitude = 47.642576,
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
 
-                        var entry = ex.Entries.Single();
-                        Assert.IsAssignableFrom<Engine>(entry.Entity);
-                        entry.Reload();
-                    },
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Engine>(entry.Entity);
+                    entry.Reload();
+                },
                 c =>
-                Assert.Equal(47.642576, c.Engines.Single(s => s.Name == "CA2010").StorageLocation.Latitude));
+                    Assert.Equal(47.642576, c.Engines.Single(s => s.Name == "CA2010").StorageLocation.Latitude));
         }
 
         #endregion
@@ -406,143 +407,143 @@ namespace ProductivityApiTests
         #region Tests for update exceptions involving adding and deleting entities
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Adding_the_same_entity_twice_results_in_DbUpdateException()
         {
             ConcurrencyTest(
                 c =>
-                c.Teams.Add(
-                    new Team
+                    c.Teams.Add(
+                        new Team
                         {
                             Id = -1,
                             Name = "Wubbsy Racing",
                             Chassis = new Chassis
-                                          {
-                                              TeamId = -1,
-                                              Name = "Wubbsy"
-                                          }
+                            {
+                                TeamId = -1,
+                                Name = "Wubbsy"
+                            }
                         }),
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateException>(ex);
-                        Assert.IsType<UpdateException>(ex.InnerException);
-                    },
+                {
+                    Assert.IsType<DbUpdateException>(ex);
+                    Assert.IsType<UpdateException>(ex.InnerException);
+                },
                 null);
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Deleting_the_same_entity_twice_results_in_DbUpdateConcurrencyException()
         {
             ConcurrencyTest(
                 c => c.Drivers.Remove(c.Drivers.Single(d => d.Name == "Fernando Alonso")),
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
 
-                        var entry = ex.Entries.Single();
-                        Assert.IsAssignableFrom<Driver>(entry.Entity);
-                        entry.Reload();
-                    },
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Driver>(entry.Entity);
+                    entry.Reload();
+                },
                 c => Assert.Null(c.Drivers.SingleOrDefault(d => d.Name == "Fernando Alonso")));
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void
             Deleting_the_same_entity_twice_when_entity_has_independent_association_results_in_DbIndependentAssociationUpdateException()
         {
             ConcurrencyTest(
                 c => c.Teams.Remove(c.Teams.Single(t => t.Id == Team.Hispania)),
                 (c, ex) =>
-                    {
-                        VerifyIndependentAssociationUpdateMessage(ex.Message);
-                        Assert.Null(ex.Entries.SingleOrDefault());
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
-                    },
+                {
+                    VerifyIndependentAssociationUpdateMessage(ex.Message);
+                    Assert.Null(ex.Entries.SingleOrDefault());
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                },
                 null);
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Updating_then_deleting_the_same_entity_results_in_DbUpdateConcurrencyException()
         {
             ConcurrencyTest(
                 c => c.Drivers.Single(d => d.Name == "Fernando Alonso").Wins = 1,
                 c => c.Drivers.Remove(c.Drivers.Single(d => d.Name == "Fernando Alonso")),
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
 
-                        var entry = ex.Entries.Single();
-                        Assert.IsAssignableFrom<Driver>(entry.Entity);
-                        entry.Reload();
-                    },
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Driver>(entry.Entity);
+                    entry.Reload();
+                },
                 c => Assert.Equal(1, c.Drivers.Single(d => d.Name == "Fernando Alonso").Wins));
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Updating_then_deleting_the_same_entity_results_in_DbUpdateConcurrencyException_which_can_be_resolved_with_store_values()
         {
             ConcurrencyTest(
                 c => c.Drivers.Single(d => d.Name == "Fernando Alonso").Wins = 1,
                 c => c.Drivers.Remove(c.Drivers.Single(d => d.Name == "Fernando Alonso")),
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
 
-                        var entry = ex.Entries.Single();
-                        Assert.IsAssignableFrom<Driver>(entry.Entity);
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Driver>(entry.Entity);
 
-                        entry.State = EntityState.Unchanged;
-                        var storeValues = entry.GetDatabaseValues();
-                        entry.OriginalValues.SetValues(storeValues);
-                        entry.CurrentValues.SetValues(storeValues);
-                    },
+                    entry.State = EntityState.Unchanged;
+                    var storeValues = entry.GetDatabaseValues();
+                    entry.OriginalValues.SetValues(storeValues);
+                    entry.CurrentValues.SetValues(storeValues);
+                },
                 c => Assert.Equal(1, c.Drivers.Single(d => d.Name == "Fernando Alonso").Wins));
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Deleting_then_updating_the_same_entity_results_in_DbUpdateConcurrencyException()
         {
             ConcurrencyTest(
                 c => c.Drivers.Remove(c.Drivers.Single(d => d.Name == "Fernando Alonso")),
                 c => c.Drivers.Single(d => d.Name == "Fernando Alonso").Wins = 1,
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
 
-                        var entry = ex.Entries.Single();
-                        Assert.IsAssignableFrom<Driver>(entry.Entity);
-                        entry.Reload();
-                    },
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Driver>(entry.Entity);
+                    entry.Reload();
+                },
                 c => Assert.Null(c.Drivers.SingleOrDefault(d => d.Name == "Fernando Alonso")));
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Deleting_then_updating_the_same_entity_results_in_DbUpdateConcurrencyException_which_can_be_resolved_with_store_values()
         {
             ConcurrencyTest(
                 c => c.Drivers.Remove(c.Drivers.Single(d => d.Name == "Fernando Alonso")),
                 c => c.Drivers.Single(d => d.Name == "Fernando Alonso").Wins = 1,
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
 
-                        var entry = ex.Entries.Single();
-                        Assert.IsAssignableFrom<Driver>(entry.Entity);
-                        var storeValues = entry.GetDatabaseValues();
-                        Assert.Null(storeValues);
-                        entry.State = EntityState.Detached;
-                    },
+                    var entry = ex.Entries.Single();
+                    Assert.IsAssignableFrom<Driver>(entry.Entity);
+                    var storeValues = entry.GetDatabaseValues();
+                    Assert.Null(storeValues);
+                    entry.State = EntityState.Detached;
+                },
                 c => Assert.Null(c.Drivers.SingleOrDefault(d => d.Name == "Fernando Alonso")));
         }
 
@@ -559,10 +560,10 @@ namespace ProductivityApiTests
                     context.Entry(
                         context.Drivers.Add(
                             new Driver
-                                {
-                                    Name = "Larry David",
-                                    TeamId = Team.Ferrari
-                                }));
+                            {
+                                Name = "Larry David",
+                                TeamId = Team.Ferrari
+                            }));
 
                 Assert.Throws<InvalidOperationException>(() => entry.Reload()).ValidateMessage(
                     "DbPropertyValues_CannotGetValuesForState", "Reload", "Added");
@@ -578,10 +579,10 @@ namespace ProductivityApiTests
                     context.Entry(
                         context.Drivers.Add(
                             new Driver
-                                {
-                                    Name = "Larry David",
-                                    TeamId = Team.Ferrari
-                                }));
+                            {
+                                Name = "Larry David",
+                                TeamId = Team.Ferrari
+                            }));
                 entry.State = EntityState.Detached;
 
                 Assert.Throws<InvalidOperationException>(() => entry.Reload()).ValidateMessage(
@@ -705,28 +706,28 @@ namespace ProductivityApiTests
         #region Serialization of exceptions
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void DbUpdateException_can_be_serialized_but_does_not_serialize_entries()
         {
             ConcurrencyTest(
                 c =>
-                c.Teams.Add(
-                    new Team
+                    c.Teams.Add(
+                        new Team
                         {
                             Id = -1,
                             Name = "Wubbsy Racing",
                             Chassis = new Chassis
-                                          {
-                                              TeamId = -1,
-                                              Name = "Wubbsy"
-                                          }
+                            {
+                                TeamId = -1,
+                                Name = "Wubbsy"
+                            }
                         }),
                 (c, ex) => TestExceptionSerializartion(ex, c),
                 null);
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void DbUpdateConcurrencyException_can_be_serialized_but_does_not_serialize_entries()
         {
             ConcurrencyTest(
@@ -751,23 +752,23 @@ namespace ProductivityApiTests
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void DbUpdateException_for_independent_association_error_can_be_serialized()
         {
             ConcurrencyTest(
                 c => c.Teams.Remove(c.Teams.Single(t => t.Id == Team.Hispania)),
                 (c, ex) =>
-                    {
-                        var stream = new MemoryStream();
-                        var formatter = new BinaryFormatter();
+                {
+                    var stream = new MemoryStream();
+                    var formatter = new BinaryFormatter();
 
-                        formatter.Serialize(stream, ex);
-                        stream.Seek(0, SeekOrigin.Begin);
-                        var deserializedException = (DbUpdateException)formatter.Deserialize(stream);
+                    formatter.Serialize(stream, ex);
+                    stream.Seek(0, SeekOrigin.Begin);
+                    var deserializedException = (DbUpdateException)formatter.Deserialize(stream);
 
-                        VerifyIndependentAssociationUpdateMessage(deserializedException.Message);
-                        Assert.Null(deserializedException.Entries.SingleOrDefault());
-                    },
+                    VerifyIndependentAssociationUpdateMessage(deserializedException.Message);
+                    Assert.Null(deserializedException.Entries.SingleOrDefault());
+                },
                 null);
         }
 
@@ -776,61 +777,67 @@ namespace ProductivityApiTests
         #region Multiple entities in an update exception
 
         // See DevDiv2 93724
-        public void Multiple_entities_in_excecption_from_update_pipeline_can_be_handled()
+        [Fact]
+        [UseDefaultExecutionStrategy]
+        public void Multiple_entities_in_exception_from_update_pipeline_can_be_handled()
         {
-            using (new TransactionScope())
-            {
-                using (var context = new AdvancedPatternsMasterContext())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    // Create two entities which both have dependencies on each other
-                    // to force a dependency ordering exception from the update pipeline.
-
-                    var building = new Building
-                                       {
-                                           BuildingId = new Guid("14C62AB6-A49C-40BD-BD5C-D374E070D3D7"),
-                                           Name = "Building 18",
-                                           Value = 1m,
-                                           PrincipalMailRoomId = -1,
-                                           Address =
-                                               new Address
-                                                   {
-                                                       Street = "100 Work St",
-                                                       City = "Redmond",
-                                                       State = "WA",
-                                                       ZipCode = "98052",
-                                                       SiteInfo = new SiteInfo
-                                                                      {
-                                                                          Zone = 1,
-                                                                          Environment = "Clean"
-                                                                      }
-                                                   },
-                                       };
-
-                    var mailRoom = new MailRoom
-                                       {
-                                           id = (int)building.PrincipalMailRoomId,
-                                           BuildingId = building.BuildingId
-                                       };
-
-                    context.Buildings.Add(building);
-                    context.Set<MailRoom>().Add(mailRoom);
-
-                    try
+                    using (new TransactionScope())
                     {
-                        context.SaveChanges();
-                        Assert.True(false);
-                    }
-                    catch (DbUpdateException ex)
-                    {
-                        Assert.IsType<UpdateException>(ex.InnerException);
+                        using (var context = new AdvancedPatternsMasterContext())
+                        {
+                            // Create two entities which both have dependencies on each other
+                            // to force a dependency ordering exception from the update pipeline.
 
-                        var entries = ex.Entries.ToList();
-                        Assert.Equal(2, entries.Count());
-                        Assert.True(entries.Any(e => ReferenceEquals(e.Entity, building)));
-                        Assert.True(entries.Any(e => ReferenceEquals(e.Entity, mailRoom)));
+                            var building = new Building
+                            {
+                                BuildingId = new Guid("14C62AB6-A49C-40BD-BD5C-D374E070D3D7"),
+                                Name = "Building 18",
+                                Value = 1m,
+                                PrincipalMailRoomId = -1,
+                                Address =
+                                    new Address
+                                    {
+                                        Street = "100 Work St",
+                                        City = "Redmond",
+                                        State = "WA",
+                                        ZipCode = "98052",
+                                        SiteInfo = new SiteInfo
+                                        {
+                                            Zone = 1,
+                                            Environment = "Clean"
+                                        }
+                                    },
+                            };
+
+                            var mailRoom = new MailRoom
+                            {
+                                id = (int)building.PrincipalMailRoomId,
+                                BuildingId = building.BuildingId
+                            };
+
+                            context.Buildings.Add(building);
+                            context.Set<MailRoom>().Add(mailRoom);
+
+                            try
+                            {
+                                context.SaveChanges();
+                                Assert.True(false);
+                            }
+                            catch (DbUpdateException ex)
+                            {
+                                Assert.IsType<UpdateException>(ex.InnerException);
+
+                                var entries = ex.Entries.ToList();
+                                Assert.Equal(2, entries.Count());
+                                Assert.True(entries.Any(e => ReferenceEquals(e.Entity, building)));
+                                Assert.True(entries.Any(e => ReferenceEquals(e.Entity, mailRoom)));
+                            }
+                        }
                     }
-                }
-            }
+                });
         }
 
         #endregion
@@ -840,7 +847,7 @@ namespace ProductivityApiTests
 #if !NET40
 
         /// <summary>
-        /// An IExecutionStrategy that blocks the execution of async actions until it is signaled
+        ///     An IExecutionStrategy that blocks the execution of async actions until it is signaled
         /// </summary>
         public class BlockingStrategy : IDbExecutionStrategy
         {
@@ -884,11 +891,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        context.SaveChanges();
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    context.SaveChanges();
+                }, true);
         }
 
         [Fact]
@@ -896,11 +903,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        tasks.Add(context.SaveChangesAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(context.SaveChangesAsync());
+                }, true);
         }
 
         [Fact]
@@ -908,11 +915,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        tasks.Add(context.Products.FindAsync(1));
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(context.Products.FindAsync(1));
+                }, true);
         }
 
         [Fact]
@@ -920,11 +927,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.Products.FindAsync(1));
-                        tasks.Add(context.SaveChangesAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.Products.FindAsync(1));
+                    tasks.Add(context.SaveChangesAsync());
+                }, true);
         }
 
         [Fact]
@@ -932,12 +939,12 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        context.Products.Find(1);
-                        tasks.Add(context.Products.FindAsync(1));
-                        tasks.Add(context.SaveChangesAsync());
-                    }, false);
+                {
+                    context.Products.Add(new Product());
+                    context.Products.Find(1);
+                    tasks.Add(context.Products.FindAsync(1));
+                    tasks.Add(context.SaveChangesAsync());
+                }, false);
         }
 
         [Fact]
@@ -945,11 +952,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        context.Products.Find(1);
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    context.Products.Find(1);
+                }, true);
         }
 
         [Fact]
@@ -977,18 +984,18 @@ namespace ProductivityApiTests
                     tasks.Add(context.SaveChangesAsync());
                 }, true);
         }
-        
+
         [Fact]
         public void Reload_throws_on_concurrent_call()
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        var entry = context.Entry(context.Products.First());
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        entry.Reload();
-                    }, true);
+                {
+                    var entry = context.Entry(context.Products.First());
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    entry.Reload();
+                }, true);
         }
 
         [Fact]
@@ -996,11 +1003,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        tasks.Add(context.Products.Where(p => p != null).ToListAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(context.Products.Where(p => p != null).ToListAsync());
+                }, true);
         }
 
         [Fact]
@@ -1008,11 +1015,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        tasks.Add(context.Products.Where(p => p != null).AsNoTracking().ToListAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(context.Products.Where(p => p != null).AsNoTracking().ToListAsync());
+                }, true);
         }
 
         [Fact]
@@ -1020,11 +1027,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.Products.Where(p => p != null).ToListAsync());
-                        tasks.Add(context.SaveChangesAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.Products.Where(p => p != null).ToListAsync());
+                    tasks.Add(context.SaveChangesAsync());
+                }, true);
         }
 
         [Fact]
@@ -1032,11 +1039,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.Products.Where(p => p != null).AsNoTracking().ToListAsync());
-                        tasks.Add(context.SaveChangesAsync());
-                    }, false);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.Products.Where(p => p != null).AsNoTracking().ToListAsync());
+                    tasks.Add(context.SaveChangesAsync());
+                }, false);
         }
 
         [Fact]
@@ -1044,11 +1051,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        context.Products.Where(p => p != null).ToList();
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    context.Products.Where(p => p != null).ToList();
+                }, true);
         }
 
         [Fact]
@@ -1056,11 +1063,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        tasks.Add(context.Products.SqlQuery("select * from Products").ToListAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(context.Products.SqlQuery("select * from Products").ToListAsync());
+                }, true);
         }
 
         [Fact]
@@ -1068,11 +1075,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        tasks.Add(context.Products.SqlQuery("select * from Products").AsNoTracking().ToListAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(context.Products.SqlQuery("select * from Products").AsNoTracking().ToListAsync());
+                }, true);
         }
 
         [Fact]
@@ -1080,11 +1087,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.Products.SqlQuery("select * from Products").ToListAsync());
-                        tasks.Add(context.SaveChangesAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.Products.SqlQuery("select * from Products").ToListAsync());
+                    tasks.Add(context.SaveChangesAsync());
+                }, true);
         }
 
         [Fact]
@@ -1092,11 +1099,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.Products.SqlQuery("select * from Products").AsNoTracking().ToListAsync());
-                        tasks.Add(context.SaveChangesAsync());
-                    }, false);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.Products.SqlQuery("select * from Products").AsNoTracking().ToListAsync());
+                    tasks.Add(context.SaveChangesAsync());
+                }, false);
         }
 
         [Fact]
@@ -1104,11 +1111,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        context.Products.SqlQuery("select * from Products").ToList();
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    context.Products.SqlQuery("select * from Products").ToList();
+                }, true);
         }
 
         [Fact]
@@ -1116,11 +1123,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        ((IObjectContextAdapter)context).ObjectContext.ExecuteFunction("Foo");
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    ((IObjectContextAdapter)context).ObjectContext.ExecuteFunction("Foo");
+                }, true);
         }
 
         [Fact]
@@ -1128,11 +1135,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        context.Database.ExecuteSqlCommand("select * from Products");
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    context.Database.ExecuteSqlCommand("select * from Products");
+                }, true);
         }
 
         [Fact]
@@ -1140,11 +1147,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.SaveChangesAsync());
-                        tasks.Add(context.Database.ExecuteSqlCommandAsync("select * from Products"));
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.SaveChangesAsync());
+                    tasks.Add(context.Database.ExecuteSqlCommandAsync("select * from Products"));
+                }, true);
         }
 
         [Fact]
@@ -1152,11 +1159,11 @@ namespace ProductivityApiTests
         {
             VerifyConcurrency(
                 (context, tasks) =>
-                    {
-                        context.Products.Add(new Product());
-                        tasks.Add(context.Database.ExecuteSqlCommandAsync("select * from Products"));
-                        tasks.Add(context.SaveChangesAsync());
-                    }, true);
+                {
+                    context.Products.Add(new Product());
+                    tasks.Add(context.Database.ExecuteSqlCommandAsync("select * from Products"));
+                    tasks.Add(context.SaveChangesAsync());
+                }, true);
         }
 
         private void VerifyConcurrency(Action<SimpleModelContext, List<Task>> execute, bool shouldThrow)
@@ -1221,22 +1228,22 @@ namespace ProductivityApiTests
                 c => c.Drivers.Single(d => d.CarNumber == 1).Podiums = StorePodiums,
                 c => c.Drivers.Single(d => d.CarNumber == 1).Podiums = ClientPodiums,
                 (c, ex) =>
-                    {
-                        Assert.IsType<DbUpdateConcurrencyException>(ex);
-                        Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
+                {
+                    Assert.IsType<DbUpdateConcurrencyException>(ex);
+                    Assert.IsType<OptimisticConcurrencyException>(ex.InnerException);
 
-                        resolver(c, (DbUpdateConcurrencyException)ex);
-                    },
+                    resolver(c, (DbUpdateConcurrencyException)ex);
+                },
                 c => Assert.Equal(expectedPodiums, c.Drivers.Single(d => d.CarNumber == 1).Podiums));
         }
 
         /// <summary>
-        /// Runs the same action twice inside a transaction scope but with two different contexts and calling
-        /// SaveChanges such that first time it will succeed and then the second time it will result in a
-        /// concurrency exception.
-        /// After the exception is caught the resolver action is called, after which SaveChanges is called
-        /// again.  Finally, a new context is created and the validator is called so that the state of
-        /// the database at the end of the process can be validated.
+        ///     Runs the same action twice inside a transaction scope but with two different contexts and calling
+        ///     SaveChanges such that first time it will succeed and then the second time it will result in a
+        ///     concurrency exception.
+        ///     After the exception is caught the resolver action is called, after which SaveChanges is called
+        ///     again.  Finally, a new context is created and the validator is called so that the state of
+        ///     the database at the end of the process can be validated.
         /// </summary>
         private void ConcurrencyTest(
             Action<F1Context> change, Action<F1Context, DbUpdateException> resolver,
@@ -1246,49 +1253,56 @@ namespace ProductivityApiTests
         }
 
         /// <summary>
-        /// Runs the two actions inside a transaction scope but with two different contexts and calling
-        /// SaveChanges such that storeChange will succeed and the store will reflect this change, and
-        /// then clientChange will result in a concurrency exception.
-        /// After the exception is caught the resolver action is called, after which SaveChanges is called
-        /// again.  Finally, a new context is created and the validator is called so that the state of
-        /// the database at the end of the process can be validated.
+        ///     Runs the two actions inside a transaction scope but with two different contexts and calling
+        ///     SaveChanges such that storeChange will succeed and the store will reflect this change, and
+        ///     then clientChange will result in a concurrency exception.
+        ///     After the exception is caught the resolver action is called, after which SaveChanges is called
+        ///     again.  Finally, a new context is created and the validator is called so that the state of
+        ///     the database at the end of the process can be validated.
         /// </summary>
         private void ConcurrencyTest(
             Action<F1Context> storeChange, Action<F1Context> clientChange,
             Action<F1Context, DbUpdateException> resolver, Action<F1Context> validator)
         {
-            using (var context = new F1Context())
-            {
-                clientChange(context);
-
-                using (var innerContext = new F1Context())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    storeChange(innerContext);
-                    innerContext.SaveChanges();
-                }
-
-                try
-                {
-                    context.SaveChanges();
-                    Assert.True(false);
-                }
-                catch (DbUpdateException ex)
-                {
-                    Assert.IsAssignableFrom<UpdateException>(ex.InnerException);
-
-                    resolver(context, ex);
-
-                    if (validator != null)
+                    using (new TransactionScope())
                     {
-                        context.SaveChanges();
-
-                        using (var validationContext = new F1Context())
+                        using (var context = new F1Context())
                         {
-                            validator(validationContext);
+                            clientChange(context);
+
+                            using (var innerContext = new F1Context())
+                            {
+                                storeChange(innerContext);
+                                innerContext.SaveChanges();
+                            }
+
+                            try
+                            {
+                                context.SaveChanges();
+                                Assert.True(false);
+                            }
+                            catch (DbUpdateException ex)
+                            {
+                                Assert.IsAssignableFrom<UpdateException>(ex.InnerException);
+
+                                resolver(context, ex);
+
+                                if (validator != null)
+                                {
+                                    context.SaveChanges();
+
+                                    using (var validationContext = new F1Context())
+                                    {
+                                        validator(validationContext);
+                                    }
+                                }
+                            }
                         }
                     }
-                }
-            }
+                });
         }
 
         #endregion

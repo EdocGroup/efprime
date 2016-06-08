@@ -5,24 +5,51 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Collections.Concurrent;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
-    using System.Data.Entity.Core.Mapping.ViewGeneration;
-    using System.Data.Entity.Infrastructure;
-    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Infrastructure.Pluralization;
-    using System.Data.Entity.Internal;
     using System.Data.Entity.Migrations.History;
     using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Data.Entity.Utilities;
     using System.Data.SqlClient;
-    using System.IO;
     using System.Linq;
     using Moq;
     using Xunit;
 
     public class RootDependencyResolverTests : TestBase
     {
+        public class DatabaseInitializerResolverTests : TestBase
+        {
+            [Fact]
+            public void The_database_initializer_resolver_can_be_obtained_from_the_root_resolver()
+            {
+                var initializerResolver = new DatabaseInitializerResolver();
+                Assert.Same(
+                    initializerResolver,
+                    new RootDependencyResolver(
+                        new DefaultProviderServicesResolver(), initializerResolver)
+                        .DatabaseInitializerResolver);
+            }
+        }
+
         public class GetService : TestBase
         {
+            [Fact]
+            public void The_root_resolver_returns_the_default_database_initializer_resolver_for_TransactionContext()
+            {
+                Assert.IsType<TransactionContextInitializer<TransactionContext>>(
+                    new RootDependencyResolver(
+                        new DefaultProviderServicesResolver(), new DatabaseInitializerResolver())
+                        .GetService<IDatabaseInitializer<TransactionContext>>());
+            }
+
+            [Fact]
+            public void The_root_resolver_returns_the_default_execution_strategy_resolver()
+            {
+                Assert.IsType<DefaultExecutionStrategy>(
+                    new RootDependencyResolver(
+                        new DefaultProviderServicesResolver(), new DatabaseInitializerResolver())
+                        .GetService<Func<IDbExecutionStrategy>>(new ExecutionStrategyKey("p", "s"))());
+            }
+
             [Fact]
             public void The_root_resolver_uses_the_default_provider_services_resolver_and_caches_provider_instances()
             {
@@ -95,17 +122,6 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             }
 
             [Fact]
-            public void The_database_initializer_resolver_can_be_obtained_from_the_root_resolver()
-            {
-                var initializerResolver = new DatabaseInitializerResolver();
-                Assert.Same(
-                    initializerResolver,
-                    new RootDependencyResolver(
-                        new DefaultProviderServicesResolver(), initializerResolver)
-                        .DatabaseInitializerResolver);
-            }
-
-            [Fact]
             public void The_root_resolver_returns_the_default_manifest_token_service()
             {
                 Assert.IsType<DefaultManifestTokenResolver>(new RootDependencyResolver().GetService<IManifestTokenResolver>());
@@ -144,27 +160,54 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             {
                 Assert.IsType<AttributeProvider>(new RootDependencyResolver().GetService<AttributeProvider>());
             }
+            
 
             [Fact]
-            public void The_root_resolver_resolves_from_default_resolvers_before_roots()
+            public void The_root_resolver_returns_null_TransactionContext_factory_for_null_key()
             {
-                var attributeProvider1 = new Mock<AttributeProvider>().Object;
-                var attributeProvider2 = new Mock<AttributeProvider>().Object;
+                Assert.Null(
+                    new RootDependencyResolver().GetService<Func<DbConnection, TransactionContext>>());
+            }
+
+            [Fact]
+            public void The_root_resolver_returns_DefaultTransactionHandler_factory()
+            {
+                Assert.IsType<DefaultTransactionHandler>(new RootDependencyResolver().GetService<Func<TransactionHandler>>(new ExecutionStrategyKey("p", "s"))());
+            }
+
+            [Fact]
+            public void The_root_resolver_returns_null_TransactionHandler_factory_for_null_key()
+            {
+                Assert.Null(new RootDependencyResolver().GetService<Func<TransactionHandler>>());
+            }
+
+            [Fact]
+            public void The_root_resolver_resolves_from_default_resolvers_then_default_provider_then_roots()
+            {
+                var defaultService1 = new Mock<AttributeProvider>().Object;
+                var defaultService2 = new Mock<AttributeProvider>().Object;
+                var providerService = new Mock<AttributeProvider>().Object;
 
                 var mockDefaultResolver1 = new Mock<IDbDependencyResolver>();
-                mockDefaultResolver1.Setup(m => m.GetService(typeof(AttributeProvider), null)).Returns(attributeProvider1);
+                mockDefaultResolver1.Setup(m => m.GetService(typeof(AttributeProvider), null)).Returns(defaultService1);
                 var mockDefaultResolver2 = new Mock<IDbDependencyResolver>();
-                mockDefaultResolver2.Setup(m => m.GetService(typeof(AttributeProvider), null)).Returns(attributeProvider2);
+                mockDefaultResolver2.Setup(m => m.GetService(typeof(AttributeProvider), null)).Returns(defaultService2);
+
+                var mockProvider = new Mock<DbProviderServices>();
+                mockProvider.Setup(m => m.GetService(typeof(AttributeProvider), null)).Returns(providerService);
 
                 var rootResolver = new RootDependencyResolver();
 
                 Assert.IsType<AttributeProvider>(rootResolver.GetService<AttributeProvider>());
 
+                rootResolver.SetDefaultProviderServices(mockProvider.Object, "My.Provider");
+                Assert.Same(providerService, rootResolver.GetService<AttributeProvider>());
+
                 rootResolver.AddDefaultResolver(mockDefaultResolver1.Object);
-                Assert.Same(attributeProvider1, rootResolver.GetService<AttributeProvider>());
+                Assert.Same(defaultService1, rootResolver.GetService<AttributeProvider>());
 
                 rootResolver.AddDefaultResolver(mockDefaultResolver2.Object);
-                Assert.Same(attributeProvider2, rootResolver.GetService<AttributeProvider>());
+                Assert.Same(defaultService2, rootResolver.GetService<AttributeProvider>());
             }
 
             /// <summary>
@@ -194,23 +237,6 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             public class FakeContext : DbContext
             {
             }
-
-            [Fact]
-            public void The_root_resolver_returns_the_default_command_formatter_factory()
-            {
-                var factory =
-                    new RootDependencyResolver(new DefaultProviderServicesResolver(), new DatabaseInitializerResolver())
-                        .GetService<Func<DbContext, Action<string>, DatabaseLogFormatter>>();
-
-                var context = new Mock<DbContext>().Object;
-                Action<string> sink = new StringWriter().Write;
-
-                var formatter = factory(context, sink);
-
-                Assert.IsType<DatabaseLogFormatter>(formatter);
-                Assert.Same(context, formatter.Context);
-                Assert.Same(sink, formatter.WriteAction);
-            }
         }
 
         public class GetServices : TestBase
@@ -235,7 +261,7 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
                 rootResolver.AddDefaultResolver(mockDefaultResolver2.Object);
 
                 var attributeProviders = rootResolver.GetServices<AttributeProvider>().ToList();
-                
+
                 Assert.Equal(3, attributeProviders.Count);
                 Assert.Same(attributeProvider2, attributeProviders[0]);
                 Assert.Same(attributeProvider1, attributeProviders[1]);

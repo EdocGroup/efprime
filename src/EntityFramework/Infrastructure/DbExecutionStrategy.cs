@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Infrastructure
 {
@@ -30,29 +30,29 @@ namespace System.Data.Entity.Infrastructure
         private readonly int _maxRetryCount;
         private readonly TimeSpan _maxDelay;
 
-        /// <summary>
-        /// The default number of retry attempts, must be nonnegative.
-        /// </summary>
+        // <summary>
+        // The default number of retry attempts, must be nonnegative.
+        // </summary>
         private const int DefaultMaxRetryCount = 5;
 
-        /// <summary>
-        /// The default maximum random factor, must not be lesser than 1.
-        /// </summary>
+        // <summary>
+        // The default maximum random factor, must not be lesser than 1.
+        // </summary>
         private const double DefaultRandomFactor = 1.1;
 
-        /// <summary>
-        /// The default base for the exponential function used to compute the delay between retries, must be positive.
-        /// </summary>
+        // <summary>
+        // The default base for the exponential function used to compute the delay between retries, must be positive.
+        // </summary>
         private const double DefaultExponentialBase = 2;
 
-        /// <summary>
-        /// The default coefficient for the exponential function used to compute the delay between retries, must be nonnegative.
-        /// </summary>
+        // <summary>
+        // The default coefficient for the exponential function used to compute the delay between retries, must be nonnegative.
+        // </summary>
         private static readonly TimeSpan DefaultCoefficient = TimeSpan.FromSeconds(1);
 
-        /// <summary>
-        /// The default maximum time delay between retries, must be nonnegative.
-        /// </summary>
+        // <summary>
+        // The default maximum time delay between retries, must be nonnegative.
+        // </summary>
         private static readonly TimeSpan DefaultMaxDelay = TimeSpan.FromSeconds(30);
 
         /// <summary>
@@ -181,12 +181,15 @@ namespace System.Data.Entity.Infrastructure
         public Task ExecuteAsync(Func<Task> operation, CancellationToken cancellationToken)
         {
             Check.NotNull(operation, "operation");
+
             EnsurePreexecutionState();
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             return ProtectedExecuteAsync(
                 async () =>
                 {
-                    await operation().ConfigureAwait(continueOnCapturedContext: false);
+                    await operation().WithCurrentCulture();
                     return true;
                 }, cancellationToken);
         }
@@ -216,7 +219,10 @@ namespace System.Data.Entity.Infrastructure
         public Task<TResult> ExecuteAsync<TResult>(Func<Task<TResult>> operation, CancellationToken cancellationToken)
         {
             Check.NotNull(operation, "operation");
+
             EnsurePreexecutionState();
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             return ProtectedExecuteAsync(operation, cancellationToken);
         }
@@ -231,7 +237,7 @@ namespace System.Data.Entity.Infrastructure
 
                 try
                 {
-                    return await operation().ConfigureAwait(continueOnCapturedContext: false);
+                    return await operation().WithCurrentCulture();
                 }
                 catch (Exception ex)
                 {
@@ -252,7 +258,7 @@ namespace System.Data.Entity.Infrastructure
                     throw new InvalidOperationException(Strings.ExecutionStrategy_NegativeDelay(delay));
                 }
 
-                await Task.Delay(delay.Value, cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                await Task.Delay(delay.Value, cancellationToken).WithCurrentCulture();
             }
         }
 
@@ -301,6 +307,7 @@ namespace System.Data.Entity.Infrastructure
         /// <see cref="EntityException" />, <see cref="DbUpdateException" /> or <see cref="UpdateException" />
         /// and passes it to <paramref name="exceptionHandler" />
         /// </summary>
+        /// <typeparam name="T">The type of the unwrapped exception.</typeparam>
         /// <param name="exception"> The exception to be unwrapped. </param>
         /// <param name="exceptionHandler"> A delegate that will be called with the unwrapped exception. </param>
         /// <returns>

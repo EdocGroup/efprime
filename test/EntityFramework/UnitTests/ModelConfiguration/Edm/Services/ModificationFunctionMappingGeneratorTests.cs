@@ -33,18 +33,18 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
                     databaseMapping.Model.AddEntitySet("ES", entityType));
 
             var storageEntityTypeMapping 
-                = new StorageEntityTypeMapping(
-                    new StorageEntitySetMapping(new EntitySet(), databaseMapping.EntityContainerMappings.Single()));
+                = new EntityTypeMapping(
+                    new EntitySetMapping(new EntitySet(), databaseMapping.EntityContainerMappings.Single()));
            
             storageEntityTypeMapping.AddType(entityType);
             
-            var storageMappingFragment = new StorageMappingFragment(new EntitySet(), storageEntityTypeMapping, false);
+            var storageMappingFragment = new MappingFragment(new EntitySet(), storageEntityTypeMapping, false);
             
             storageMappingFragment.AddColumnMapping(
-                new ColumnMappingBuilder(new EdmProperty("C0"), new[] { intProperty }));
+                new ColumnMappingBuilder(new EdmProperty("C0", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace })), new[] { intProperty }));
 
             storageMappingFragment.AddColumnMapping(
-                new ColumnMappingBuilder(new EdmProperty("C1"), new[] { stringProperty }));
+                new ColumnMappingBuilder(new EdmProperty("C1", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace })), new[] { stringProperty }));
 
             storageEntityTypeMapping.AddFragment(storageMappingFragment);
 
@@ -119,18 +119,18 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
                     databaseMapping.Model.AddEntitySet("ES", entityType));
 
             var storageEntityTypeMapping
-                = new StorageEntityTypeMapping(
-                    new StorageEntitySetMapping(new EntitySet(), databaseMapping.EntityContainerMappings.Single()));
+                = new EntityTypeMapping(
+                    new EntitySetMapping(new EntitySet(), databaseMapping.EntityContainerMappings.Single()));
 
             storageEntityTypeMapping.AddType(entityType);
 
-            var storageMappingFragment = new StorageMappingFragment(new EntitySet(), storageEntityTypeMapping, false);
+            var storageMappingFragment = new MappingFragment(new EntitySet(), storageEntityTypeMapping, false);
 
             storageMappingFragment.AddColumnMapping(
-                new ColumnMappingBuilder(new EdmProperty("C0"), new[] { intProperty }));
+                new ColumnMappingBuilder(new EdmProperty("C0", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace })), new[] { intProperty }));
 
             storageMappingFragment.AddColumnMapping(
-                new ColumnMappingBuilder(new EdmProperty("C1"), new[] { stringProperty }));
+                new ColumnMappingBuilder(new EdmProperty("C1", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace })), new[] { stringProperty }));
 
             storageEntityTypeMapping.AddFragment(storageMappingFragment);
 
@@ -188,11 +188,11 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
                     .Initialize(new EdmModel(DataSpace.CSpace), new EdmModel(DataSpace.SSpace));
 
             var entityType1 = databaseMapping.Model.AddEntityType("E1");
-            entityType1.Annotations.SetClrType(typeof(string));
+            entityType1.GetMetadataProperties().SetClrType(typeof(string));
             databaseMapping.Model.AddEntitySet("E1Set", entityType1);
 
             var entityType2 = databaseMapping.Model.AddEntityType("E2");
-            entityType2.Annotations.SetClrType(typeof(string));
+            entityType2.GetMetadataProperties().SetClrType(typeof(string));
             databaseMapping.Model.AddEntitySet("E2Set", entityType2);
 
             var entityTypeConfiguration = new EntityTypeConfiguration(typeof(object));
@@ -219,27 +219,27 @@ namespace System.Data.Entity.ModelConfiguration.Edm.Services
             associationSet.AddAssociationSetEnd(new AssociationSetEnd(entitySet, associationSet, associationEndMember2));
 
             var associationSetMapping
-                = new StorageAssociationSetMapping(
+                = new AssociationSetMapping(
                     associationSet,
                     entitySet)
                       {
                           SourceEndMapping
-                              = new StorageEndPropertyMapping()
+                              = new EndPropertyMapping()
                                     {
-                                        EndMember = associationEndMember1
+                                        AssociationEnd = associationEndMember1
                                     },
                           TargetEndMapping
-                              = new StorageEndPropertyMapping()
+                              = new EndPropertyMapping()
                                     {
-                                        EndMember = associationEndMember2
+                                        AssociationEnd = associationEndMember2
                                     }
                       };
 
             associationSetMapping.SourceEndMapping
-                                 .AddProperty(new StorageScalarPropertyMapping(new EdmProperty("PK"), new EdmProperty("FooId")));
+                                 .AddPropertyMapping(new ScalarPropertyMapping(new EdmProperty("PK"), new EdmProperty("FooId", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace }))));
 
             associationSetMapping.TargetEndMapping
-                                 .AddProperty(new StorageScalarPropertyMapping(new EdmProperty("PK"), new EdmProperty("BarId")));
+                                 .AddPropertyMapping(new ScalarPropertyMapping(new EdmProperty("PK"), new EdmProperty("BarId", TypeUsage.Create(new PrimitiveType() { DataSpace = DataSpace.SSpace }))));
 
             var functionMappingGenerator
                 = new ModificationFunctionMappingGenerator(ProviderRegistry.Sql2008_ProviderManifest);

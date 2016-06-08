@@ -25,10 +25,12 @@ namespace System.Data.Entity.Infrastructure.Interception
     /// onto <see cref="Database.Log" /> before any commands will be logged.
     /// For more low-level control over logging/interception see <see cref="IDbCommandInterceptor" /> and
     /// <see cref="DbInterception" />.
+    /// Interceptors can also be registered in the config file of the application.
+    /// See http://go.microsoft.com/fwlink/?LinkId=260883 for more information about Entity Framework configuration.
     /// </remarks>
-    public class DatabaseLogFormatter : IDbCommandInterceptor
+    public class DatabaseLogFormatter : IDbCommandInterceptor, IDbConnectionInterceptor, IDbTransactionInterceptor
     {
-        private readonly DbContext _context;
+        private readonly WeakReference _context;
         private readonly Action<string> _writeAction;
         private readonly Stopwatch _stopwatch = new Stopwatch();
 
@@ -55,14 +57,16 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// This constructor must be called by a class that inherits from this class to override the behavior
         /// of <see cref="Database.Log" />.
         /// </remarks>
-        /// <param name="context">The context for which commands should be logged.</param>
+        /// <param name="context">
+        /// The context for which commands should be logged. Pass null to log every command
+        /// from any context and also commands that do not originate from a context.
+        /// </param>
         /// <param name="writeAction">The delegate to which output will be sent.</param>
         public DatabaseLogFormatter(DbContext context, Action<string> writeAction)
         {
-            Check.NotNull(context, "context");
             Check.NotNull(writeAction, "writeAction");
 
-            _context = context;
+            _context = new WeakReference(context);
             _writeAction = writeAction;
         }
 
@@ -72,7 +76,12 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// </summary>
         protected internal DbContext Context
         {
-            get { return _context; }
+            get
+            {
+                return _context != null && _context.IsAlive
+                    ? (DbContext)_context.Target
+                    : null;
+            }
         }
 
         internal Action<string> WriteAction
@@ -203,6 +212,7 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// <see cref="LogCommand" />. This method would typically only be overridden to change the
         /// context filtering behavior.
         /// </summary>
+        /// <typeparam name="TResult">The type of the operation's results.</typeparam>
         /// <param name="command">The command that will be executed.</param>
         /// <param name="interceptionContext">Contextual information associated with the command.</param>
         public virtual void Executing<TResult>(DbCommand command, DbCommandInterceptionContext<TResult> interceptionContext)
@@ -223,6 +233,7 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// <see cref="LogResult" />. This method would typically only be overridden to change the context
         /// filtering behavior.
         /// </summary>
+        /// <typeparam name="TResult">The type of the operation's results.</typeparam>
         /// <param name="command">The command that was executed.</param>
         /// <param name="interceptionContext">Contextual information associated with the command.</param>
         public virtual void Executed<TResult>(DbCommand command, DbCommandInterceptionContext<TResult> interceptionContext)
@@ -241,6 +252,7 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// Called to log a command that is about to be executed. Override this method to change how the
         /// command is logged to <see cref="WriteAction" />.
         /// </summary>
+        /// <typeparam name="TResult">The type of the operation's results.</typeparam>
         /// <param name="command">The command to be logged.</param>
         /// <param name="interceptionContext">Contextual information associated with the command.</param>
         public virtual void LogCommand<TResult>(DbCommand command, DbCommandInterceptionContext<TResult> interceptionContext)
@@ -267,9 +279,10 @@ namespace System.Data.Entity.Infrastructure.Interception
                 }
             }
 
-            Write(interceptionContext.IsAsync
-                      ? Strings.CommandLogAsync(DateTimeOffset.Now, Environment.NewLine)
-                      : Strings.CommandLogNonAsync(DateTimeOffset.Now, Environment.NewLine));
+            Write(
+                interceptionContext.IsAsync
+                    ? Strings.CommandLogAsync(DateTimeOffset.Now, Environment.NewLine)
+                    : Strings.CommandLogNonAsync(DateTimeOffset.Now, Environment.NewLine));
         }
 
         /// <summary>
@@ -277,10 +290,12 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// implementation of <see cref="LogCommand" /> to log parameters, and/or can be overridden to
         /// change the way that parameters are logged to <see cref="WriteAction" />.
         /// </summary>
+        /// <typeparam name="TResult">The type of the operation's results.</typeparam>
         /// <param name="command">The command being logged.</param>
         /// <param name="interceptionContext">Contextual information associated with the command.</param>
         /// <param name="parameter">The parameter to log.</param>
-        public virtual void LogParameter<TResult>(DbCommand command, DbCommandInterceptionContext<TResult> interceptionContext, DbParameter parameter)
+        public virtual void LogParameter<TResult>(
+            DbCommand command, DbCommandInterceptionContext<TResult> interceptionContext, DbParameter parameter)
         {
             Check.NotNull(command, "command");
             Check.NotNull(interceptionContext, "interceptionContext");
@@ -329,6 +344,7 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// Called to log the result of executing a command. Override this method to change how results are
         /// logged to <see cref="WriteAction" />.
         /// </summary>
+        /// <typeparam name="TResult">The type of the operation's results.</typeparam>
         /// <param name="command">The command being logged.</param>
         /// <param name="interceptionContext">Contextual information associated with the command.</param>
         public virtual void LogResult<TResult>(DbCommand command, DbCommandInterceptionContext<TResult> interceptionContext)
@@ -338,8 +354,9 @@ namespace System.Data.Entity.Infrastructure.Interception
 
             if (interceptionContext.Exception != null)
             {
-                Write(Strings.CommandLogFailed(
-                    Stopwatch.ElapsedMilliseconds, interceptionContext.Exception.Message, Environment.NewLine));
+                Write(
+                    Strings.CommandLogFailed(
+                        Stopwatch.ElapsedMilliseconds, interceptionContext.Exception.Message, Environment.NewLine));
             }
             else if (interceptionContext.TaskStatus.HasFlag(TaskStatus.Canceled))
             {
@@ -349,13 +366,441 @@ namespace System.Data.Entity.Infrastructure.Interception
             {
                 var result = interceptionContext.Result;
                 var resultString = (object)result == null
-                                       ? "null"
-                                       : (result is DbDataReader)
-                                             ? result.GetType().Name
-                                             : result.ToString();
+                    ? "null"
+                    : (result is DbDataReader)
+                        ? result.GetType().Name
+                        : result.ToString();
                 Write(Strings.CommandLogComplete(Stopwatch.ElapsedMilliseconds, resultString, Environment.NewLine));
             }
             Write(Environment.NewLine);
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection beginning the transaction.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void BeginningTransaction(DbConnection connection, BeginTransactionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Called after <see cref="DbConnection.BeginTransaction(Data.IsolationLevel)" /> is invoked.
+        /// The default implementation of this method filters by <see cref="DbContext" /> set into
+        /// <see cref="Context" />, if any, and then logs the event.
+        /// </summary>
+        /// <param name="connection">The connection that began the transaction.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void BeganTransaction(DbConnection connection, BeginTransactionInterceptionContext interceptionContext)
+        {
+            Check.NotNull(connection, "connection");
+            Check.NotNull(interceptionContext, "interceptionContext");
+
+            if (Context == null
+                || interceptionContext.DbContexts.Contains(Context, ReferenceEquals))
+            {
+                if (interceptionContext.Exception != null)
+                {
+                    Write(Strings.TransactionStartErrorLog(DateTimeOffset.Now, interceptionContext.Exception.Message, Environment.NewLine));
+                }
+                else
+                {
+                    Write(Strings.TransactionStartedLog(DateTimeOffset.Now, Environment.NewLine));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void EnlistingTransaction(DbConnection connection, EnlistTransactionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void EnlistedTransaction(DbConnection connection, EnlistTransactionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection being opened.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Opening(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Called after <see cref="DbConnection.Open" /> or its async counterpart is invoked.
+        /// The default implementation of this method filters by <see cref="DbContext" /> set into
+        /// <see cref="Context" />, if any, and then logs the event.
+        /// </summary>
+        /// <param name="connection">The connection that was opened.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Opened(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+        {
+            Check.NotNull(connection, "connection");
+            Check.NotNull(interceptionContext, "interceptionContext");
+
+            if (Context == null
+                || interceptionContext.DbContexts.Contains(Context, ReferenceEquals))
+            {
+                if (interceptionContext.Exception != null)
+                {
+                    Write(
+                        interceptionContext.IsAsync
+                            ? Strings.ConnectionOpenErrorLogAsync(
+                                DateTimeOffset.Now, interceptionContext.Exception.Message, Environment.NewLine)
+                            : Strings.ConnectionOpenErrorLog(DateTimeOffset.Now, interceptionContext.Exception.Message, Environment.NewLine));
+                }
+                else if (interceptionContext.TaskStatus.HasFlag(TaskStatus.Canceled))
+                {
+                    Write(Strings.ConnectionOpenCanceledLog(DateTimeOffset.Now, Environment.NewLine));
+                }
+                else
+                {
+                    Write(
+                        interceptionContext.IsAsync
+                            ? Strings.ConnectionOpenedLogAsync(DateTimeOffset.Now, Environment.NewLine)
+                            : Strings.ConnectionOpenedLog(DateTimeOffset.Now, Environment.NewLine));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection being closed.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Closing(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Called after <see cref="DbConnection.Close" /> is invoked.
+        /// The default implementation of this method filters by <see cref="DbContext" /> set into
+        /// <see cref="Context" />, if any, and then logs the event.
+        /// </summary>
+        /// <param name="connection">The connection that was closed.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Closed(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+        {
+            Check.NotNull(connection, "connection");
+            Check.NotNull(interceptionContext, "interceptionContext");
+
+            if (Context == null
+                || interceptionContext.DbContexts.Contains(Context, ReferenceEquals))
+            {
+                if (interceptionContext.Exception != null)
+                {
+                    Write(Strings.ConnectionCloseErrorLog(DateTimeOffset.Now, interceptionContext.Exception.Message, Environment.NewLine));
+                }
+                else
+                {
+                    Write(Strings.ConnectionClosedLog(DateTimeOffset.Now, Environment.NewLine));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionStringGetting(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionStringGot(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionStringSetting(
+            DbConnection connection, DbConnectionPropertyInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionStringSet(
+            DbConnection connection, DbConnectionPropertyInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionTimeoutGetting(DbConnection connection, DbConnectionInterceptionContext<int> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionTimeoutGot(DbConnection connection, DbConnectionInterceptionContext<int> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void DatabaseGetting(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void DatabaseGot(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void DataSourceGetting(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void DataSourceGot(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Called before <see cref="Component.Dispose()" /> is invoked.
+        /// The default implementation of this method filters by <see cref="DbContext" /> set into
+        /// <see cref="Context" />, if any, and then logs the event.
+        /// </summary>
+        /// <param name="connection">The connection being disposed.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Disposing(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+        {
+            Check.NotNull(connection, "connection");
+            Check.NotNull(interceptionContext, "interceptionContext");
+
+            if ((Context == null
+                 || interceptionContext.DbContexts.Contains(Context, ReferenceEquals))
+                && connection.State == ConnectionState.Open)
+            {
+                Write(Strings.ConnectionDisposedLog(DateTimeOffset.Now, Environment.NewLine));
+            }
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection that was disposed.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Disposed(DbConnection connection, DbConnectionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ServerVersionGetting(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ServerVersionGot(DbConnection connection, DbConnectionInterceptionContext<string> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void StateGetting(DbConnection connection, DbConnectionInterceptionContext<ConnectionState> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="connection">The connection.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void StateGot(DbConnection connection, DbConnectionInterceptionContext<ConnectionState> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="transaction">The transaction.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionGetting(DbTransaction transaction, DbTransactionInterceptionContext<DbConnection> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="transaction">The transaction.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void ConnectionGot(DbTransaction transaction, DbTransactionInterceptionContext<DbConnection> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden. </summary>
+        /// <param name="transaction">The transaction.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void IsolationLevelGetting(
+            DbTransaction transaction, DbTransactionInterceptionContext<IsolationLevel> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="transaction">The transaction.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void IsolationLevelGot(
+            DbTransaction transaction, DbTransactionInterceptionContext<IsolationLevel> interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="transaction">The transaction being commited.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Committing(DbTransaction transaction, DbTransactionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// This method is called after <see cref="DbTransaction.Commit" /> is invoked.
+        /// The default implementation of this method filters by <see cref="DbContext" /> set into
+        /// <see cref="Context" />, if any, and then logs the event.
+        /// </summary>
+        /// <param name="transaction">The transaction that was commited.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Committed(DbTransaction transaction, DbTransactionInterceptionContext interceptionContext)
+        {
+            Check.NotNull(transaction, "transaction");
+            Check.NotNull(interceptionContext, "interceptionContext");
+
+            if (Context == null
+                || interceptionContext.DbContexts.Contains(Context, ReferenceEquals))
+            {
+                if (interceptionContext.Exception != null)
+                {
+                    Write(Strings.TransactionCommitErrorLog(DateTimeOffset.Now, interceptionContext.Exception.Message, Environment.NewLine));
+                }
+                else
+                {
+                    Write(Strings.TransactionCommittedLog(DateTimeOffset.Now, Environment.NewLine));
+                }
+            }
+        }
+
+        /// <summary>
+        /// This method is called before <see cref="DbTransaction.Dispose()" /> is invoked.
+        /// The default implementation of this method filters by <see cref="DbContext" /> set into
+        /// <see cref="Context" />, if any, and then logs the event.
+        /// </summary>
+        /// <param name="transaction">The transaction being disposed.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Disposing(DbTransaction transaction, DbTransactionInterceptionContext interceptionContext)
+        {
+            Check.NotNull(transaction, "transaction");
+            Check.NotNull(interceptionContext, "interceptionContext");
+
+            if ((Context == null
+                 || interceptionContext.DbContexts.Contains(Context, ReferenceEquals))
+                && transaction.Connection != null)
+            {
+                Write(Strings.TransactionDisposedLog(DateTimeOffset.Now, Environment.NewLine));
+            }
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="transaction">The transaction that was disposed.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void Disposed(DbTransaction transaction, DbTransactionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// Does not write to log unless overridden.
+        /// </summary>
+        /// <param name="transaction">The transaction being rolled back.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void RollingBack(DbTransaction transaction, DbTransactionInterceptionContext interceptionContext)
+        {
+        }
+
+        /// <summary>
+        /// This method is called after <see cref="DbTransaction.Rollback" /> is invoked.
+        /// The default implementation of this method filters by <see cref="DbContext" /> set into
+        /// <see cref="Context" />, if any, and then logs the event.
+        /// </summary>
+        /// <param name="transaction">The transaction that was rolled back.</param>
+        /// <param name="interceptionContext">Contextual information associated with the call.</param>
+        public virtual void RolledBack(DbTransaction transaction, DbTransactionInterceptionContext interceptionContext)
+        {
+            Check.NotNull(transaction, "transaction");
+            Check.NotNull(interceptionContext, "interceptionContext");
+
+            if (Context == null
+                || interceptionContext.DbContexts.Contains(Context, ReferenceEquals))
+            {
+                if (interceptionContext.Exception != null)
+                {
+                    Write(
+                        Strings.TransactionRollbackErrorLog(DateTimeOffset.Now, interceptionContext.Exception.Message, Environment.NewLine));
+                }
+                else
+                {
+                    Write(Strings.TransactionRolledBackLog(DateTimeOffset.Now, Environment.NewLine));
+                }
+            }
         }
 
         /// <inheritdoc />

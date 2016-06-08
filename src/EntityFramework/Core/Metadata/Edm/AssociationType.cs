@@ -17,14 +17,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
     [SuppressMessage("Microsoft.Maintainability", "CA1501:AvoidExcessiveInheritance")]
     public class AssociationType : RelationshipType
     {
-        /// <summary>
-        /// Initializes a new instance of Association Type with the given name, namespace, version and ends
-        /// </summary>
-        /// <param name="name"> name of the association type </param>
-        /// <param name="namespaceName"> namespace of the association type </param>
-        /// <param name="foreignKey"> is this a foreign key (FK) relationship? </param>
-        /// <param name="dataSpace"> dataSpace in which this AssociationType belongs to </param>
-        /// <exception cref="System.ArgumentNullException">Thrown if either the name, namespace or version attributes are null</exception>
+        // Used by MetadataOptimization, do not use for anything else.
+        internal volatile int Index = -1;
+
+        // <summary>
+        // Initializes a new instance of Association Type with the given name, namespace, version and ends
+        // </summary>
+        // <param name="name"> name of the association type </param>
+        // <param name="namespaceName"> namespace of the association type </param>
+        // <param name="foreignKey"> is this a foreign key (FK) relationship? </param>
+        // <param name="dataSpace"> dataSpace in which this AssociationType belongs to </param>
+        // <exception cref="System.ArgumentNullException">Thrown if either the name, namespace or version attributes are null</exception>
         internal AssociationType(
             string name,
             string namespaceName,
@@ -122,7 +125,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 }
                 else
                 {
-                    KeyMembers.Source[0] = value;
+                    SetKeyMember(0, value);
                 }
             }
         }
@@ -142,9 +145,30 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 }
                 else
                 {
-                    KeyMembers.Source[1] = value;
+                    SetKeyMember(1, value);
                 }
             }
+        }
+
+        private void SetKeyMember(int index, AssociationEndMember member)
+        {
+            Debug.Assert(index < KeyMembers.Count);
+            DebugCheck.NotNull(member);
+            Debug.Assert(!IsReadOnly);
+
+            var keyMember = KeyMembers.Source[index];
+            var memberIndex = Members.IndexOf(keyMember);
+
+            if (memberIndex >= 0)
+            {
+                Members.Source[memberIndex] = member;
+            }
+            else
+            {
+                Debug.Fail("KeyMembers and Members are out of sync.");
+            }
+
+            KeyMembers.Source[index] = member;
         }
 
         /// <summary>
@@ -170,13 +194,13 @@ namespace System.Data.Entity.Core.Metadata.Edm
             get { return _isForeignKey; }
         }
 
-        /// <summary>
-        /// Validates a EdmMember object to determine if it can be added to this type's
-        /// Members collection. If this method returns without throwing, it is assumed
-        /// the member is valid.
-        /// </summary>
-        /// <param name="member"> The member to validate </param>
-        /// <exception cref="System.ArgumentException">Thrown if the member is not an AssociationEndMember</exception>
+        // <summary>
+        // Validates a EdmMember object to determine if it can be added to this type's
+        // Members collection. If this method returns without throwing, it is assumed
+        // the member is valid.
+        // </summary>
+        // <param name="member"> The member to validate </param>
+        // <exception cref="System.ArgumentException">Thrown if the member is not an AssociationEndMember</exception>
         internal override void ValidateMemberForAdd(EdmMember member)
         {
             Debug.Assert(
@@ -184,9 +208,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 "Only members of type AssociationEndMember may be added to Association definitions.");
         }
 
-        /// <summary>
-        /// Sets this item to be read-only, once this is set, the item will never be writable again.
-        /// </summary>
+        // <summary>
+        // Sets this item to be read-only, once this is set, the item will never be writable again.
+        // </summary>
         internal override void SetReadOnly()
         {
             if (!IsReadOnly)
@@ -196,9 +220,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Add the given referential constraint to the collection of referential constraints
-        /// </summary>
+        // <summary>
+        // Add the given referential constraint to the collection of referential constraints
+        // </summary>
         internal void AddReferentialConstraint(ReferentialConstraint referentialConstraint)
         {
             ReferentialConstraints.Source.Add(referentialConstraint);

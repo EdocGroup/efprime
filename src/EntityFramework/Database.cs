@@ -5,6 +5,7 @@ namespace System.Data.Entity
     using System.ComponentModel;
     using System.Data.Common;
     using System.Data.Entity.Core.EntityClient;
+    using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.DependencyResolution;
@@ -23,6 +24,8 @@ namespace System.Data.Entity
     /// Note that deletion and checking for existence of a database can be performed using just a
     /// connection (i.e. without a full context) by using the static methods of this class.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1001:TypesThatOwnDisposableFieldsShouldBeDisposable",
+        Justification = "The DbContextTransaction and EntityTransaction should never be disposed by this class")]
     public class Database
     {
         #region Fields and constructors
@@ -37,10 +40,14 @@ namespace System.Data.Entity
         // The context that backs this instance.
         private readonly InternalContext _internalContext;
 
-        /// <summary>
-        /// Creates a Database backed by the given context.  This object can be used to create a database,
-        /// check for database existence, and delete a database.
-        /// </summary>
+        // The cached transactions
+        private EntityTransaction _entityTransaction;
+        private DbContextTransaction _dbContextTransaction;
+
+        // <summary>
+        // Creates a Database backed by the given context.  This object can be used to create a database,
+        // check for database existence, and delete a database.
+        // </summary>
         internal Database(InternalContext internalContext)
         {
             DebugCheck.NotNull(internalContext);
@@ -51,6 +58,34 @@ namespace System.Data.Entity
         #endregion
 
         #region Transactions
+
+        /// <summary>
+        /// Gets the transaction the underlying store connection is enlisted in.  May be null.
+        /// </summary>
+        public DbContextTransaction CurrentTransaction
+        {
+            get
+            {
+                var currentEntityTransaction = ((EntityConnection)_internalContext.ObjectContext.Connection).CurrentTransaction;
+
+                if (_dbContextTransaction == null || _entityTransaction != currentEntityTransaction)
+                {
+                    // Cache EntityTransaction and the resulting DbContextTransaction
+                    _entityTransaction = currentEntityTransaction;
+
+                    if (currentEntityTransaction != null)
+                    {
+                        _dbContextTransaction = new DbContextTransaction(currentEntityTransaction);
+                    }
+                    else
+                    {
+                        _dbContextTransaction = null;
+                    }
+                }
+
+                return _dbContextTransaction;
+            }
+        }
 
         /// <summary>
         /// Enables the user to pass in a database transaction created outside of the <see cref="Database" /> object
@@ -71,7 +106,8 @@ namespace System.Data.Entity
         /// <exception cref="InvalidOperationException">Thrown if the connection associated with the transaction does not match the Entity Framework's connection</exception>
         public void UseTransaction(DbTransaction transaction)
         {
-            ((EntityConnection)_internalContext.GetObjectContextWithoutDatabaseInitialization().Connection).UseStoreTransaction(transaction);
+            _entityTransaction = ((EntityConnection)_internalContext.GetObjectContextWithoutDatabaseInitialization().Connection).UseStoreTransaction(transaction);
+            _dbContextTransaction = null;
         }
 
         /// <summary>
@@ -82,18 +118,29 @@ namespace System.Data.Entity
         /// </returns>
         public DbContextTransaction BeginTransaction()
         {
-            return new DbContextTransaction((EntityConnection)_internalContext.ObjectContext.Connection);
+            var entityConnection = (EntityConnection)_internalContext.ObjectContext.Connection;
+
+            _dbContextTransaction = new DbContextTransaction(entityConnection);
+            _entityTransaction = entityConnection.CurrentTransaction;
+
+            return _dbContextTransaction;
         }
 
         /// <summary>
         /// Begins a transaction on the underlying store connection using the specified isolation level
         /// </summary>
+        /// <param name="isolationLevel">The database isolation level with which the underlying store transaction will be created</param>
         /// <returns>
         /// a <see cref="DbContextTransaction" /> object wrapping access to the underlying store's transaction object
         /// </returns>
         public DbContextTransaction BeginTransaction(IsolationLevel isolationLevel)
         {
-            return new DbContextTransaction((EntityConnection)_internalContext.ObjectContext.Connection, isolationLevel);
+            var entityConnection = (EntityConnection)_internalContext.ObjectContext.Connection;
+
+            _dbContextTransaction = new DbContextTransaction(entityConnection, isolationLevel);
+            _entityTransaction = entityConnection.CurrentTransaction;
+
+            return _dbContextTransaction;
         }
 
         #endregion
@@ -175,7 +222,12 @@ namespace System.Data.Entity
         /// <returns> True if the model hash in the context and the database match; false otherwise. </returns>
         public bool CompatibleWithModel(bool throwIfNoMetadata)
         {
-            return _internalContext.CompatibleWithModel(throwIfNoMetadata);
+            return CompatibleWithModel(throwIfNoMetadata, DatabaseExistenceState.Unknown);
+        }
+
+        internal bool CompatibleWithModel(bool throwIfNoMetadata, DatabaseExistenceState existenceState)
+        {
+            return _internalContext.CompatibleWithModel(throwIfNoMetadata, existenceState);
         }
 
         #endregion
@@ -189,19 +241,30 @@ namespace System.Data.Entity
         /// </summary>
         public void Create()
         {
-            Create(skipExistsCheck: false);
+            Create(DatabaseExistenceState.Unknown);
         }
 
-        internal void Create(bool skipExistsCheck)
+        internal void Create(DatabaseExistenceState existenceState)
         {
+            if (existenceState == DatabaseExistenceState.Unknown)
+            {
+                if (_internalContext.DatabaseOperations.Exists(
+                    _internalContext.Connection, 
+                    _internalContext.CommandTimeout,
+                    new Lazy<StoreItemCollection>(CreateStoreItemCollection)))
+                {
+                    var interceptionContext = new DbInterceptionContext();
+                    interceptionContext = interceptionContext.WithDbContext(_internalContext.Owner);
+
+                    throw Error.Database_DatabaseAlreadyExists(
+                        DbInterception.Dispatch.Connection.GetDatabase(_internalContext.Connection, interceptionContext));
+                }
+                existenceState = DatabaseExistenceState.DoesNotExist;
+            }
+
             using (var clonedObjectContext = _internalContext.CreateObjectContextForDdlOps())
             {
-                if (!skipExistsCheck
-                    && _internalContext.DatabaseOperations.Exists(clonedObjectContext.ObjectContext))
-                {
-                    throw Error.Database_DatabaseAlreadyExists(_internalContext.Connection.Database);
-                }
-                _internalContext.CreateDatabase(clonedObjectContext.ObjectContext);
+                _internalContext.CreateDatabase(clonedObjectContext.ObjectContext, existenceState);
             }
         }
 
@@ -212,15 +275,19 @@ namespace System.Data.Entity
         /// <returns> True if the database did not exist and was created; false otherwise. </returns>
         public bool CreateIfNotExists()
         {
+            if (_internalContext.DatabaseOperations.Exists(
+                _internalContext.Connection,
+                _internalContext.CommandTimeout,
+                new Lazy<StoreItemCollection>(CreateStoreItemCollection)))
+            {
+                return false;
+            }
+
             using (var clonedObjectContext = _internalContext.CreateObjectContextForDdlOps())
             {
-                if (!_internalContext.DatabaseOperations.Exists(clonedObjectContext.ObjectContext))
-                {
-                    _internalContext.CreateDatabase(clonedObjectContext.ObjectContext);
-                    return true;
-                }
+                _internalContext.CreateDatabase(clonedObjectContext.ObjectContext, DatabaseExistenceState.DoesNotExist);
             }
-            return false;
+            return true;
         }
 
         /// <summary>
@@ -229,10 +296,10 @@ namespace System.Data.Entity
         /// <returns> True if the database exists; false otherwise. </returns>
         public bool Exists()
         {
-            using (var clonedObjectContext = _internalContext.CreateObjectContextForDdlOps())
-            {
-                return _internalContext.DatabaseOperations.Exists(clonedObjectContext.ObjectContext);
-            }
+            return _internalContext.DatabaseOperations.Exists(
+                _internalContext.Connection,
+                _internalContext.CommandTimeout,
+                new Lazy<StoreItemCollection>(CreateStoreItemCollection));
         }
 
         /// <summary>
@@ -245,17 +312,21 @@ namespace System.Data.Entity
         /// <returns> True if the database did exist and was deleted; false otherwise. </returns>
         public bool Delete()
         {
+            if (!_internalContext.DatabaseOperations.Exists(
+                _internalContext.Connection, 
+                _internalContext.CommandTimeout,
+                new Lazy<StoreItemCollection>(CreateStoreItemCollection)))
+            {
+                return false;
+            }
+
             using (var clonedObjectContext = _internalContext.CreateObjectContextForDdlOps())
             {
-                var deleted = _internalContext.DatabaseOperations.DeleteIfExists(clonedObjectContext.ObjectContext);
-
-                if (deleted)
-                {
-                    _internalContext.MarkDatabaseNotInitialized();
-                }
-
-                return deleted;
+                _internalContext.DatabaseOperations.Delete(clonedObjectContext.ObjectContext);
+                _internalContext.MarkDatabaseNotInitialized();
             }
+
+            return true;
         }
 
         #endregion
@@ -274,8 +345,13 @@ namespace System.Data.Entity
         {
             Check.NotEmpty(nameOrConnectionString, "nameOrConnectionString");
 
-            return PerformDatabaseOp(
-                new LazyInternalConnection(nameOrConnectionString), new DatabaseOperations().Exists);
+            using (var connection = new LazyInternalConnection(nameOrConnectionString))
+            {
+                return new DatabaseOperations().Exists(
+                    connection.Connection, 
+                    null, 
+                    new Lazy<StoreItemCollection>(() => new StoreItemCollection()));
+            }
         }
 
         /// <summary>
@@ -290,8 +366,19 @@ namespace System.Data.Entity
         {
             Check.NotEmpty(nameOrConnectionString, "nameOrConnectionString");
 
-            return PerformDatabaseOp(
-                new LazyInternalConnection(nameOrConnectionString), new DatabaseOperations().DeleteIfExists);
+            if (!Exists(nameOrConnectionString))
+            {
+                return false;
+            }
+
+            using (var connection = new LazyInternalConnection(nameOrConnectionString))
+            {
+                using (var context = CreateEmptyObjectContext(connection.Connection))
+                {
+                    new DatabaseOperations().Delete(context);
+                }
+            }
+            return true;
         }
 
         /// <summary>
@@ -303,7 +390,10 @@ namespace System.Data.Entity
         {
             Check.NotNull(existingConnection, "existingConnection");
 
-            return PerformDatabaseOp(existingConnection, new DatabaseOperations().Exists);
+            return new DatabaseOperations().Exists(
+                existingConnection, 
+                null,
+                new Lazy<StoreItemCollection>(() => new StoreItemCollection()));
         }
 
         /// <summary>
@@ -315,7 +405,17 @@ namespace System.Data.Entity
         {
             Check.NotNull(existingConnection, "existingConnection");
 
-            return PerformDatabaseOp(existingConnection, new DatabaseOperations().DeleteIfExists);
+            if (!Exists(existingConnection))
+            {
+                return false;
+            }
+
+            using (var context = CreateEmptyObjectContext(existingConnection))
+            {
+                new DatabaseOperations().Delete(context);
+            }
+
+            return true;
         }
 
         #endregion
@@ -349,27 +449,27 @@ namespace System.Data.Entity
             }
         }
 
-        /// <summary>
-        /// The actual connection factory that was set, rather than the one that is returned by the resolver,
-        /// which may have come from another source.
-        /// </summary>
+        // <summary>
+        // The actual connection factory that was set, rather than the one that is returned by the resolver,
+        // which may have come from another source.
+        // </summary>
         internal static IDbConnectionFactory SetDefaultConnectionFactory
         {
             get { return _defaultConnectionFactory.Value; }
         }
 
-        /// <summary>
-        /// Checks whether or not the DefaultConnectionFactory has been set to something other than its default value.
-        /// </summary>
+        // <summary>
+        // Checks whether or not the DefaultConnectionFactory has been set to something other than its default value.
+        // </summary>
         internal static bool DefaultConnectionFactoryChanged
         {
             get { return !ReferenceEquals(_defaultConnectionFactory, _defaultDefaultConnectionFactory); }
         }
 
-        /// <summary>
-        /// Resets the DefaultConnectionFactory to its initial value.
-        /// Currently, this method is only used by test code.
-        /// </summary>
+        // <summary>
+        // Resets the DefaultConnectionFactory to its initial value.
+        // Currently, this method is only used by test code.
+        // </summary>
         internal static void ResetDefaultConnectionFactory()
         {
             _defaultConnectionFactory = _defaultDefaultConnectionFactory;
@@ -379,43 +479,11 @@ namespace System.Data.Entity
 
         #region Database operations
 
-        /// <summary>
-        /// Performs the operation defined by the given delegate using the given lazy connection, ensuring
-        /// that the lazy connection is disposed after use.
-        /// </summary>
-        /// <param name="lazyConnection"> Information used to create a DbConnection. </param>
-        /// <param name="operation"> The operation to perform. </param>
-        /// <returns> The return value of the operation. </returns>
-        private static bool PerformDatabaseOp(
-            LazyInternalConnection lazyConnection, Func<ObjectContext, bool> operation)
-        {
-            using (lazyConnection)
-            {
-                return PerformDatabaseOp(lazyConnection.Connection, operation);
-            }
-        }
-
-        /// <summary>
-        /// Performs the operation defined by the given delegate against a connection.  The connection
-        /// is either the connection accessed from the context backing this object, or is obtained from
-        /// the connection information passed to one of the static methods.
-        /// </summary>
-        /// <param name="connection"> The connection to use. </param>
-        /// <param name="operation"> The operation to perform. </param>
-        /// <returns> The return value of the operation. </returns>
-        private static bool PerformDatabaseOp(DbConnection connection, Func<ObjectContext, bool> operation)
-        {
-            using (var context = CreateEmptyObjectContext(connection))
-            {
-                return operation(context);
-            }
-        }
-
-        /// <summary>
-        /// Returns an empty ObjectContext that can be used to perform delete/exists operations.
-        /// </summary>
-        /// <param name="connection"> The connection for which to create an ObjectContext. </param>
-        /// <returns> The empty context. </returns>
+        // <summary>
+        // Returns an empty ObjectContext that can be used to perform delete/exists operations.
+        // </summary>
+        // <param name="connection"> The connection for which to create an ObjectContext. </param>
+        // <returns> The empty context. </returns>
         private static ObjectContext CreateEmptyObjectContext(DbConnection connection)
         {
             // Unfortunately, we need to spin up an ObjectContext to do operations on the database
@@ -444,7 +512,11 @@ namespace System.Data.Entity
         /// </summary>
         /// <typeparam name="TElement"> The type of object returned by the query. </typeparam>
         /// <param name="sql"> The SQL query string. </param>
-        /// <param name="parameters"> The parameters to apply to the SQL query string. </param>
+        /// <param name="parameters"> 
+        /// The parameters to apply to the SQL query string. If output parameters are used, their values will 
+        /// not be available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A <see cref="DbRawSqlQuery{TElement}" /> object that will execute the query when it is enumerated.
         /// </returns>
@@ -473,7 +545,11 @@ namespace System.Data.Entity
         /// </summary>
         /// <param name="elementType"> The type of object returned by the query. </param>
         /// <param name="sql"> The SQL query string. </param>
-        /// <param name="parameters"> The parameters to apply to the SQL query string. </param>
+        /// <param name="parameters"> 
+        /// The parameters to apply to the SQL query string. If output parameters are used, their values 
+        /// will not be available until the results have been read completely. This is due to the underlying 
+        /// behavior of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A <see cref="DbRawSqlQuery" /> object that will execute the query when it is enumerated.
         /// </returns>
@@ -503,7 +579,10 @@ namespace System.Data.Entity
         /// <returns> The result returned by the database after executing the command. </returns>
         public int ExecuteSqlCommand(string sql, params object[] parameters)
         {
-            return ExecuteSqlCommand(TransactionalBehavior.EnsureTransaction, sql, parameters);
+            return ExecuteSqlCommand(
+                _internalContext.EnsureTransactionsForFunctionsAndCommands ? TransactionalBehavior.EnsureTransaction : TransactionalBehavior.DoNotEnsureTransaction,
+                sql,
+                parameters);
         }
 
         /// <summary>
@@ -551,7 +630,7 @@ namespace System.Data.Entity
         /// </returns>
         public Task<int> ExecuteSqlCommandAsync(string sql, params object[] parameters)
         {
-            return ExecuteSqlCommandAsync(TransactionalBehavior.EnsureTransaction, sql, CancellationToken.None, parameters);
+            return ExecuteSqlCommandAsync(sql, CancellationToken.None, parameters);
         }
 
         /// <summary>
@@ -604,7 +683,11 @@ namespace System.Data.Entity
         /// </returns>
         public Task<int> ExecuteSqlCommandAsync(string sql, CancellationToken cancellationToken, params object[] parameters)
         {
-            return ExecuteSqlCommandAsync(TransactionalBehavior.EnsureTransaction, sql, cancellationToken, parameters);
+            return ExecuteSqlCommandAsync(
+                _internalContext.EnsureTransactionsForFunctionsAndCommands ? TransactionalBehavior.EnsureTransaction : TransactionalBehavior.DoNotEnsureTransaction,
+                sql,
+                cancellationToken,
+                parameters);
         }
 
         /// <summary>
@@ -634,6 +717,8 @@ namespace System.Data.Entity
         {
             Check.NotEmpty(sql, "sql");
             Check.NotNull(parameters, "parameters");
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             return _internalContext.ExecuteSqlCommandAsync(transactionalBehavior, sql, cancellationToken, parameters);
         }
@@ -677,6 +762,15 @@ namespace System.Data.Entity
         }
 
         #endregion
+
+        private StoreItemCollection CreateStoreItemCollection()
+        {
+            using (var clonedObjectContext = _internalContext.CreateObjectContextForDdlOps())
+            {
+                var entityConnection = ((EntityConnection)clonedObjectContext.ObjectContext.Connection);
+                return (StoreItemCollection)entityConnection.GetMetadataWorkspace().GetItemCollection(DataSpace.SSpace);
+            }
+        }
 
         /// <summary>
         /// Gets or sets the timeout value, in seconds, for all context operations.

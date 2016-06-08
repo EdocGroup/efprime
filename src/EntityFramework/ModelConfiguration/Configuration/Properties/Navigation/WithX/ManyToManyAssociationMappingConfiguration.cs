@@ -6,6 +6,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
     using System.ComponentModel;
     using System.Data.Entity.Core.Mapping;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -24,6 +25,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
         private DatabaseName _tableName;
 
+        private readonly IDictionary<string, object> _annotations = new Dictionary<string, object>();
+
         internal ManyToManyAssociationMappingConfiguration()
         {
         }
@@ -35,6 +38,11 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             _leftKeyColumnNames.AddRange(source._leftKeyColumnNames);
             _rightKeyColumnNames.AddRange(source._rightKeyColumnNames);
             _tableName = source._tableName;
+
+            foreach (var annotation in source._annotations)
+            {
+                _annotations.Add(annotation);
+            }
         }
 
         internal override AssociationMappingConfiguration Clone()
@@ -65,6 +73,36 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Check.NotEmpty(tableName, "tableName");
 
             _tableName = new DatabaseName(tableName, schemaName);
+
+            return this;
+        }
+
+        /// <summary>
+        /// Sets an annotation in the model for the join table. The annotation value can later be used when
+        /// processing the table such as when creating migrations.
+        /// </summary>
+        /// <remarks>
+        /// It will likely be necessary to register a <see cref="IMetadataAnnotationSerializer"/> if the type of
+        /// the annotation value is anything other than a string. Passing a null value clears any annotation with
+        /// the given name on the column that had been previously set.
+        /// </remarks>
+        /// <param name="name">The annotation name, which must be a valid C#/EDM identifier.</param>
+        /// <param name="value">The annotation value, which may be a string or some other type that
+        /// can be serialized with an <see cref="IMetadataAnnotationSerializer"/></param>.
+        /// <returns>The same configuration instance so that multiple calls can be chained.</returns>
+        public ManyToManyAssociationMappingConfiguration HasTableAnnotation(string name, object value)
+        {
+            Check.NotEmpty(name, "name");
+
+            // Technically we could accept some names that are invalid in EDM, but this is not too restrictive
+            // and is an easy way of ensuring that name is valid all places we want to use it--i.e. in the XML
+            // and in the MetadataWorkspace.
+            if (!name.IsValidUndottedName())
+            {
+                throw new ArgumentException(Strings.BadAnnotationName(name));
+            }
+
+            _annotations[name] = value;
 
             return this;
         }
@@ -102,7 +140,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         }
 
         internal override void Configure(
-            StorageAssociationSetMapping associationSetMapping, EdmModel database, PropertyInfo navigationProperty)
+            AssociationSetMapping associationSetMapping, EdmModel database, PropertyInfo navigationProperty)
         {
             DebugCheck.NotNull(associationSetMapping);
             DebugCheck.NotNull(database);
@@ -118,7 +156,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
             var sourceEndIsPrimaryConfiguration
                 = navigationProperty.IsSameAs(
-                    associationSetMapping.SourceEndMapping.EndMember.GetClrPropertyInfo());
+                    associationSetMapping.SourceEndMapping.AssociationEnd.GetClrPropertyInfo());
 
             ConfigureColumnNames(
                 sourceEndIsPrimaryConfiguration ? _leftKeyColumnNames : _rightKeyColumnNames,
@@ -127,10 +165,15 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             ConfigureColumnNames(
                 sourceEndIsPrimaryConfiguration ? _rightKeyColumnNames : _leftKeyColumnNames,
                 associationSetMapping.TargetEndMapping.PropertyMappings.ToList());
+
+            foreach (var annotation in _annotations)
+            {
+                table.AddAnnotation(XmlConstants.CustomAnnotationPrefix + annotation.Key, annotation.Value);
+            }
         }
 
         private static void ConfigureColumnNames(
-            ICollection<string> keyColumnNames, IList<StorageScalarPropertyMapping> propertyMappings)
+            ICollection<string> keyColumnNames, IList<ScalarPropertyMapping> propertyMappings)
         {
             DebugCheck.NotNull(keyColumnNames);
             DebugCheck.NotNull(propertyMappings);
@@ -141,7 +184,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 throw Error.IncorrectColumnCount(string.Join(", ", keyColumnNames));
             }
 
-            keyColumnNames.Each((n, i) => propertyMappings[i].ColumnProperty.Name = n);
+            keyColumnNames.Each((n, i) => propertyMappings[i].Column.Name = n);
         }
 
         /// <inheritdoc />
@@ -172,19 +215,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 return false;
             }
 
-            if (_leftKeyColumnNames.SequenceEqual(other._leftKeyColumnNames)
-                && _rightKeyColumnNames.SequenceEqual(other._rightKeyColumnNames))
-            {
-                return true;
-            }
-
-            if (_leftKeyColumnNames.SequenceEqual(other._rightKeyColumnNames)
-                && _rightKeyColumnNames.SequenceEqual(other._leftKeyColumnNames))
-            {
-                return true;
-            }
-
-            return false;
+            return Equals(other._tableName, _tableName)
+                   && ((_leftKeyColumnNames.SequenceEqual(other._leftKeyColumnNames)
+                        && _rightKeyColumnNames.SequenceEqual(other._rightKeyColumnNames))
+                       || (_leftKeyColumnNames.SequenceEqual(other._rightKeyColumnNames)
+                           && _rightKeyColumnNames.SequenceEqual(other._leftKeyColumnNames)))
+                   && _annotations.OrderBy(a => a.Key).SequenceEqual(other._annotations.OrderBy(a => a.Key));
         }
 
         /// <inheritdoc />
@@ -201,8 +237,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 return true;
             }
 
-            if (obj.GetType()
-                != typeof(ManyToManyAssociationMappingConfiguration))
+            if (obj.GetType() != typeof(ManyToManyAssociationMappingConfiguration))
             {
                 return false;
             }
@@ -216,9 +251,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         {
             unchecked
             {
-                return ((_tableName != null ? _tableName.GetHashCode() : 0) * 397)
-                       ^ _leftKeyColumnNames.Union(_rightKeyColumnNames)
-                                            .Aggregate(0, (t, n) => t + n.GetHashCode());
+                var hashCode = (_tableName != null ? _tableName.GetHashCode() : 0) * 397;
+                hashCode = _leftKeyColumnNames.Aggregate(hashCode, (h, v) => (h * 397) ^ v.GetHashCode());
+                hashCode = _rightKeyColumnNames.Aggregate(hashCode, (h, v) => (h * 397) ^ v.GetHashCode());
+                return _annotations.OrderBy(a => a.Key).Aggregate(hashCode, (h, v) => (h * 397) ^ v.GetHashCode());
             }
         }
 

@@ -22,7 +22,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             public void Returns_rows_affected_when_there_is_no_reader()
             {
                 var timeout = 43;
-                var mockUpdateTranslator = new Mock<UpdateTranslator>(MockBehavior.Strict);
+                var mockUpdateTranslator = new Mock<UpdateTranslator> { CallBase = true };
                 mockUpdateTranslator.Setup(m => m.CommandTimeout).Returns(timeout);
                 var entityConnection = new Mock<EntityConnection>().Object;
                 mockUpdateTranslator.Setup(m => m.Connection).Returns(entityConnection);
@@ -75,7 +75,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 var entityType = new EntityType("", "", DataSpace.CSpace, Enumerable.Empty<string>(), new[] { edmProperty });
                 entityType.SetReadOnly();
 
-                var mockUpdateTranslator = new Mock<UpdateTranslator>(MockBehavior.Strict);
+                var mockUpdateTranslator = new Mock<UpdateTranslator> { CallBase = true };
                 mockUpdateTranslator.Setup(m => m.CommandTimeout).Returns(() => null);
                 var entityConnection = new Mock<EntityConnection>().Object;
                 mockUpdateTranslator.Setup(m => m.Connection).Returns(entityConnection);
@@ -243,6 +243,26 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 Assert.Equal(1, generatedValues.Count);
                 Assert.Equal(dbValue, generatedValues[0].Value);
                 Assert.Equal(0, generatedValues[0].Key.GetSimpleValue());
+            }
+
+            [Fact]
+            public void OperationCanceledException_thrown_if_task_is_cancelled()
+            {
+                var dynamicUpdateCommand = new Mock<DynamicUpdateCommand>(
+                    new Mock<TableChangeProcessor>().Object,
+                    new Mock<UpdateTranslator>().Object,
+                    ModificationOperator.Delete,
+                    /* originalValues */ null,
+                    /* currentValues */ null,
+                    new Mock<DbModificationCommandTree>().Object, 
+                    /*outputIdentifiers*/ null)
+                {
+                    CallBase = true
+                }.Object;
+
+                Assert.Throws<OperationCanceledException>(
+                    () => dynamicUpdateCommand.ExecuteAsync(null, null, new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
             }
         }
 

@@ -7,12 +7,12 @@ namespace System.Data.Entity.Internal.Linq
     using System.Data.Entity.Utilities;
     using System.Linq;
 
-    /// <summary>
-    /// An instance of this internal class is created whenever an instance of the public <see cref="DbQuery" />
-    /// class is needed. This allows the public surface to be non-generic, while the runtime type created
-    /// still implements <see cref="IQueryable{T}" />.
-    /// </summary>
-    /// <typeparam name="TElement"> The type of the element. </typeparam>
+    // <summary>
+    // An instance of this internal class is created whenever an instance of the public <see cref="DbQuery" />
+    // class is needed. This allows the public surface to be non-generic, while the runtime type created
+    // still implements <see cref="IQueryable{T}" />.
+    // </summary>
+    // <typeparam name="TElement"> The type of the element. </typeparam>
     internal class InternalDbQuery<TElement> : DbQuery, IOrderedQueryable<TElement>
 #if !NET40
                                                , IDbAsyncEnumerable<TElement>
@@ -23,10 +23,10 @@ namespace System.Data.Entity.Internal.Linq
         // Handles the underlying ObjectQuery that backs the query.
         private readonly IInternalQuery<TElement> _internalQuery;
 
-        /// <summary>
-        /// Creates a new query that will be backed by the given internal query object.
-        /// </summary>
-        /// <param name="internalQuery"> The backing query. </param>
+        // <summary>
+        // Creates a new query that will be backed by the given internal query object.
+        // </summary>
+        // <param name="internalQuery"> The backing query. </param>
         public InternalDbQuery(IInternalQuery<TElement> internalQuery)
         {
             DebugCheck.NotNull(internalQuery);
@@ -38,13 +38,13 @@ namespace System.Data.Entity.Internal.Linq
 
         #region Implementation of abstract methods defined on DbQuery
 
-        /// <inheritdoc />
+        // <inheritdoc />
         internal override IInternalQuery InternalQuery
         {
             get { return _internalQuery; }
         }
 
-        /// <inheritdoc />
+        // <inheritdoc />
         public override DbQuery Include(string path)
         {
             // We need this because the Code Contract gets compiled out in the release build even though
@@ -54,17 +54,22 @@ namespace System.Data.Entity.Internal.Linq
             return new InternalDbQuery<TElement>(_internalQuery.Include(path));
         }
 
-        /// <inheritdoc />
+        // <inheritdoc />
         public override DbQuery AsNoTracking()
         {
             return new InternalDbQuery<TElement>(_internalQuery.AsNoTracking());
         }
 
-        /// <inheritdoc />
+        // <inheritdoc />
         [Obsolete("Queries are now streaming by default unless a retrying ExecutionStrategy is used. Calling this method will have no effect.")]
         public override DbQuery AsStreaming()
         {
             return new InternalDbQuery<TElement>(_internalQuery.AsStreaming());
+        }
+
+        internal override DbQuery WithExecutionStrategy(IDbExecutionStrategy executionStrategy)
+        {
+            return new InternalDbQuery<TElement>(_internalQuery.WithExecutionStrategy(executionStrategy));
         }
 
         internal override IInternalQuery GetInternalQueryWithCheck(string memberName)
@@ -76,10 +81,10 @@ namespace System.Data.Entity.Internal.Linq
 
         #region IEnumerable implementation
 
-        /// <summary>
-        /// Returns an <see cref="IEnumerator{TEntity}" /> which when enumerated will execute the query against the database.
-        /// </summary>
-        /// <returns> An enumerator for the query </returns>
+        // <summary>
+        // Returns an <see cref="IEnumerator{TEntity}" /> which when enumerated will execute the query against the database.
+        // </summary>
+        // <returns> An enumerator for the query </returns>
         public IEnumerator<TElement> GetEnumerator()
         {
             return _internalQuery.GetEnumerator();
@@ -91,10 +96,10 @@ namespace System.Data.Entity.Internal.Linq
 
 #if !NET40
 
-        /// <summary>
-        /// Returns an <see cref="IDbAsyncEnumerator{TEntity}" /> which when enumerated will execute the query against the database.
-        /// </summary>
-        /// <returns> An enumerator for the query </returns>
+        // <summary>
+        // Returns an <see cref="IDbAsyncEnumerator{TEntity}" /> which when enumerated will execute the query against the database.
+        // </summary>
+        // <returns> An enumerator for the query </returns>
         public IDbAsyncEnumerator<TElement> GetAsyncEnumerator()
         {
             return _internalQuery.GetAsyncEnumerator();

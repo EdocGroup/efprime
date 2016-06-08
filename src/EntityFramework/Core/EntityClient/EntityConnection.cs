@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.EntityClient
 {
@@ -9,7 +9,6 @@ namespace System.Data.Entity.Core.EntityClient
     using System.Data.Entity.Core.EntityClient.Internal;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Objects;
-    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Resources;
@@ -37,7 +36,7 @@ namespace System.Data.Entity.Core.EntityClient
         private const string ReaderPrefix = "reader://";
 
         private readonly object _connectionStringLock = new object();
-        private static readonly DbConnectionOptions _emptyConnectionOptions = new DbConnectionOptions(String.Empty, null);
+        private static readonly DbConnectionOptions _emptyConnectionOptions = new DbConnectionOptions(String.Empty, new string[0]);
 
         // The connection options object having the connection settings needed by this connection
         private DbConnectionOptions _userConnectionOptions;
@@ -57,7 +56,6 @@ namespace System.Data.Entity.Core.EntityClient
         private Transaction _enlistedTransaction;
         private bool _initialized;
 
-        private readonly EntityConnectionDispatcher _dispatcher;
         private ConnectionState? _fakeConnectionState;
         private readonly List<ObjectContext> _associatedContexts = new List<ObjectContext>();
 
@@ -89,8 +87,6 @@ namespace System.Data.Entity.Core.EntityClient
         public EntityConnection(string connectionString)
         {
             ChangeConnectionString(connectionString);
-
-            _dispatcher = DbInterception.Dispatch.EntityConnection;
         }
 
         /// <summary>
@@ -129,15 +125,14 @@ namespace System.Data.Entity.Core.EntityClient
         {
         }
 
-        /// <summary>
-        /// This constructor allows to skip the initialization code for testing purposes.
-        /// </summary>
+        // <summary>
+        // This constructor allows to skip the initialization code for testing purposes.
+        // </summary>
         internal EntityConnection(
             MetadataWorkspace workspace,
             DbConnection connection,
             bool skipInitialization,
-            bool entityConnectionOwnsStoreConnection,
-            EntityConnectionDispatcher dispatcher = null)
+            bool entityConnectionOwnsStoreConnection)
         {
             if (!skipInitialization)
             {
@@ -172,11 +167,10 @@ namespace System.Data.Entity.Core.EntityClient
             _metadataWorkspace = workspace;
             _storeConnection = connection;
             _entityConnectionOwnsStoreConnection = entityConnectionOwnsStoreConnection;
-            _dispatcher = dispatcher ?? DbInterception.Dispatch.EntityConnection;
 
             if (_storeConnection != null)
             {
-                _entityClientConnectionState = _storeConnection.State;
+                _entityClientConnectionState = DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext);
             }
 
             SubscribeToStoreConnectionStateChangeEvents();
@@ -198,9 +192,9 @@ namespace System.Data.Entity.Core.EntityClient
             }
         }
 
-        /// <summary>Handles the event when the database connection state changes.</summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="stateChange">The data for the event.</param>
+        // <summary>Handles the event when the database connection state changes.</summary>
+        // <param name="sender">The source of the event.</param>
+        // <param name="stateChange">The data for the event.</param>
         internal virtual void StoreConnectionStateChangeHandler(Object sender, StateChangeEventArgs stateChange)
         {
             var newStoreConnectionState = stateChange.CurrentState;
@@ -237,7 +231,7 @@ namespace System.Data.Entity.Core.EntityClient
         {
             get
             {
-                //EntityConnection created using MetadataWorkspace
+                // EntityConnection created using MetadataWorkspace
                 // _userConnectionOptions is not null when empty Constructor is used
                 // Therefore it is sufficient to identify whether EC(MW, DbConnection) is used
                 if (_userConnectionOptions == null)
@@ -253,7 +247,7 @@ namespace System.Data.Entity.Core.EntityClient
                         ReaderPrefix,
                         _metadataWorkspace.MetadataWorkspaceId,
                         _storeConnection.GetProviderInvariantName(),
-                        FormatProviderString(_storeConnection.ConnectionString));
+                        DbInterception.Dispatch.Connection.GetConnectionString(_storeConnection, InterceptionContext));
                 }
 
                 var userConnectionString = _userConnectionOptions.UsersConnectionString;
@@ -272,7 +266,8 @@ namespace System.Data.Entity.Core.EntityClient
                     string storeConnectionString = null;
                     try
                     {
-                        storeConnectionString = _storeConnection.ConnectionString;
+                        storeConnectionString = DbInterception.Dispatch.Connection.GetConnectionString(
+                            _storeConnection, InterceptionContext);
                     }
                     catch (Exception e)
                     {
@@ -316,7 +311,7 @@ namespace System.Data.Entity.Core.EntityClient
             }
         }
 
-        internal virtual IEnumerable<ObjectContext> AssociatedContexts
+        internal IEnumerable<ObjectContext> AssociatedContexts
         {
             get { return _associatedContexts; }
         }
@@ -329,7 +324,8 @@ namespace System.Data.Entity.Core.EntityClient
             {
                 foreach (var alreadyAssociated in _associatedContexts.ToArray())
                 {
-                    if (ReferenceEquals(context, alreadyAssociated) || alreadyAssociated.IsDisposed)
+                    if (ReferenceEquals(context, alreadyAssociated)
+                        || alreadyAssociated.IsDisposed)
                     {
                         _associatedContexts.Remove(alreadyAssociated);
                     }
@@ -339,12 +335,9 @@ namespace System.Data.Entity.Core.EntityClient
             _associatedContexts.Add(context);
         }
 
-        /// <summary>
-        /// Formats provider string to replace " with \" so it can be appended within quotation marks "..."
-        /// </summary>
-        private static string FormatProviderString(string providerString)
+        internal DbInterceptionContext InterceptionContext
         {
-            return providerString.Trim().Replace("\"", "\\\"");
+            get { return DbInterceptionContext.Combine(AssociatedContexts.Select(c => c.InterceptionContext)); }
         }
 
         /// <summary>Gets the number of seconds to wait when attempting to establish a connection before ending the attempt and generating an error.</summary>
@@ -362,7 +355,7 @@ namespace System.Data.Entity.Core.EntityClient
 
                 try
                 {
-                    return _storeConnection.ConnectionTimeout;
+                    return DbInterception.Dispatch.Connection.GetConnectionTimeout(_storeConnection, InterceptionContext);
                 }
                 catch (Exception e)
                 {
@@ -385,35 +378,9 @@ namespace System.Data.Entity.Core.EntityClient
         }
 
         /// <summary>
-        /// Gets the <see cref="T:System.Data.ConnectionState" /> property of the underlying provider if the
-        /// <see
-        ///     cref="T:System.Data.Entity.Core.EntityClient.EntityConnection" />
-        /// is open. Otherwise, returns
-        /// <see
-        ///     cref="F:System.Data.ConnectionState.Closed" />
-        /// .
+        /// Gets the state of the EntityConnection, which is set up to track the state of the underlying
+        /// database connection that is wrapped by this EntityConnection.
         /// </summary>
-        /// <returns>
-        /// <see cref="F:System.Data.ConnectionState.Open" />, if and only if both the
-        /// <see
-        ///     cref="T:System.Data.Entity.Core.EntityClient.EntityConnection" />
-        /// ’s internal state and the underlying provider's
-        /// <see
-        ///     cref="T:System.Data.ConnectionState" />
-        /// are open. If the
-        /// <see
-        ///     cref="T:System.Data.Entity.Core.EntityClient.EntityConnection" />
-        /// ’s state is open but the provider's
-        /// <see
-        ///     cref="T:System.Data.ConnectionState" />
-        /// is closed, this property returns
-        /// <see
-        ///     cref="F:System.Data.ConnectionState.Broken" />
-        /// . Otherwise, it returns
-        /// <see
-        ///     cref="F:System.Data.ConnectionState.Closed" />
-        /// .
-        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1065:DoNotRaiseExceptionsInUnexpectedLocations")]
         public override ConnectionState State
         {
@@ -435,7 +402,7 @@ namespace System.Data.Entity.Core.EntityClient
 
                 try
                 {
-                    return _storeConnection.DataSource;
+                    return DbInterception.Dispatch.Connection.GetDataSource(_storeConnection, InterceptionContext);
                 }
                 catch (Exception e)
                 {
@@ -469,7 +436,7 @@ namespace System.Data.Entity.Core.EntityClient
 
                 try
                 {
-                    return _storeConnection.ServerVersion;
+                    return DbInterception.Dispatch.Connection.GetServerVersion(_storeConnection, InterceptionContext);
                 }
                 catch (Exception e)
                 {
@@ -491,9 +458,9 @@ namespace System.Data.Entity.Core.EntityClient
             get { return EntityProviderFactory.Instance; }
         }
 
-        /// <summary>
-        /// Gets the DbProviderFactory for the underlying provider
-        /// </summary>
+        // <summary>
+        // Gets the DbProviderFactory for the underlying provider
+        // </summary>
         internal virtual DbProviderFactory StoreProviderFactory
         {
             get { return _providerFactory; }
@@ -527,7 +494,6 @@ namespace System.Data.Entity.Core.EntityClient
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.MetadataException">The inline connection string contains an invalid Metadata keyword value.</exception>
         [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate")]
-        [CLSCompliant(false)]
         public virtual MetadataWorkspace GetMetadataWorkspace()
         {
             if (_metadataWorkspace != null)
@@ -541,15 +507,17 @@ namespace System.Data.Entity.Core.EntityClient
         }
 
         /// <summary>
-        /// Gets the current transaction that this connection is enlisted in
+        /// Gets the current transaction that this connection is enlisted in. May be null.
         /// </summary>
-        internal virtual EntityTransaction CurrentTransaction
+        public virtual EntityTransaction CurrentTransaction
         {
             get
             {
                 // Null out the current transaction if the state is closed or zombied
                 if ((null != _currentTransaction)
-                    && ((null == _currentTransaction.StoreTransaction.Connection) || (State == ConnectionState.Closed)))
+                    && ((null
+                         == DbInterception.Dispatch.Transaction.GetConnection(_currentTransaction.StoreTransaction, InterceptionContext))
+                        || (State == ConnectionState.Closed)))
                 {
                     ClearCurrentTransaction();
                 }
@@ -558,9 +526,9 @@ namespace System.Data.Entity.Core.EntityClient
             }
         }
 
-        /// <summary>
-        /// Whether the user has enlisted in transaction using EnlistTransaction method
-        /// </summary>
+        // <summary>
+        // Whether the user has enlisted in transaction using EnlistTransaction method
+        // </summary>
         internal virtual bool EnlistedInUserTransaction
         {
             get
@@ -584,7 +552,7 @@ namespace System.Data.Entity.Core.EntityClient
         {
             _fakeConnectionState = null;
 
-            if (!_dispatcher.Opening(this, DbInterceptionContext.Combine(AssociatedContexts.Select(c => c.InterceptionContext))))
+            if (!DbInterception.Dispatch.CancelableEntityConnection.Opening(this, InterceptionContext))
             {
                 _fakeConnectionState = ConnectionState.Open;
 
@@ -601,12 +569,13 @@ namespace System.Data.Entity.Core.EntityClient
                 throw Error.EntityClient_CannotOpenBrokenConnection();
             }
 
-            if (_storeConnection.State != ConnectionState.Open)
+            if (DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext) != ConnectionState.Open)
             {
                 var metadataWorkspace = GetMetadataWorkspace();
                 try
                 {
-                    DbProviderServices.GetExecutionStrategy(_storeConnection, metadataWorkspace).Execute(_storeConnection.Open);
+                    DbProviderServices.GetExecutionStrategy(_storeConnection, metadataWorkspace).Execute(
+                        () => DbInterception.Dispatch.Connection.Open(_storeConnection, InterceptionContext));
                 }
                 catch (Exception e)
                 {
@@ -626,7 +595,7 @@ namespace System.Data.Entity.Core.EntityClient
             // the following guards against the case when the user closes the underlying store connection
             // in the state change event handler, as a consequence of which we are in the 'Broken' state
             if (_storeConnection == null
-                || _storeConnection.State != ConnectionState.Open)
+                || DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext) != ConnectionState.Open)
             {
                 throw Error.EntityClient_ConnectionNotOpen();
             }
@@ -653,14 +622,18 @@ namespace System.Data.Entity.Core.EntityClient
                 throw Error.EntityClient_CannotOpenBrokenConnection();
             }
 
-            if (_storeConnection.State != ConnectionState.Open)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext) != ConnectionState.Open)
             {
                 var metadataWorkspace = GetMetadataWorkspace();
                 try
                 {
                     var executionStrategy = DbProviderServices.GetExecutionStrategy(_storeConnection, metadataWorkspace);
-                    await executionStrategy.ExecuteAsync(() => _storeConnection.OpenAsync(cancellationToken), cancellationToken)
-                                           .ConfigureAwait(continueOnCapturedContext: false);
+                    await executionStrategy.ExecuteAsync(
+                        () => DbInterception.Dispatch.Connection.OpenAsync(_storeConnection, InterceptionContext, cancellationToken),
+                        cancellationToken)
+                        .WithCurrentCulture();
                 }
                 catch (Exception e)
                 {
@@ -680,7 +653,7 @@ namespace System.Data.Entity.Core.EntityClient
             // the following guards against the case when the user closes the underlying store connection
             // in the state change event handler, as a consequence of which we are in the 'Broken' state
             if (_storeConnection == null
-                || _storeConnection.State != ConnectionState.Open)
+                || DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext) != ConnectionState.Open)
             {
                 throw Error.EntityClient_ConnectionNotOpen();
             }
@@ -709,6 +682,7 @@ namespace System.Data.Entity.Core.EntityClient
         /// <summary>
         /// Create a new command object that uses this connection object
         /// </summary>
+        /// <returns>The command object.</returns>
         protected override DbCommand CreateDbCommand()
         {
             return CreateCommand();
@@ -825,6 +799,12 @@ namespace System.Data.Entity.Core.EntityClient
                 throw Error.EntityClient_ConnectionNotOpen();
             }
 
+            var interceptionContext = new BeginTransactionInterceptionContext(InterceptionContext);
+            if (isolationLevel != IsolationLevel.Unspecified)
+            {
+                interceptionContext = interceptionContext.WithIsolationLevel(isolationLevel);
+            }
+
             DbTransaction storeTransaction = null;
             try
             {
@@ -832,17 +812,19 @@ namespace System.Data.Entity.Core.EntityClient
                 storeTransaction = executionStrategy.Execute(
                     () =>
                     {
-                        if (_storeConnection.State == ConnectionState.Broken)
+                        if (DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext) == ConnectionState.Broken)
                         {
-                            _storeConnection.Close();
+                            DbInterception.Dispatch.Connection.Close(_storeConnection, interceptionContext);
                         }
 
-                        if (_storeConnection.State == ConnectionState.Closed)
+                        if (DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext) == ConnectionState.Closed)
                         {
-                            _storeConnection.Open();
+                            DbInterception.Dispatch.Connection.Open(_storeConnection, interceptionContext);
                         }
 
-                        return _storeConnection.BeginTransaction(isolationLevel);
+                        return DbInterception.Dispatch.Connection.BeginTransaction(
+                            _storeConnection,
+                            interceptionContext);
                     });
             }
             catch (Exception e)
@@ -866,23 +848,23 @@ namespace System.Data.Entity.Core.EntityClient
             return _currentTransaction;
         }
 
-        /// <summary>
-        /// Enables the user to pass in a database transaction created outside of the Entity Framework
-        /// if you want the framework to execute commands within that external transaction.
-        /// Or pass in null to clear the Framework's knowledge of the current transaction.
-        /// </summary>
-        /// <returns>the EntityTransaction wrapping the DbTransaction or null if cleared</returns>
-        /// <exception cref="InvalidOperationException">Thrown if the transaction is already completed</exception>
-        /// <exception cref="InvalidOperationException">
-        /// Thrown if the connection associated with the <see cref="Database" /> object is already enlisted in a
-        /// <see
-        ///     cref="System.Transactions.TransactionScope" />
-        /// transaction
-        /// </exception>
-        /// <exception cref="InvalidOperationException">
-        /// Thrown if the connection associated with the <see cref="Database" /> object is already participating in a transaction
-        /// </exception>
-        /// <exception cref="InvalidOperationException">Thrown if the connection associated with the transaction does not match the Entity Framework's connection</exception>
+        // <summary>
+        // Enables the user to pass in a database transaction created outside of the Entity Framework
+        // if you want the framework to execute commands within that external transaction.
+        // Or pass in null to clear the Framework's knowledge of the current transaction.
+        // </summary>
+        // <returns>the EntityTransaction wrapping the DbTransaction or null if cleared</returns>
+        // <exception cref="InvalidOperationException">Thrown if the transaction is already completed</exception>
+        // <exception cref="InvalidOperationException">
+        // Thrown if the connection associated with the <see cref="Database" /> object is already enlisted in a
+        // <see
+        //     cref="System.Transactions.TransactionScope" />
+        // transaction
+        // </exception>
+        // <exception cref="InvalidOperationException">
+        // Thrown if the connection associated with the <see cref="Database" /> object is already participating in a transaction
+        // </exception>
+        // <exception cref="InvalidOperationException">Thrown if the connection associated with the transaction does not match the Entity Framework's connection</exception>
         internal virtual EntityTransaction UseStoreTransaction(DbTransaction storeTransaction)
         {
             if (storeTransaction == null)
@@ -901,12 +883,14 @@ namespace System.Data.Entity.Core.EntityClient
                     throw new InvalidOperationException(Strings.DbContext_TransactionAlreadyEnlistedInUserTransaction);
                 }
 
-                if (storeTransaction.Connection == null)
+                var transactionConnection = DbInterception.Dispatch.Transaction.GetConnection(
+                    storeTransaction, InterceptionContext);
+                if (transactionConnection == null)
                 {
                     throw new InvalidOperationException(Strings.DbContext_InvalidTransactionNoConnection);
                 }
 
-                if (storeTransaction.Connection != StoreConnection)
+                if (transactionConnection != StoreConnection)
                 {
                     throw new InvalidOperationException(Strings.DbContext_InvalidTransactionForConnection);
                 }
@@ -941,7 +925,10 @@ namespace System.Data.Entity.Core.EntityClient
 
             try
             {
-                _storeConnection.EnlistTransaction(transaction);
+                var interceptionContext = new EnlistTransactionInterceptionContext(InterceptionContext);
+                interceptionContext = interceptionContext.WithTransaction(transaction);
+
+                DbInterception.Dispatch.Connection.EnlistTransaction(_storeConnection, interceptionContext);
 
                 // null means "Unenlist transaction". It is fine if no transaction is in progress (no op). Otherwise
                 // _storeConnection.EnlistTransaction should throw and we would not get here.
@@ -1006,10 +993,10 @@ namespace System.Data.Entity.Core.EntityClient
                     }
 
                     UnsubscribeFromStoreConnectionStateChangeEvents();
-                    
+
                     if (_entityConnectionOwnsStoreConnection)
                     {
-                        _storeConnection.Dispose();
+                        DbInterception.Dispatch.Connection.Dispose(_storeConnection, InterceptionContext);
                     }
 
                     _storeConnection = null;
@@ -1026,25 +1013,25 @@ namespace System.Data.Entity.Core.EntityClient
             base.Dispose(disposing);
         }
 
-        /// <summary>
-        /// Clears the current DbTransaction for this connection
-        /// </summary>
+        // <summary>
+        // Clears the current DbTransaction for this connection
+        // </summary>
         internal virtual void ClearCurrentTransaction()
         {
             _currentTransaction = null;
         }
 
-        /// <summary>
-        /// Reinitialize this connection object to use the new connection string
-        /// </summary>
-        /// <param name="newConnectionString"> The new connection string </param>
+        // <summary>
+        // Reinitialize this connection object to use the new connection string
+        // </summary>
+        // <param name="newConnectionString"> The new connection string </param>
         [ResourceExposure(ResourceScope.Machine)] //Exposes the file names which are a Machine resource as part of the connection string
         private void ChangeConnectionString(string newConnectionString)
         {
             var userConnectionOptions = _emptyConnectionOptions;
             if (!String.IsNullOrEmpty(newConnectionString))
             {
-                userConnectionOptions = new DbConnectionOptions(newConnectionString, EntityConnectionStringBuilder.Synonyms);
+                userConnectionOptions = new DbConnectionOptions(newConnectionString, EntityConnectionStringBuilder.ValidKeywords);
             }
 
             DbProviderFactory factory = null;
@@ -1071,7 +1058,8 @@ namespace System.Data.Entity.Core.EntityClient
                         throw new ArgumentException(Strings.EntityClient_InvalidNamedConnection);
                     }
 
-                    effectiveConnectionOptions = new DbConnectionOptions(setting.ConnectionString, EntityConnectionStringBuilder.Synonyms);
+                    effectiveConnectionOptions = new DbConnectionOptions(
+                        setting.ConnectionString, EntityConnectionStringBuilder.ValidKeywords);
 
                     // Check for a nested Name keyword
                     var nestedNamedConnection = effectiveConnectionOptions[EntityConnectionStringBuilder.NameParameterName];
@@ -1102,7 +1090,9 @@ namespace System.Data.Entity.Core.EntityClient
                         effectiveConnectionOptions[EntityConnectionStringBuilder.ProviderConnectionStringParameterName];
                     if (providerConnectionString != null)
                     {
-                        storeConnection.ConnectionString = providerConnectionString;
+                        DbInterception.Dispatch.Connection.SetConnectionString(
+                            storeConnection,
+                            new DbConnectionPropertyInterceptionContext<string>(InterceptionContext).WithValue(providerConnectionString));
                     }
                 }
                 catch (Exception e)
@@ -1156,19 +1146,19 @@ namespace System.Data.Entity.Core.EntityClient
             return keywordValue;
         }
 
-        /// <summary>
-        /// Clears the current DbTransaction and the transaction the user enlisted the connection in
-        /// with EnlistTransaction() method.
-        /// </summary>
+        // <summary>
+        // Clears the current DbTransaction and the transaction the user enlisted the connection in
+        // with EnlistTransaction() method.
+        // </summary>
         private void ClearTransactions()
         {
             ClearCurrentTransaction();
             ClearEnlistedTransaction();
         }
 
-        /// <summary>
-        /// Clears the transaction the user elinsted in using EnlistTransaction() method.
-        /// </summary>
+        // <summary>
+        // Clears the transaction the user elinsted in using EnlistTransaction() method.
+        // </summary>
         private void ClearEnlistedTransaction()
         {
             if (EnlistedInUserTransaction)
@@ -1179,32 +1169,32 @@ namespace System.Data.Entity.Core.EntityClient
             _enlistedTransaction = null;
         }
 
-        /// <summary>
-        /// Event handler invoked when the transaction has completed (either by committing or rolling back).
-        /// </summary>
-        /// <param name="sender"> The source of the event. </param>
-        /// <param name="e">
-        /// The <see cref="TransactionEventArgs" /> that contains the event data.
-        /// </param>
-        /// <remarks>
-        /// Note that to avoid threading issues we never reset the <see cref=" _enlistedTransaction" /> field here.
-        /// </remarks>
+        // <summary>
+        // Event handler invoked when the transaction has completed (either by committing or rolling back).
+        // </summary>
+        // <param name="sender"> The source of the event. </param>
+        // <param name="e">
+        // The <see cref="TransactionEventArgs" /> that contains the event data.
+        // </param>
+        // <remarks>
+        // Note that to avoid threading issues we never reset the <see cref=" _enlistedTransaction" /> field here.
+        // </remarks>
         private void EnlistedTransactionCompleted(object sender, TransactionEventArgs e)
         {
             e.Transaction.TransactionCompleted -= EnlistedTransactionCompleted;
         }
 
-        /// <summary>
-        /// Store-specific helper method invoked as part of Close()/Dispose().
-        /// </summary>
+        // <summary>
+        // Store-specific helper method invoked as part of Close()/Dispose().
+        // </summary>
         private void StoreCloseHelper()
         {
             try
             {
                 if (_storeConnection != null
-                    && (_storeConnection.State != ConnectionState.Closed))
+                    && (DbInterception.Dispatch.Connection.GetState(_storeConnection, InterceptionContext) != ConnectionState.Closed))
                 {
-                    _storeConnection.Close();
+                    DbInterception.Dispatch.Connection.Close(_storeConnection, InterceptionContext);
                 }
 
                 // Need to disassociate the transaction objects with this connection
@@ -1221,9 +1211,9 @@ namespace System.Data.Entity.Core.EntityClient
             }
         }
 
-        /// <summary>
-        /// Uses DbProviderFactory to create a DbConnection
-        /// </summary>
+        // <summary>
+        // Uses DbProviderFactory to create a DbConnection
+        // </summary>
         private static DbConnection GetStoreConnection(DbProviderFactory factory)
         {
             var storeConnection = factory.CreateConnection();

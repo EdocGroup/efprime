@@ -39,14 +39,18 @@ namespace System.Data.Entity.Core.Objects
     {
         #region Private Static Members
 
-        /// <summary>
-        /// The default query name, which is used in query-building to refer to an
-        /// element of the ObjectQuery; e.g., in a call to ObjectQuery.Where(), a predicate of
-        /// the form "it.Name = 'Foo'" can be specified, where "it" refers to a T.
-        /// Note that the query name may eventually become a parameter in the command
-        /// tree, so it must conform to the parameter name restrictions enforced by
-        /// ObjectParameter.ValidateParameterName(string).
-        /// </summary>
+        internal static readonly MethodInfo MergeAsMethod = typeof(ObjectQuery<T>).GetOnlyDeclaredMethod("MergeAs");
+
+        internal static readonly MethodInfo IncludeSpanMethod = typeof(ObjectQuery<T>).GetOnlyDeclaredMethod("IncludeSpan");
+
+        // <summary>
+        // The default query name, which is used in query-building to refer to an
+        // element of the ObjectQuery; e.g., in a call to ObjectQuery.Where(), a predicate of
+        // the form "it.Name = 'Xyz'" can be specified, where "it" refers to a T.
+        // Note that the query name may eventually become a parameter in the command
+        // tree, so it must conform to the parameter name restrictions enforced by
+        // ObjectParameter.ValidateParameterName(string).
+        // </summary>
         private const string DefaultName = "it";
 
         private static bool IsLinqQuery(ObjectQuery query)
@@ -58,11 +62,11 @@ namespace System.Data.Entity.Core.Objects
 
         #region Private Instance Fields
 
-        /// <summary>
-        /// The name of the current sequence, which defaults to "it". Used in query-
-        /// builder methods that process an Entity-SQL command text fragment to refer to an
-        /// instance of the return type of this query.
-        /// </summary>
+        // <summary>
+        // The name of the current sequence, which defaults to "it". Used in query-
+        // builder methods that process an Entity-SQL command text fragment to refer to an
+        // instance of the return type of this query.
+        // </summary>
         private string _name = DefaultName;
 
         #endregion
@@ -120,20 +124,20 @@ namespace System.Data.Entity.Core.Objects
             context.MetadataWorkspace.ImplicitLoadAssemblyForType(typeof(T), Assembly.GetCallingAssembly());
         }
 
-        /// <summary>
-        /// This method creates a new ObjectQuery instance that represents a scan over
-        /// the specified <paramref name="entitySet" />. This ObjectQuery carries the scan as <see cref="DbExpression" />
-        /// and as Entity SQL. This is needed to allow case-sensitive metadata access (provided by the <see cref="DbExpression" /> by default).
-        /// The context specifies the connection on which to execute the query as well as the metadata and result cache.
-        /// The merge option specifies how the cache should be populated/updated.
-        /// </summary>
-        /// <param name="entitySet"> The entity set this query scans. </param>
-        /// <param name="context">
-        /// The ObjectContext containing the metadata workspace the query will be built against, the connection
-        /// on which to execute the query, and the cache to store the results in.
-        /// </param>
-        /// <param name="mergeOption"> The MergeOption to use when executing the query. </param>
-        /// <returns> A new ObjectQuery instance. </returns>
+        // <summary>
+        // This method creates a new ObjectQuery instance that represents a scan over
+        // the specified <paramref name="entitySet" />. This ObjectQuery carries the scan as <see cref="DbExpression" />
+        // and as Entity SQL. This is needed to allow case-sensitive metadata access (provided by the <see cref="DbExpression" /> by default).
+        // The context specifies the connection on which to execute the query as well as the metadata and result cache.
+        // The merge option specifies how the cache should be populated/updated.
+        // </summary>
+        // <param name="entitySet"> The entity set this query scans. </param>
+        // <param name="context">
+        // The ObjectContext containing the metadata workspace the query will be built against, the connection
+        // on which to execute the query, and the cache to store the results in.
+        // </param>
+        // <param name="mergeOption"> The MergeOption to use when executing the query. </param>
+        // <returns> A new ObjectQuery instance. </returns>
         internal ObjectQuery(EntitySetBase entitySet, ObjectContext context, MergeOption mergeOption)
             : this(new EntitySqlQueryState(typeof(T), BuildScanEntitySetEsql(entitySet), entitySet.Scan(), false, context, null, null))
         {
@@ -166,9 +170,9 @@ namespace System.Data.Entity.Core.Objects
         {
         }
 
-        /// <summary>
-        /// For testing.
-        /// </summary>
+        // <summary>
+        // For testing.
+        // </summary>
         internal ObjectQuery()
         {
         }
@@ -561,24 +565,7 @@ namespace System.Data.Entity.Core.Objects
         {
             QueryState.ObjectContext.AsyncMonitor.EnsureNotEntered();
 
-            return new LazyEnumerator<T>(
-                () =>
-                    {
-                        var disposableEnumerable = GetResults(null);
-                        try
-                        {
-                            var result = disposableEnumerable.GetEnumerator();
-                            return result;
-                        }
-                        catch
-                        {
-                            // if there is a problem creating the enumerator, we should dispose
-                            // the enumerable (if there is no problem, the enumerator will take 
-                            // care of the dispose)
-                            disposableEnumerable.Dispose();
-                            throw;
-                        }
-                    });
+            return new LazyEnumerator<T>(() => GetResults(null));
         }
 
         #endregion
@@ -596,24 +583,7 @@ namespace System.Data.Entity.Core.Objects
         {
             QueryState.ObjectContext.AsyncMonitor.EnsureNotEntered();
 
-            return new LazyAsyncEnumerator<T>(
-                async cancellationToken =>
-                    {
-                        var disposableEnumerable =
-                            await GetResultsAsync(null, cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
-                        try
-                        {
-                            return ((IDbAsyncEnumerable<T>)disposableEnumerable).GetAsyncEnumerator();
-                        }
-                        catch
-                        {
-                            // if there is a problem creating the enumerator, we should dispose
-                            // the enumerable (if there is no problem, the enumerator will take 
-                            // care of the dispose)
-                            disposableEnumerable.Dispose();
-                            throw;
-                        }
-                    });
+            return new LazyAsyncEnumerator<T>(cancellationToken => GetResultsAsync(null, cancellationToken));
         }
 
 #endif
@@ -622,7 +592,7 @@ namespace System.Data.Entity.Core.Objects
 
         #region ObjectQuery Overrides
 
-        /// <inheritdoc />
+        // <inheritdoc />
         internal override IEnumerator GetEnumeratorInternal()
         {
             return ((IEnumerable<T>)this).GetEnumerator();
@@ -630,7 +600,7 @@ namespace System.Data.Entity.Core.Objects
 
 #if !NET40
 
-        /// <inheritdoc />
+        // <inheritdoc />
         internal override IDbAsyncEnumerator GetAsyncEnumeratorInternal()
         {
             return ((IDbAsyncEnumerable<T>)this).GetAsyncEnumerator();
@@ -638,13 +608,13 @@ namespace System.Data.Entity.Core.Objects
 
 #endif
 
-        /// <inheritdoc />
+        // <inheritdoc />
         internal override IList GetIListSourceListInternal()
         {
             return ((IListSource)GetResults(null)).GetList();
         }
 
-        /// <inheritdoc />
+        // <inheritdoc />
         internal override ObjectResult ExecuteInternal(MergeOption mergeOption)
         {
             return GetResults(mergeOption);
@@ -652,22 +622,22 @@ namespace System.Data.Entity.Core.Objects
 
 #if !NET40
 
-        /// <inheritdoc />
+        // <inheritdoc />
         internal override async Task<ObjectResult> ExecuteInternalAsync(MergeOption mergeOption, CancellationToken cancellationToken)
         {
-            return await GetResultsAsync(mergeOption, cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+            return await GetResultsAsync(mergeOption, cancellationToken).WithCurrentCulture();
         }
 
 #endif
 
-        /// <summary>
-        /// Retrieves the LINQ expression that backs this ObjectQuery for external consumption.
-        /// It is important that the work to wrap the expression in an appropriate MergeAs call
-        /// takes place in this method and NOT in ObjectQueryState.TryGetExpression which allows
-        /// the unmodified expression (that does not include the MergeOption-preserving MergeAs call)
-        /// to be retrieved and processed by the ELinq ExpressionConverter.
-        /// </summary>
-        /// <returns> The LINQ expression for this ObjectQuery, wrapped in a MergeOption-preserving call to the MergeAs method if the ObjectQuery.MergeOption property has been set. </returns>
+        // <summary>
+        // Retrieves the LINQ expression that backs this ObjectQuery for external consumption.
+        // It is important that the work to wrap the expression in an appropriate MergeAs call
+        // takes place in this method and NOT in ObjectQueryState.TryGetExpression which allows
+        // the unmodified expression (that does not include the MergeOption-preserving MergeAs call)
+        // to be retrieved and processed by the ELinq ExpressionConverter.
+        // </summary>
+        // <returns> The LINQ expression for this ObjectQuery, wrapped in a MergeOption-preserving call to the MergeAs method if the ObjectQuery.MergeOption property has been set. </returns>
         internal override Expression GetExpression()
         {
             // If this ObjectQuery is not backed by a LINQ Expression (it is an ESQL query),
@@ -678,21 +648,16 @@ namespace System.Data.Entity.Core.Objects
                 retExpr = Expression.Constant(this);
             }
 
-            var objectQueryType = typeof(ObjectQuery<T>);
             if (QueryState.UserSpecifiedMergeOption.HasValue)
             {
-                var mergeAsMethod = objectQueryType.GetMethod("MergeAs", BindingFlags.Instance | BindingFlags.NonPublic);
-                Debug.Assert(mergeAsMethod != null, "Could not retrieve ObjectQuery<T>.MergeAs method using reflection?");
-                retExpr = TypeSystem.EnsureType(retExpr, objectQueryType);
-                retExpr = Expression.Call(retExpr, mergeAsMethod, Expression.Constant(QueryState.UserSpecifiedMergeOption.Value));
+                retExpr = TypeSystem.EnsureType(retExpr, typeof(ObjectQuery<T>));
+                retExpr = Expression.Call(retExpr, MergeAsMethod, Expression.Constant(QueryState.UserSpecifiedMergeOption.Value));
             }
 
             if (null != QueryState.Span)
             {
-                var includeSpanMethod = objectQueryType.GetMethod("IncludeSpan", BindingFlags.Instance | BindingFlags.NonPublic);
-                Debug.Assert(includeSpanMethod != null, "Could not retrieve ObjectQuery<T>.IncludeSpan method using reflection?");
-                retExpr = TypeSystem.EnsureType(retExpr, objectQueryType);
-                retExpr = Expression.Call(retExpr, includeSpanMethod, Expression.Constant(QueryState.Span));
+                retExpr = TypeSystem.EnsureType(retExpr, typeof(ObjectQuery<T>));
+                retExpr = Expression.Call(retExpr, IncludeSpanMethod, Expression.Constant(QueryState.Span));
             }
 
             return retExpr;
@@ -721,11 +686,12 @@ namespace System.Data.Entity.Core.Objects
         private ObjectResult<T> GetResults(MergeOption? forMergeOption)
         {
             QueryState.ObjectContext.AsyncMonitor.EnsureNotEntered();
-            var executionStrategy = DbProviderServices.GetExecutionStrategy(
-                QueryState.ObjectContext.Connection, QueryState.ObjectContext.MetadataWorkspace);
+            var executionStrategy = ExecutionStrategy
+                                    ?? DbProviderServices.GetExecutionStrategy(
+                                        QueryState.ObjectContext.Connection, QueryState.ObjectContext.MetadataWorkspace);
 
             if (executionStrategy.RetriesOnFailure
-                && QueryState.EffectiveStreamingBehaviour)
+                && QueryState.EffectiveStreamingBehavior)
             {
                 throw new InvalidOperationException(Strings.ExecutionStrategy_StreamingNotSupported(executionStrategy.GetType().Name));
             }
@@ -735,19 +701,23 @@ namespace System.Data.Entity.Core.Objects
                     () => QueryState.GetExecutionPlan(forMergeOption)
                                     .Execute<T>(QueryState.ObjectContext, QueryState.Parameters),
                     executionStrategy, startLocalTransaction: false,
-                    releaseConnectionOnSuccess: !QueryState.EffectiveStreamingBehaviour));
+                    releaseConnectionOnSuccess: !QueryState.EffectiveStreamingBehavior));
         }
 
 #if !NET40
 
         private Task<ObjectResult<T>> GetResultsAsync(MergeOption? forMergeOption, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             QueryState.ObjectContext.AsyncMonitor.EnsureNotEntered();
 
-            var executionStrategy = DbProviderServices.GetExecutionStrategy(
-                QueryState.ObjectContext.Connection, QueryState.ObjectContext.MetadataWorkspace);
+            var executionStrategy = ExecutionStrategy
+                                    ?? DbProviderServices.GetExecutionStrategy(
+                                        QueryState.ObjectContext.Connection, QueryState.ObjectContext.MetadataWorkspace);
+
             if (executionStrategy.RetriesOnFailure
-                && QueryState.EffectiveStreamingBehaviour)
+                && QueryState.EffectiveStreamingBehavior)
             {
                 throw new InvalidOperationException(Strings.ExecutionStrategy_StreamingNotSupported(executionStrategy.GetType().Name));
             }
@@ -773,9 +743,9 @@ namespace System.Data.Entity.Core.Objects
                         () => QueryState.GetExecutionPlan(forMergeOption)
                                         .ExecuteAsync<T>(QueryState.ObjectContext, QueryState.Parameters, cancellationToken),
                               executionStrategy,
-                              /*startLocalTransaction:*/ false, /*releaseConnectionOnSuccess:*/ !QueryState.EffectiveStreamingBehaviour,
+                              /*startLocalTransaction:*/ false, /*releaseConnectionOnSuccess:*/ !QueryState.EffectiveStreamingBehavior,
                         cancellationToken),
-                    cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    cancellationToken).WithCurrentCulture();
             }
             finally
             {

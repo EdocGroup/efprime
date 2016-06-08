@@ -3,9 +3,11 @@
 namespace System.Data.Entity.Update
 {
     using System.Data.Entity.SqlServer;
+    using System.Data.Entity.TestHelpers;
     using System.Data.Entity.TestModels.ArubaCeModel;
     using System.Data.Entity.TestModels.ArubaModel;
     using System.Linq;
+    using System.Transactions;
     using Xunit;
     using Xunit.Extensions;
 
@@ -20,7 +22,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_relies_on_old_behavior_to_truncate_continues_to_work_by_default()
         {
             InsertAndUpdateWithDecimals(
@@ -29,7 +31,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_relies_on_old_behavior_to_truncate_behaves_differently_when_flag_is_changed()
         {
             RunWithTruncateFlag(
@@ -39,7 +41,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_relies_on_old_behavior_to_round_continues_to_work_by_default()
         {
             InsertAndUpdateWithDecimals(
@@ -48,7 +50,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_relies_on_old_behavior_to_round_behaves_differently_when_flag_is_changed()
         {
             RunWithTruncateFlag(
@@ -58,7 +60,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_explicitly_rounds_continues_to_work_by_default()
         {
             InsertAndUpdateWithDecimals(
@@ -67,7 +69,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_explicitly_rounds_continues_to_work_when_flag_is_changed()
         {
             RunWithTruncateFlag(
@@ -77,7 +79,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_explicitly_truncates_continues_to_work_by_default()
         {
             InsertAndUpdateWithDecimals(
@@ -86,7 +88,7 @@ namespace System.Data.Entity.Update
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Legacy_code_that_explicitly_truncates_continues_to_work_when_flag_is_changed()
         {
             RunWithTruncateFlag(
@@ -112,20 +114,27 @@ namespace System.Data.Entity.Update
         private static void InsertAndUpdateWithDecimals(
             decimal insertValue, decimal insertExpected, decimal updateValue, decimal updateExpected)
         {
-            using (var context = new ArubaContext())
-            {
-                // Insert
-                var allTypes = context.AllTypes.Add(CreateArubaAllTypes(insertValue));
-                context.SaveChanges();
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
+                {
+                    using (new TransactionScope())
+                    {
+                        using (var context = new ArubaContext())
+                        {
+                            // Insert
+                            var allTypes = context.AllTypes.Add(CreateArubaAllTypes(insertValue));
+                            context.SaveChanges();
 
-                ValidateSavedValues(context, allTypes, insertExpected);
+                            ValidateSavedValues(context, allTypes, insertExpected);
 
-                // Update
-                UpdateArubaAllTypes(allTypes, updateValue);
-                context.SaveChanges();
+                            // Update
+                            UpdateArubaAllTypes(allTypes, updateValue);
+                            context.SaveChanges();
 
-                ValidateSavedValues(context, allTypes, updateExpected);
-            }
+                            ValidateSavedValues(context, allTypes, updateExpected);
+                        }
+                    }
+                });
         }
 
         private static void ValidateSavedValues(ArubaContext context, ArubaAllTypes allTypes, decimal value)
@@ -141,14 +150,14 @@ namespace System.Data.Entity.Update
         private static ArubaAllTypes CreateArubaAllTypes(decimal value)
         {
             return new ArubaAllTypes
-                {
-                    c7_decimal_28_4 = value,
-                    c8_numeric_28_4 = value,
-                    c11_money = value,
-                    c12_smallmoney = value,
-                    c5_datetime = DateTime.Now,
-                    c6_smalldatetime = DateTime.Now
-                };
+            {
+                c7_decimal_28_4 = value,
+                c8_numeric_28_4 = value,
+                c11_money = value,
+                c12_smallmoney = value,
+                c5_datetime = DateTime.Now,
+                c6_smalldatetime = DateTime.Now
+            };
         }
 
         private static void UpdateArubaAllTypes(ArubaAllTypes allTypes, decimal value)
@@ -171,11 +180,11 @@ namespace System.Data.Entity.Update
                     // Insert
                     var allTypes = context.AllTypes.Add(
                         new ArubaAllCeTypes
-                            {
-                                c7_decimal_28_4 = 9.88888888888888888888888888888888m,
-                                c8_numeric_28_4 = 9.88888888888888888888888888888888m,
-                                c5_datetime = DateTime.Now,
-                            });
+                        {
+                            c7_decimal_28_4 = 9.88888888888888888888888888888888m,
+                            c8_numeric_28_4 = 9.88888888888888888888888888888888m,
+                            c5_datetime = DateTime.Now,
+                        });
                     context.SaveChanges();
 
                     ValidateSavedValues(context, allTypes, 9.8889m);
@@ -210,10 +219,10 @@ namespace System.Data.Entity.Update
                     // Insert
                     var allTypes = context.AllTypes.Add(
                         new ArubaAllCeTypes
-                            {
-                                c11_money = 9.88888888888888888888888888888888m,
-                                c5_datetime = DateTime.Now,
-                            });
+                        {
+                            c11_money = 9.88888888888888888888888888888888m,
+                            c5_datetime = DateTime.Now,
+                        });
                     context.SaveChanges();
 
                     Assert.Equal(9.8888m, context.AllTypes.AsNoTracking().Single(t => t.c1_int == allTypes.c1_int).c11_money);

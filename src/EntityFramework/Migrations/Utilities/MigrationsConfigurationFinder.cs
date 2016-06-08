@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Migrations.Utilities
 {
@@ -17,9 +17,9 @@ namespace System.Data.Entity.Migrations.Utilities
     {
         private readonly TypeFinder _typeFinder;
 
-        /// <summary>
-        /// For testing.
-        /// </summary>
+        // <summary>
+        // For testing.
+        // </summary>
         public MigrationsConfigurationFinder()
         {
         }
@@ -44,9 +44,9 @@ namespace System.Data.Entity.Migrations.Utilities
                 configurationTypeName,
                 types => types
                              .Where(
-                                 t => t.GetConstructor(Type.EmptyTypes) != null
-                                      && !t.IsAbstract
-                                      && !t.IsGenericType)
+                                 t => t.GetPublicConstructor() != null
+                                      && !t.IsAbstract()
+                                      && !t.IsGenericType())
                              .ToList(),
                 noType,
                 multipleTypes,

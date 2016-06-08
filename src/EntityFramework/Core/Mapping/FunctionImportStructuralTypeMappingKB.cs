@@ -51,18 +51,16 @@ namespace System.Data.Entity.Core.Mapping
                 var normalizedEntityTypeMappings = new List<FunctionImportNormalizedEntityTypeMapping>();
 
                 // Collect all mapped entity types.
-                MappedEntityTypes = entityTypeMappings
+                MappedEntityTypes = new ReadOnlyCollection<EntityType>(entityTypeMappings
                     .SelectMany(mapping => mapping.GetMappedEntityTypes(m_itemCollection))
                     .Distinct()
-                    .ToList()
-                    .AsReadOnly();
+                    .ToList());
 
                 // Collect all discriminator columns.
-                DiscriminatorColumns = entityTypeMappings
+                DiscriminatorColumns = new ReadOnlyCollection<string>(entityTypeMappings
                     .SelectMany(mapping => mapping.GetDiscriminatorColumns())
                     .Distinct()
-                    .ToList()
-                    .AsReadOnly();
+                    .ToList());
 
                 m_entityTypeLineInfos = new KeyToListMap<EntityType, LineInfo>(EqualityComparer<EntityType>.Default);
                 m_isTypeOfLineInfos = new KeyToListMap<EntityType, LineInfo>(EqualityComparer<EntityType>.Default);
@@ -191,26 +189,26 @@ namespace System.Data.Entity.Core.Mapping
         private readonly KeyToListMap<EntityType, LineInfo> m_entityTypeLineInfos;
         private readonly KeyToListMap<EntityType, LineInfo> m_isTypeOfLineInfos;
 
-        /// <summary>
-        /// Gets all types in scope for this mapping.
-        /// </summary>
+        // <summary>
+        // Gets all types in scope for this mapping.
+        // </summary>
         internal readonly ReadOnlyCollection<EntityType> MappedEntityTypes;
 
-        /// <summary>
-        /// Gets a list of all discriminator columns used in this mapping.
-        /// </summary>
+        // <summary>
+        // Gets a list of all discriminator columns used in this mapping.
+        // </summary>
         internal readonly ReadOnlyCollection<string> DiscriminatorColumns;
 
-        /// <summary>
-        /// Gets normalized representation of all EntityTypeMapping fragments for this
-        /// function import mapping.
-        /// </summary>
+        // <summary>
+        // Gets normalized representation of all EntityTypeMapping fragments for this
+        // function import mapping.
+        // </summary>
         internal readonly ReadOnlyCollection<FunctionImportNormalizedEntityTypeMapping> NormalizedEntityTypeMappings;
 
-        /// <summary>
-        /// Get the columns rename mapping for return type, the first string is the member name
-        /// the second one is column names for different types that mentioned in the mapping.
-        /// </summary>
+        // <summary>
+        // Get the columns rename mapping for return type, the first string is the member name
+        // the second one is column names for different types that mentioned in the mapping.
+        // </summary>
         internal readonly Dictionary<string, FunctionImportReturnTypeStructuralTypeColumnRenameMapping> ReturnTypeColumnsRenameMapping;
 
         internal bool ValidateTypeConditions(bool validateAmbiguity, IList<EdmSchemaError> errors, string sourceLocation)
@@ -227,7 +225,7 @@ namespace System.Data.Entity.Core.Mapping
                 var lines = StringUtil.ToCommaSeparatedString(unreachableEntityType.Value.Select(li => li.LineNumber));
                 var error = new EdmSchemaError(
                     Strings.Mapping_FunctionImport_UnreachableType(unreachableEntityType.Key.FullName, lines),
-                    (int)StorageMappingErrorCode.MappingFunctionImportAmbiguousTypeConditions,
+                    (int)MappingErrorCode.MappingFunctionImportAmbiguousTypeConditions,
                     EdmSchemaErrorSeverity.Error,
                     sourceLocation,
                     lineInfo.LineNumber,
@@ -239,11 +237,11 @@ namespace System.Data.Entity.Core.Mapping
             {
                 var lineInfo = unreachableIsTypeOf.Value.First();
                 var lines = StringUtil.ToCommaSeparatedString(unreachableIsTypeOf.Value.Select(li => li.LineNumber));
-                var isTypeOfDescription = StorageMslConstructs.IsTypeOf + unreachableIsTypeOf.Key.FullName
-                                          + StorageMslConstructs.IsTypeOfTerminal;
+                var isTypeOfDescription = MslConstructs.IsTypeOf + unreachableIsTypeOf.Key.FullName
+                                          + MslConstructs.IsTypeOfTerminal;
                 var error = new EdmSchemaError(
                     Strings.Mapping_FunctionImport_UnreachableIsTypeOf(isTypeOfDescription, lines),
-                    (int)StorageMappingErrorCode.MappingFunctionImportAmbiguousTypeConditions,
+                    (int)MappingErrorCode.MappingFunctionImportAmbiguousTypeConditions,
                     EdmSchemaErrorSeverity.Error,
                     sourceLocation,
                     lineInfo.LineNumber,
@@ -255,13 +253,13 @@ namespace System.Data.Entity.Core.Mapping
             return valid;
         }
 
-        /// <summary>
-        /// Determines which explicitly mapped types in the function import mapping cannot be generated.
-        /// For IsTypeOf declarations, reports if no type in hierarchy can be produced.
-        /// Works by:
-        /// - Converting type mapping conditions into vertices
-        /// - Checking that some assignment satisfies
-        /// </summary>
+        // <summary>
+        // Determines which explicitly mapped types in the function import mapping cannot be generated.
+        // For IsTypeOf declarations, reports if no type in hierarchy can be produced.
+        // Works by:
+        // - Converting type mapping conditions into vertices
+        // - Checking that some assignment satisfies
+        // </summary>
         private void GetUnreachableTypes(
             bool validateAmbiguity,
             out KeyToListMap<EntityType, LineInfo> unreachableEntityTypes,
@@ -359,9 +357,9 @@ namespace System.Data.Entity.Core.Mapping
             return conditions;
         }
 
-        /// <summary>
-        /// Determines which types are produced by this mapping.
-        /// </summary>
+        // <summary>
+        // Determines which types are produced by this mapping.
+        // </summary>
         private Set<EntityType> FindReachableTypes(
             DomainConstraintConversionContext<string, ValueCondition> converter, Vertex[] mappingConditions)
         {
@@ -412,9 +410,9 @@ namespace System.Data.Entity.Core.Mapping
             return reachableTypes;
         }
 
-        /// <summary>
-        /// Determines which types are produced by this mapping.
-        /// </summary>
+        // <summary>
+        // Determines which types are produced by this mapping.
+        // </summary>
         private Set<EntityType> FindUnambiguouslyReachableTypes(
             DomainConstraintConversionContext<string, ValueCondition> converter, Vertex[] mappingConditions)
         {

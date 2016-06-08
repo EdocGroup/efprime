@@ -54,7 +54,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             DebugCheck.NotNull(table);
             DebugCheck.NotNull(templateColumn);
 
-            var existingColumn = table.Properties.SingleOrDefault(isCompatible);
+            var existingColumn = table.Properties.FirstOrDefault(isCompatible);
 
             if (existingColumn == null)
             {
@@ -187,10 +187,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                                            .Single(asm => asm.AssociationSet.ElementType == associationType);
 
                         var dependentTable = associationSetMapping.Table;
-                        var propertyMappings = associationSetMapping.SourceEndMapping.EndMember == end
+                        var propertyMappings = associationSetMapping.SourceEndMapping.AssociationEnd == end
                                                    ? associationSetMapping.SourceEndMapping.PropertyMappings
                                                    : associationSetMapping.TargetEndMapping.PropertyMappings;
-                        var dependentColumns = propertyMappings.Select(pm => pm.ColumnProperty);
+                        var dependentColumns = propertyMappings.Select(pm => pm.Column);
 
                         dependentTableInfos = new[]
                             {
@@ -222,9 +222,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             }
         }
 
-        /// <summary>
-        /// Moves a foreign key constraint from oldTable to newTable and updates column references
-        /// </summary>
+        // <summary>
+        // Moves a foreign key constraint from oldTable to newTable and updates column references
+        // </summary>
         private static void MoveForeignKeyConstraint(
             EntityType fromTable, EntityType toTable, ForeignKeyBuilder fk)
         {
@@ -268,6 +268,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                         PrincipalTable = fk.PrincipalTable,
                         DeleteAction = fk.DeleteAction
                     };
+
+            newFk.SetPreferredName(fk.Name);
 
             var dependentColumns = 
                 GetDependentColumns(
@@ -382,9 +384,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             }
         }
 
-        /// <summary>
-        /// Move any FK constraints that are now completely in newTable and used to refer to oldColumn
-        /// </summary>
+        // <summary>
+        // Move any FK constraints that are now completely in newTable and used to refer to oldColumn
+        // </summary>
         public static void MoveAllForeignKeyConstraintsForColumn(
             EntityType fromTable, EntityType toTable, EdmProperty column)
         {
@@ -397,15 +399,31 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                 .Each(fk => { MoveForeignKeyConstraint(fromTable, toTable, fk); });
         }
 
-        public static void RemoveAllForeignKeyConstraintsForColumn(EntityType table, EdmProperty column)
+        public static void RemoveAllForeignKeyConstraintsForColumn(
+            EntityType table, EdmProperty column, DbDatabaseMapping databaseMapping)
         {
             DebugCheck.NotNull(table);
             DebugCheck.NotNull(column);
+            DebugCheck.NotNull(databaseMapping);
 
             table.ForeignKeyBuilders
                  .Where(fk => fk.DependentColumns.Contains(column))
                  .ToArray()
-                 .Each(table.RemoveForeignKey);
+                 .Each(
+                     fk =>
+                     {
+                         table.RemoveForeignKey(fk);
+
+                         var copiedFk
+                             = databaseMapping.Database.EntityTypes
+                                 .SelectMany(t => t.ForeignKeyBuilders)
+                                 .SingleOrDefault(fk2 => Equals(fk2.GetPreferredName(), fk.Name));
+
+                         if (copiedFk != null)
+                         {
+                             copiedFk.Name = copiedFk.GetPreferredName();
+                         }
+                     });
         }
     }
 
@@ -461,10 +479,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
 
     internal static class EntityMappingOperations
     {
-        public static StorageMappingFragment CreateTypeMappingFragment(
-            StorageEntityTypeMapping entityTypeMapping, StorageMappingFragment templateFragment, EntitySet tableSet)
+        public static MappingFragment CreateTypeMappingFragment(
+            EntityTypeMapping entityTypeMapping, MappingFragment templateFragment, EntitySet tableSet)
         {
-            var fragment = new StorageMappingFragment(tableSet, entityTypeMapping, false);
+            var fragment = new MappingFragment(tableSet, entityTypeMapping, false);
 
             entityTypeMapping.AddFragment(fragment);
 
@@ -482,6 +500,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
 
         private static void UpdatePropertyMapping(
             DbDatabaseMapping databaseMapping,
+            IEnumerable<EntitySet> entitySets,
+            Dictionary<EdmProperty, IList<ColumnMappingBuilder>> columnMappingIndex,
             ColumnMappingBuilder propertyMappingBuilder,
             EntityType fromTable,
             EntityType toTable,
@@ -489,41 +509,111 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
         {
             propertyMappingBuilder.ColumnProperty
                 = TableOperations.CopyColumnAndAnyConstraints(
-                    databaseMapping.Database, fromTable, toTable, propertyMappingBuilder.ColumnProperty, GetPropertyPathMatcher(databaseMapping, propertyMappingBuilder), useExisting);
+                    databaseMapping.Database, fromTable, toTable, propertyMappingBuilder.ColumnProperty, GetPropertyPathMatcher(columnMappingIndex, propertyMappingBuilder), useExisting);
 
-            propertyMappingBuilder.SyncNullabilityCSSpace();
+            propertyMappingBuilder.SyncNullabilityCSSpace(databaseMapping, entitySets, toTable);
         }
 
-        private static Func<EdmProperty, bool> GetPropertyPathMatcher(DbDatabaseMapping databaseMapping, ColumnMappingBuilder propertyMappingBuilder)
+        private static Func<EdmProperty, bool> GetPropertyPathMatcher(Dictionary<EdmProperty, IList<ColumnMappingBuilder>> columnMappingIndex, ColumnMappingBuilder propertyMappingBuilder)
         {
             return c =>
-                databaseMapping.EntityContainerMappings.Single()
-                    .EntitySetMappings.SelectMany(esm => esm.EntityTypeMappings)
-                    .SelectMany(etm => etm.MappingFragments)
-                    .SelectMany(etmf => etmf.ColumnMappings)
-                    .Any(
-                        pm => pm.PropertyPath.SequenceEqual(propertyMappingBuilder.PropertyPath)
-                              && pm.ColumnProperty == c);
+            {
+                if (!columnMappingIndex.ContainsKey(c)) return false;
+                var columnMappingList = columnMappingIndex[c];
+                // ReSharper disable once LoopCanBeConvertedToQuery
+                // ReSharper disable once ForCanBeConvertedToForeach
+                for (var iter = 0; iter < columnMappingList.Count; ++iter)
+                {
+                    var columnMapping = columnMappingList[iter];
+                    if (columnMapping.PropertyPath.PathEqual(propertyMappingBuilder.PropertyPath))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            };
+        }
+
+        private static bool PathEqual(this IList<EdmProperty> listA, IList<EdmProperty> listB)
+        {
+            if (listA == null || listB == null) return false;
+            if (listA.Count != listB.Count) return false;
+            // ReSharper disable once LoopCanBeConvertedToQuery
+            for (var iter = 0; iter < listA.Count; ++iter)
+            {
+                if (listA[iter] != listB[iter]) return false;
+            }
+            return true;
+        }
+
+        private static Dictionary<EdmProperty, IList<ColumnMappingBuilder>> GetColumnMappingIndex(DbDatabaseMapping databaseMapping)
+        {
+            // PERF: This code is highly sensitive to performance degradation when converted to Linq or lambdas.
+            // PERF: Be aware of its performance when refactoring.
+            var columnMappingIndex = new Dictionary<EdmProperty, IList<ColumnMappingBuilder>>();
+            var entitySetMappings = databaseMapping.EntityContainerMappings.Single().EntitySetMappings;
+            if (entitySetMappings == null) return columnMappingIndex;
+            var entitySetMappingsList = entitySetMappings.ToList();
+            // ReSharper disable ForCanBeConvertedToForeach
+            for (var entitySetMappingsListIterator = 0; entitySetMappingsListIterator < entitySetMappingsList.Count; ++entitySetMappingsListIterator)
+            {
+                var entityTypeMappings = entitySetMappingsList[entitySetMappingsListIterator].EntityTypeMappings as IList<EntityTypeMapping>;
+                if (entityTypeMappings == null) continue;
+                for (var entityTypeMappingsIterator = 0; entityTypeMappingsIterator < entityTypeMappings.Count; ++entityTypeMappingsIterator)
+                {
+                    var mappingFragments = entityTypeMappings[entityTypeMappingsIterator].MappingFragments as IList<MappingFragment>;
+                    if (mappingFragments == null) continue;
+                    for (var mappingFragmentsIterator = 0; mappingFragmentsIterator < mappingFragments.Count; ++mappingFragmentsIterator)
+                    {
+                        var columnMappings = mappingFragments[mappingFragmentsIterator].ColumnMappings as IList<ColumnMappingBuilder>;
+                        if (columnMappings == null) continue;
+                        // ReSharper disable once LoopCanBeConvertedToQuery
+                        for (var columnMappingsIterator = 0; columnMappingsIterator < columnMappings.Count; ++columnMappingsIterator)
+                        {
+                            var columnMapping = columnMappings[columnMappingsIterator];
+                            IList<ColumnMappingBuilder> columnMappingList = null;
+                            if (columnMappingIndex.ContainsKey(columnMapping.ColumnProperty))
+                            {
+                                columnMappingList = columnMappingIndex[columnMapping.ColumnProperty];
+                            }
+                            else
+                            {
+                                columnMappingIndex.Add(columnMapping.ColumnProperty, columnMappingList = new List<ColumnMappingBuilder>());
+                            }
+                            columnMappingList.Add(columnMapping);
+                        }
+                    }
+                }
+            }
+            // ReSharper enable ForCanBeConvertedToForeach
+            return columnMappingIndex;
         }
 
         public static void UpdatePropertyMappings(
             DbDatabaseMapping databaseMapping,
+            IEnumerable<EntitySet> entitySets,
             EntityType fromTable,
-            StorageMappingFragment fragment,
+            MappingFragment fragment,
             bool useExisting)
         {
+            // PERF: this code is part of a hotpath, consider its performance when refactoring
             // move the column from the fromTable to the table in fragment
             if (fromTable != fragment.Table)
             {
-                fragment.ColumnMappings.Each(
-                    pm => UpdatePropertyMapping(databaseMapping, pm, fromTable, fragment.Table, useExisting));
+                var columnMappingIndex = GetColumnMappingIndex(databaseMapping);
+                var columnMappings = fragment.ColumnMappings.ToList();
+                for (var i = 0; i < columnMappings.Count; ++i)
+                {
+                    UpdatePropertyMapping(databaseMapping, entitySets, columnMappingIndex, columnMappings[i], fromTable, fragment.Table, useExisting);
+                }
             }
         }
 
         public static void MovePropertyMapping(
             DbDatabaseMapping databaseMapping,
-            StorageMappingFragment fromFragment,
-            StorageMappingFragment toFragment,
+            IEnumerable<EntitySet> entitySets,
+            MappingFragment fromFragment,
+            MappingFragment toFragment,
             ColumnMappingBuilder propertyMappingBuilder,
             bool requiresUpdate,
             bool useExisting)
@@ -531,7 +621,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             // move the column from the formTable to the table in fragment
             if (requiresUpdate && fromFragment.Table != toFragment.Table)
             {
-                UpdatePropertyMapping(databaseMapping, propertyMappingBuilder, fromFragment.Table, toFragment.Table, useExisting);
+                UpdatePropertyMapping(databaseMapping, entitySets, GetColumnMappingIndex(databaseMapping), propertyMappingBuilder, fromFragment.Table, toFragment.Table, useExisting);
             }
 
             // move the propertyMapping
@@ -540,7 +630,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
         }
 
         public static void CopyPropertyMappingToFragment(
-            ColumnMappingBuilder propertyMappingBuilder, StorageMappingFragment fragment,
+            ColumnMappingBuilder propertyMappingBuilder, MappingFragment fragment,
             Func<EdmProperty, bool> isCompatible, bool useExisting)
         {
             // Ensure column is in the fragment's table
@@ -552,7 +642,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
         }
 
         public static void UpdateConditions(
-            EdmModel database, EntityType fromTable, StorageMappingFragment fragment)
+            EdmModel database, EntityType fromTable, MappingFragment fragment)
         {
             // move the condition's column from the formTable to the table in fragment
             if (fromTable != fragment.Table)
@@ -560,10 +650,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                 fragment.ColumnConditions.Each(
                     cc =>
                     {
-                        cc.ColumnProperty
+                        cc.Column
                             = TableOperations.CopyColumnAndAnyConstraints(
-                                database, fromTable, fragment.Table, cc.ColumnProperty,
-                                TablePrimitiveOperations.GetNameMatcher(cc.ColumnProperty.Name),
+                                database, fromTable, fragment.Table, cc.Column,
+                                TablePrimitiveOperations.GetNameMatcher(cc.Column.Name),
                                 useExisting: true);
                     });
             }
@@ -573,8 +663,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
     internal static class AssociationMappingOperations
     {
         private static void MoveAssociationSetMappingDependents(
-            StorageAssociationSetMapping associationSetMapping,
-            StorageEndPropertyMapping dependentMapping,
+            AssociationSetMapping associationSetMapping,
+            EndPropertyMapping dependentMapping,
             EntitySet toSet,
             bool useExistingColumns)
         {
@@ -587,15 +677,15 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
             dependentMapping.PropertyMappings.Each(
                 pm =>
                     {
-                        var oldColumn = pm.ColumnProperty;
+                        var oldColumn = pm.Column;
 
-                        pm.ColumnProperty
+                        pm.Column
                             = TableOperations.MoveColumnAndAnyConstraints(
                                 associationSetMapping.Table, toTable, oldColumn, useExistingColumns);
 
-                        associationSetMapping.ColumnConditions
-                                             .Where(cc => cc.ColumnProperty == oldColumn)
-                                             .Each(cc => cc.ColumnProperty = pm.ColumnProperty);
+                        associationSetMapping.Conditions
+                                             .Where(cc => cc.Column == oldColumn)
+                                             .Each(cc => cc.Column = pm.Column);
                     });
 
             associationSetMapping.StoreEntitySet = toSet;
@@ -632,7 +722,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                 if (dependentEnd.GetEntityType() == entityType)
                 {
                     var dependentMapping
-                        = dependentEnd == associationSetMapping.TargetEndMapping.EndMember
+                        = dependentEnd == associationSetMapping.TargetEndMapping.AssociationEnd
                               ? associationSetMapping.SourceEndMapping
                               : associationSetMapping.TargetEndMapping;
 
@@ -650,13 +740,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Mapping
                     principalMapping.PropertyMappings.Each(
                         pm =>
                             {
-                                if (pm.ColumnProperty.DeclaringType != toTable)
+                                if (pm.Column.DeclaringType != toTable)
                                 {
-                                    pm.ColumnProperty
+                                    pm.Column
                                         = toTable.Properties.Single(
                                             p => string.Equals(
                                                 p.GetPreferredName(),
-                                                pm.ColumnProperty.GetPreferredName(),
+                                                pm.Column.GetPreferredName(),
                                                 StringComparison.Ordinal));
                                 }
                             });

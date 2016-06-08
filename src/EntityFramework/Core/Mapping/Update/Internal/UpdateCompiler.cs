@@ -3,6 +3,7 @@
 namespace System.Data.Entity.Core.Mapping.Update.Internal
 {
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
     using System.Data.Entity.Core.Common.Utils;
@@ -15,16 +16,16 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
     using System.Globalization;
     using System.Linq;
 
-    /// <summary>
-    /// This class implements compilation of DML operation requests to some
-    /// format (e.g. canonical query tree or T-SQL)
-    /// </summary>
+    // <summary>
+    // This class implements compilation of DML operation requests to some
+    // format (e.g. canonical query tree or T-SQL)
+    // </summary>
     internal sealed class UpdateCompiler
     {
-        /// <summary>
-        /// Initialize an update compiler.
-        /// </summary>
-        /// <param name="translator"> Update context. </param>
+        // <summary>
+        // Initialize an update compiler.
+        // </summary>
+        // <param name="translator"> Update context. </param>
         internal UpdateCompiler(UpdateTranslator translator)
         {
             m_translator = translator;
@@ -33,12 +34,12 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
         internal readonly UpdateTranslator m_translator;
         private const string s_targetVarName = "target";
 
-        /// <summary>
-        /// Builds a delete command.
-        /// </summary>
-        /// <param name="oldRow"> Value of the row being deleted. </param>
-        /// <param name="processor"> Context for the table containing row. </param>
-        /// <returns> Delete command. </returns>
+        // <summary>
+        // Builds a delete command.
+        // </summary>
+        // <param name="oldRow"> Value of the row being deleted. </param>
+        // <param name="processor"> Context for the table containing row. </param>
+        // <returns> Delete command. </returns>
         internal UpdateCommand BuildDeleteCommand(PropagatorResult oldRow, TableChangeProcessor processor)
         {
             // If we're deleting a row, the row must always be touched
@@ -59,13 +60,13 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             return command;
         }
 
-        /// <summary>
-        /// Builds an update command.
-        /// </summary>
-        /// <param name="oldRow"> Old value of the row being updated. </param>
-        /// <param name="newRow"> New value for the row being updated. </param>
-        /// <param name="processor"> Context for the table containing row. </param>
-        /// <returns> Update command. </returns>
+        // <summary>
+        // Builds an update command.
+        // </summary>
+        // <param name="oldRow"> Old value of the row being updated. </param>
+        // <param name="newRow"> New value for the row being updated. </param>
+        // <param name="processor"> Context for the table containing row. </param>
+        // <returns> Update command. </returns>
         internal UpdateCommand BuildUpdateCommand(
             PropagatorResult oldRow,
             PropagatorResult newRow, TableChangeProcessor processor)
@@ -117,7 +118,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             // Initialize DML command tree
             var commandTree =
                 new DbUpdateCommandTree(
-                    m_translator.MetadataWorkspace, DataSpace.SSpace, target, predicate, setClauses.AsReadOnly(), returning);
+                    m_translator.MetadataWorkspace, DataSpace.SSpace, target, predicate, new ReadOnlyCollection<DbModificationClause>(setClauses), returning);
 
             // Create command
             UpdateCommand command = new DynamicUpdateCommand(
@@ -126,12 +127,12 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             return command;
         }
 
-        /// <summary>
-        /// Builds insert command.
-        /// </summary>
-        /// <param name="newRow"> Row to insert. </param>
-        /// <param name="processor"> Context for the table we're inserting into. </param>
-        /// <returns> Insert command. </returns>
+        // <summary>
+        // Builds insert command.
+        // </summary>
+        // <param name="newRow"> Row to insert. </param>
+        // <param name="processor"> Context for the table we're inserting into. </param>
+        // <returns> Insert command. </returns>
         internal UpdateCommand BuildInsertCommand(PropagatorResult newRow, TableChangeProcessor processor)
         {
             // Bind the insert target
@@ -151,7 +152,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
 
             // Initialize DML command tree
             var commandTree =
-                new DbInsertCommandTree(m_translator.MetadataWorkspace, DataSpace.SSpace, target, setClauses.AsReadOnly(), returning);
+                new DbInsertCommandTree(m_translator.MetadataWorkspace, DataSpace.SSpace, target, new ReadOnlyCollection<DbModificationClause>(setClauses), returning);
 
             // Create command
             UpdateCommand command = new DynamicUpdateCommand(
@@ -160,27 +161,25 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             return command;
         }
 
-        /// <summary>
-        /// Determines column/value used to set values for a row.
-        /// </summary>
-        /// <remarks>
-        /// The following columns are not included in the result:
-        /// <list>
-        ///     <item>Keys in non-insert operations (keys are only set for inserts).</item>
-        ///     <item>Values flagged 'preserve' (these are values the propagator claims are untouched).</item>
-        ///     <item>Server generated values.</item>
-        /// </list>
-        /// </remarks>
-        /// <param name="target"> Expression binding representing the table. </param>
-        /// <param name="row"> Row containing values to set. </param>
-        /// <param name="originalRow"> </param>
-        /// <param name="processor"> Context for table. </param>
-        /// <param name="insertMode"> Determines whether key columns and 'preserve' columns are omitted from the list. </param>
-        /// <param name="outputIdentifiers"> Dictionary listing server generated identifiers. </param>
-        /// <param name="returning"> DbExpression describing result projection for server generated values. </param>
-        /// <param name="rowMustBeTouched"> Indicates whether the row must be touched because it produces a value (e.g. computed) </param>
-        /// <returns> Column value pairs. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Determines column/value used to set values for a row.
+        // </summary>
+        // <remarks>
+        // The following columns are not included in the result:
+        // <list>
+        //     <item>Keys in non-insert operations (keys are only set for inserts).</item>
+        //     <item>Values flagged 'preserve' (these are values the propagator claims are untouched).</item>
+        //     <item>Server generated values.</item>
+        // </list>
+        // </remarks>
+        // <param name="target"> Expression binding representing the table. </param>
+        // <param name="row"> Row containing values to set. </param>
+        // <param name="processor"> Context for table. </param>
+        // <param name="insertMode"> Determines whether key columns and 'preserve' columns are omitted from the list. </param>
+        // <param name="outputIdentifiers"> Dictionary listing server generated identifiers. </param>
+        // <param name="returning"> DbExpression describing result projection for server generated values. </param>
+        // <param name="rowMustBeTouched"> Indicates whether the row must be touched because it produces a value (e.g. computed) </param>
+        // <returns> Column value pairs. </returns>
         private IEnumerable<DbModificationClause> BuildSetClauses(
             DbExpressionBinding target, PropagatorResult row,
             PropagatorResult originalRow, TableChangeProcessor processor, bool insertMode, out Dictionary<int, string> outputIdentifiers,
@@ -351,22 +350,22 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
             return result;
         }
 
-        /// <summary>
-        /// Determines predicate used to identify a row in a table.
-        /// </summary>
-        /// <remarks>
-        /// Columns are included in the list when:
-        /// <list>
-        ///     <item>They are keys for the table</item>
-        ///     <item>They are concurrency values</item>
-        /// </list>
-        /// </remarks>
-        /// <param name="target"> Expression binding representing the table containing the row </param>
-        /// <param name="referenceRow"> Values for the row being located. </param>
-        /// <param name="current"> Values being updated (may be null). </param>
-        /// <param name="processor"> Context for the table containing the row. </param>
-        /// <param name="rowMustBeTouched"> Output parameter indicating whether a row must be touched (whether it's being modified or not) because it contains a concurrency value </param>
-        /// <returns> Column/value pairs. </returns>
+        // <summary>
+        // Determines predicate used to identify a row in a table.
+        // </summary>
+        // <remarks>
+        // Columns are included in the list when:
+        // <list>
+        //     <item>They are keys for the table</item>
+        //     <item>They are concurrency values</item>
+        // </list>
+        // </remarks>
+        // <param name="target"> Expression binding representing the table containing the row </param>
+        // <param name="referenceRow"> Values for the row being located. </param>
+        // <param name="current"> Values being updated (may be null). </param>
+        // <param name="processor"> Context for the table containing the row. </param>
+        // <param name="rowMustBeTouched"> Output parameter indicating whether a row must be touched (whether it's being modified or not) because it contains a concurrency value </param>
+        // <returns> Column/value pairs. </returns>
         private DbExpression BuildPredicate(
             DbExpressionBinding target, PropagatorResult referenceRow, PropagatorResult current,
             TableChangeProcessor processor, ref bool rowMustBeTouched)
@@ -490,7 +489,7 @@ namespace System.Data.Entity.Core.Mapping.Update.Internal
                 var propertyType = Helper.GetModelTypeUsage(property);
                 var principalType = principalValue.GetType();
 
-                if (principalType.IsEnum)
+                if (principalType.IsEnum())
                 {
                     principalValue = Convert.ChangeType(principalValue, principalType.GetEnumUnderlyingType(), CultureInfo.InvariantCulture);
                 }

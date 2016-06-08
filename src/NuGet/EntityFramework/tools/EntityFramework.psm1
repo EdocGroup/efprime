@@ -57,7 +57,10 @@ function Add-EFProvider
         [string] $TypeName
     )
 
-    Check-Project $project
+	if (!(Check-Project $project))
+	{
+	    return
+	}
 
     $runner = New-EFConfigRunner $Project
 
@@ -130,7 +133,10 @@ function Add-EFDefaultConnectionFactory
         [string[]] $ConstructorArguments
     )
 
-    Check-Project $project
+	if (!(Check-Project $project))
+	{
+	    return
+	}
 
     $runner = New-EFConfigRunner $Project
 
@@ -190,7 +196,10 @@ function Initialize-EFConfiguration
         $Project
     )
 
-    Check-Project $project
+	if (!(Check-Project $project))
+	{
+	    return
+	}
 
     $runner = New-EFConfigRunner $Project
 
@@ -267,6 +276,35 @@ function Initialize-EFConfiguration
 .PARAMETER Force
     Specifies that the migrations configuration be overwritten when running more
     than once for a given project.
+	
+.PARAMETER ContextAssemblyName
+    Specifies the name of the assembly which contains the DbContext class to use. Use this
+    parameter instead of ContextProjectName when the context is contained in a referenced
+    assembly rather than in a project of the solution.
+
+.PARAMETER AppDomainBaseDirectory
+    Specifies the directory to use for the app-domain that is used for running Migrations
+    code such that the app-domain is able to find all required assemblies. This is an
+    advanced option that should only be needed if the solution contains	several projects 
+    such that the assemblies needed for the context and configuration are not all
+    referenced from either the project containing the context or the project containing
+    the migrations.
+
+.EXAMPLE 
+	Enable-Migrations
+	# Scaffold a migrations configuration in a project with only one context
+	
+.EXAMPLE 
+	Enable-Migrations -Auto
+	# Scaffold a migrations configuration with automatic migrations enabled for a project
+	# with only one context
+	
+.EXAMPLE 
+	Enable-Migrations -ContextTypeName MyContext -MigrationsDirectory DirectoryName
+	# Scaffold a migrations configuration for a project with multiple contexts
+	# This scaffolds a migrations configuration for MyContext and will put the configuration
+	# and subsequent configurations in a new directory called "DirectoryName"
+
 #>
 function Enable-Migrations
 {
@@ -287,10 +325,12 @@ function Enable-Migrations
         [parameter(ParameterSetName = 'ConnectionStringAndProviderName',
             Mandatory = $true)]
         [string] $ConnectionProviderName,
-        [switch] $Force
+        [switch] $Force,
+        [string] $ContextAssemblyName,
+		[string] $AppDomainBaseDirectory
     )
 
-    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $ContextProjectName $null $ConnectionStringName $ConnectionString $ConnectionProviderName
+    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $ContextProjectName $null $ConnectionStringName $ConnectionString $ConnectionProviderName $ContextAssemblyName $AppDomainBaseDirectory
 
     try
     {
@@ -364,6 +404,25 @@ function Enable-Migrations
     database. N.B. Doing this assumes that the target database schema is compatible with the
     current model.
 
+.PARAMETER AppDomainBaseDirectory
+    Specifies the directory to use for the app-domain that is used for running Migrations
+    code such that the app-domain is able to find all required assemblies. This is an
+    advanced option that should only be needed if the solution contains	several projects 
+    such that the assemblies needed for the context and configuration are not all
+    referenced from either the project containing the context or the project containing
+    the migrations.
+	
+.EXAMPLE
+	Add-Migration First
+	# Scaffold a new migration named "First"
+	
+.EXAMPLE
+	Add-Migration First -IgnoreChanges
+	# Scaffold an empty migration ignoring any pending changes detected in the current model.
+	# This can be used to create an initial, empty migration to enable Migrations for an existing
+	# database. N.B. Doing this assumes that the target database schema is compatible with the
+	# current model.
+
 #>
 function Add-Migration
 {
@@ -384,9 +443,10 @@ function Add-Migration
         [parameter(ParameterSetName = 'ConnectionStringAndProviderName',
             Mandatory = $true)]
         [string] $ConnectionProviderName,
-        [switch] $IgnoreChanges)
+        [switch] $IgnoreChanges,
+		[string] $AppDomainBaseDirectory)
 
-    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $null $ConfigurationTypeName $ConnectionStringName $ConnectionString $ConnectionProviderName
+    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $null $ConfigurationTypeName $ConnectionStringName $ConnectionString $ConnectionProviderName $null $AppDomainBaseDirectory
 
     try
     {
@@ -461,6 +521,45 @@ function Add-Migration
 
 .PARAMETER ConnectionProviderName
     Specifies the provider invariant name of the connection string.
+	
+.PARAMETER AppDomainBaseDirectory
+    Specifies the directory to use for the app-domain that is used for running Migrations
+    code such that the app-domain is able to find all required assemblies. This is an
+    advanced option that should only be needed if the solution contains	several projects 
+    such that the assemblies needed for the context and configuration are not all
+    referenced from either the project containing the context or the project containing
+    the migrations.
+
+.EXAMPLE
+	Update-Database
+	# Update the database to the latest migration
+	
+.EXAMPLE
+	Update-Database -TargetMigration Second
+	# Update database to a migration named "Second"
+	# This will apply migrations if the target hasn't been applied or roll back migrations
+	# if it has
+	
+.EXAMPLE
+	Update-Database -Script
+	# Generate a script to update the database from it's current state  to the latest migration
+	
+.EXAMPLE
+	Update-Database -Script -SourceMigration Second -TargetMigration First
+	# Generate a script to migrate the database from a specified start migration
+	# named "Second" to a specified target migration named "First"	
+	
+.EXAMPLE
+	Update-Database -Script -SourceMigration $InitialDatabase
+	# Generate a script that can upgrade a database currently at any version to the latest version. 
+	# The generated script includes logic to check the __MigrationsHistory table and only apply changes 
+	# that haven't been previously applied.	
+	
+.EXAMPLE 
+	Update-Database -TargetMigration $InitialDatabase
+	# Runs the Down method to roll-back any migrations that have been applied to the database
+	
+	
 #>
 function Update-Database
 {
@@ -480,9 +579,10 @@ function Update-Database
         [string] $ConnectionString,
         [parameter(ParameterSetName = 'ConnectionStringAndProviderName',
             Mandatory = $true)]
-        [string] $ConnectionProviderName)
+        [string] $ConnectionProviderName,
+		[string] $AppDomainBaseDirectory)
 
-    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $null $ConfigurationTypeName $ConnectionStringName $ConnectionString $ConnectionProviderName
+    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $null $ConfigurationTypeName $ConnectionStringName $ConnectionString $ConnectionProviderName $null $AppDomainBaseDirectory
 
     try
     {
@@ -541,6 +641,14 @@ function Update-Database
 
 .PARAMETER ConnectionProviderName
     Specifies the provider invariant name of the connection string.
+
+.PARAMETER AppDomainBaseDirectory
+    Specifies the directory to use for the app-domain that is used for running Migrations
+    code such that the app-domain is able to find all required assemblies. This is an
+    advanced option that should only be needed if the solution contains	several projects 
+    such that the assemblies needed for the context and configuration are not all
+    referenced from either the project containing the context or the project containing
+    the migrations.
 #>
 function Get-Migrations
 {
@@ -556,9 +664,10 @@ function Get-Migrations
         [string] $ConnectionString,
         [parameter(ParameterSetName = 'ConnectionStringAndProviderName',
             Mandatory = $true)]
-        [string] $ConnectionProviderName)
+        [string] $ConnectionProviderName,
+		[string] $AppDomainBaseDirectory)
 
-    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $null $ConfigurationTypeName $ConnectionStringName $ConnectionString $ConnectionProviderName
+    $runner = New-MigrationsRunner $ProjectName $StartUpProjectName $null $ConfigurationTypeName $ConnectionStringName $ConnectionString $ConnectionProviderName $null $AppDomainBaseDirectory
 
     try
     {
@@ -585,7 +694,7 @@ function Get-Migrations
     }
 }
 
-function New-MigrationsRunner($ProjectName, $StartUpProjectName, $ContextProjectName, $ConfigurationTypeName, $ConnectionStringName, $ConnectionString, $ConnectionProviderName)
+function New-MigrationsRunner($ProjectName, $StartUpProjectName, $ContextProjectName, $ConfigurationTypeName, $ConnectionStringName, $ConnectionString, $ConnectionProviderName, $ContextAssemblyName, $AppDomainBaseDirectory)
 {
     $startUpProject = Get-MigrationsStartUpProject $StartUpProjectName $ProjectName
     Build-Project $startUpProject
@@ -613,6 +722,8 @@ function New-MigrationsRunner($ProjectName, $StartUpProjectName, $ContextProject
     $domain.SetData('connectionStringName', $ConnectionStringName)
     $domain.SetData('connectionString', $ConnectionString)
     $domain.SetData('connectionProviderName', $ConnectionProviderName)
+    $domain.SetData('contextAssemblyName', $ContextAssemblyName)
+    $domain.SetData('appDomainBaseDirectory', $AppDomainBaseDirectory)
     
     $dispatcher = New-DomainDispatcher $toolsPath
     $domain.SetData('efDispatcher', $dispatcher)
@@ -903,6 +1014,8 @@ function Check-Project($project)
     {
         throw "The Project argument must refer to a Visual Studio project. Use the '`$project' variable provided by NuGet when running in install.ps1."
     }
+
+	return $project.CodeModel
 }
 
 Export-ModuleMember @( 'Enable-Migrations', 'Add-Migration', 'Update-Database', 'Get-Migrations', 'Add-EFProvider', 'Add-EFDefaultConnectionFactory', 'Initialize-EFConfiguration') -Variable InitialDatabase

@@ -1,9 +1,10 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Mapping
 {
     using System.Collections;
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Common.Utils;
     using System.Data.Entity.Core.Metadata.Edm;
@@ -11,13 +12,73 @@ namespace System.Data.Entity.Core.Mapping
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Linq;
-    using OM = System.Collections.ObjectModel;
 
     /// <summary>
     /// Represents a mapping from a model function import to a store non-composable function.
     /// </summary>
-    internal sealed class FunctionImportMappingNonComposable : FunctionImportMapping
+    public sealed class FunctionImportMappingNonComposable : FunctionImportMapping
     {
+        private readonly ReadOnlyCollection<FunctionImportResultMapping> _resultMappings;
+
+        /// <summary>
+        /// Initializes a new FunctionImportMappingNonComposable instance.
+        /// </summary>
+        /// <param name="functionImport">The model function import.</param>
+        /// <param name="targetFunction">The store non-composable function.</param>
+        /// <param name="resultMappings">The function import result mappings.</param>
+        /// <param name="containerMapping">The parent container mapping.</param>
+        public FunctionImportMappingNonComposable(
+            EdmFunction functionImport,
+            EdmFunction targetFunction,
+            IEnumerable<FunctionImportResultMapping> resultMappings,
+            EntityContainerMapping containerMapping)
+            : base(
+                Check.NotNull(functionImport, "functionImport"),
+                Check.NotNull(targetFunction, "targetFunction"))
+        {
+            Check.NotNull(resultMappings, "resultMappings");
+            Check.NotNull(containerMapping, "containerMapping");
+
+            Debug.Assert(!functionImport.IsComposableAttribute);
+            Debug.Assert(!targetFunction.IsComposableAttribute);
+
+ 
+            if (!resultMappings.Any())
+            {
+                // when this method is invoked when a CodeFirst model is being built (e.g. from a custom convention) the
+                // StorageMappingItemCollection will be null. In this case we can provide an empty EdmItemCollection which
+                // will allow inferring implicit result mapping
+                var edmItemCollection = containerMapping.StorageMappingItemCollection != null
+                    ? containerMapping.StorageMappingItemCollection.EdmItemCollection
+                    : new EdmItemCollection(new EdmModel(DataSpace.CSpace));
+
+                _internalResultMappings = new ReadOnlyCollection<FunctionImportStructuralTypeMappingKB>(
+                    new[]
+                        {
+                            new FunctionImportStructuralTypeMappingKB(
+                                new List<FunctionImportStructuralTypeMapping>(), 
+                                edmItemCollection)
+                        });
+                noExplicitResultMappings = true;
+            }
+            else
+            {
+                Debug.Assert(functionImport.ReturnParameters.Count == resultMappings.Count());
+
+                _internalResultMappings = new ReadOnlyCollection<FunctionImportStructuralTypeMappingKB>(
+                    resultMappings
+                        .Select(
+                            resultMapping => new FunctionImportStructuralTypeMappingKB(
+                                                    resultMapping.TypeMappings,
+                                                    containerMapping.StorageMappingItemCollection.EdmItemCollection))
+                        .ToArray());
+
+                noExplicitResultMappings = false;
+            }
+
+            _resultMappings = new ReadOnlyCollection<FunctionImportResultMapping>(resultMappings.ToList());
+        }
+
         internal FunctionImportMappingNonComposable(
             EdmFunction functionImport,
             EdmFunction targetFunction,
@@ -32,7 +93,7 @@ namespace System.Data.Entity.Core.Mapping
 
             if (structuralTypeMappingsList.Count == 0)
             {
-                ResultMappings = new OM.ReadOnlyCollection<FunctionImportStructuralTypeMappingKB>(
+                _internalResultMappings = new ReadOnlyCollection<FunctionImportStructuralTypeMappingKB>(
                     new[]
                         {
                             new FunctionImportStructuralTypeMappingKB(new List<FunctionImportStructuralTypeMapping>(), itemCollection)
@@ -42,10 +103,10 @@ namespace System.Data.Entity.Core.Mapping
             else
             {
                 Debug.Assert(functionImport.ReturnParameters.Count == structuralTypeMappingsList.Count);
-                ResultMappings = new OM.ReadOnlyCollection<FunctionImportStructuralTypeMappingKB>(
+                _internalResultMappings = new ReadOnlyCollection<FunctionImportStructuralTypeMappingKB>(
                     structuralTypeMappingsList
                         .Select(
-                            (structuralTypeMappings) => new FunctionImportStructuralTypeMappingKB(
+                            structuralTypeMappings => new FunctionImportStructuralTypeMappingKB(
                                                             structuralTypeMappings,
                                                             itemCollection))
                         .ToArray());
@@ -55,46 +116,66 @@ namespace System.Data.Entity.Core.Mapping
 
         private readonly bool noExplicitResultMappings;
 
-        /// <summary>
-        /// Gets function import return type mapping knowledge bases.
-        /// </summary>
-        internal readonly OM.ReadOnlyCollection<FunctionImportStructuralTypeMappingKB> ResultMappings;
+        // <summary>
+        // Gets function import return type mapping knowledge bases.
+        // </summary>
+        private readonly ReadOnlyCollection<FunctionImportStructuralTypeMappingKB> _internalResultMappings;
+
+        internal ReadOnlyCollection<FunctionImportStructuralTypeMappingKB> InternalResultMappings
+        {
+            get { return _internalResultMappings; }
+        }
 
         /// <summary>
-        /// If no return mappings were specified in the MSL return an empty return type mapping knowledge base.
-        /// Otherwise return the resultSetIndexth return type mapping knowledge base, or throw if resultSetIndex is out of range
+        /// Gets the function import result mappings.
         /// </summary>
+        public ReadOnlyCollection<FunctionImportResultMapping> ResultMappings
+        {
+            get { return _resultMappings; }
+        }
+
+        internal override void SetReadOnly()
+        {
+            SetReadOnly(_resultMappings);
+
+            base.SetReadOnly();
+        }
+
+        // <summary>
+        // If no return mappings were specified in the MSL return an empty return type mapping knowledge base.
+        // Otherwise return the resultSetIndexth return type mapping knowledge base, or throw if resultSetIndex is out of range
+        // </summary>
         internal FunctionImportStructuralTypeMappingKB GetResultMapping(int resultSetIndex)
         {
             Debug.Assert(resultSetIndex >= 0, "resultSetIndex >= 0");
             if (noExplicitResultMappings)
             {
-                Debug.Assert(ResultMappings.Count == 1, "this.ResultMappings.Count == 1");
-                return ResultMappings[0];
+                Debug.Assert(InternalResultMappings.Count == 1, "this.InternalResultMappings.Count == 1");
+                return InternalResultMappings[0];
             }
             else
             {
-                if (ResultMappings.Count <= resultSetIndex)
+                if (InternalResultMappings.Count <= resultSetIndex)
                 {
                     throw new ArgumentOutOfRangeException("resultSetIndex");
                 }
-                return ResultMappings[resultSetIndex];
+                return InternalResultMappings[resultSetIndex];
             }
         }
 
-        /// <summary>
-        /// Gets the disctriminator columns resultSetIndexth result set, or an empty array if the index is not in range
-        /// </summary>
+        // <summary>
+        // Gets the disctriminator columns resultSetIndexth result set, or an empty array if the index is not in range
+        // </summary>
         internal IList<string> GetDiscriminatorColumns(int resultSetIndex)
         {
             var resultMapping = GetResultMapping(resultSetIndex);
             return resultMapping.DiscriminatorColumns;
         }
 
-        /// <summary>
-        /// Given discriminator values (ordinally aligned with DiscriminatorColumns), determines
-        /// the entity type to return. Throws a CommandExecutionException if the type is ambiguous.
-        /// </summary>
+        // <summary>
+        // Given discriminator values (ordinally aligned with DiscriminatorColumns), determines
+        // the entity type to return. Throws a CommandExecutionException if the type is ambiguous.
+        // </summary>
         internal EntityType Discriminate(object[] discriminatorValues, int resultSetIndex)
         {
             var resultMapping = GetResultMapping(resultSetIndex);
@@ -156,18 +237,18 @@ namespace System.Data.Entity.Core.Mapping
             return entityType;
         }
 
-        /// <summary>
-        /// Determines the expected shape of store results. We expect a column for every property
-        /// of the mapped type (or types) and a column for every discriminator column. We make no
-        /// assumptions about the order of columns: the provider is expected to determine appropriate
-        /// types by looking at the names of the result columns, not the order of columns, which is
-        /// different from the typical handling of row types in the EF.
-        /// </summary>
-        /// <remarks>
-        /// Requires that the given function import mapping refers to a Collection(Entity) or Collection(ComplexType) CSDL
-        /// function.
-        /// </remarks>
-        /// <returns> Row type. </returns>
+        // <summary>
+        // Determines the expected shape of store results. We expect a column for every property
+        // of the mapped type (or types) and a column for every discriminator column. We make no
+        // assumptions about the order of columns: the provider is expected to determine appropriate
+        // types by looking at the names of the result columns, not the order of columns, which is
+        // different from the typical handling of row types in the EF.
+        // </summary>
+        // <remarks>
+        // Requires that the given function import mapping refers to a Collection(Entity) or Collection(ComplexType) CSDL
+        // function.
+        // </remarks>
+        // <returns> Row type. </returns>
         internal TypeUsage GetExpectedTargetResultType(int resultSetIndex)
         {
             var resultMapping = GetResultMapping(resultSetIndex);

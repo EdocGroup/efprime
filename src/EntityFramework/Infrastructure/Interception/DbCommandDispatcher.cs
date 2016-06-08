@@ -11,7 +11,7 @@ namespace System.Data.Entity.Infrastructure.Interception
 
     /// <summary>
     /// Used for dispatching operations to a <see cref="DbCommand" /> such that any <see cref="IDbCommandInterceptor" />
-    /// interceptors that are registered on <see cref="DbInterception" /> will be notified before and after the
+    /// registered on <see cref="DbInterception" /> will be notified before and after the
     /// operation executes.
     /// Instances of this class are obtained through the the <see cref="DbInterception.Dispatch" /> fluent API.
     /// </summary>
@@ -36,8 +36,8 @@ namespace System.Data.Entity.Infrastructure.Interception
 
         /// <summary>
         /// Sends <see cref="IDbCommandInterceptor.NonQueryExecuting" /> and
-        /// <see cref="IDbCommandInterceptor.NonQueryExecuted" /> to any  <see cref="IDbCommandInterceptor" />
-        /// interceptors that are registered on <see cref="DbInterception" /> before/after making a
+        /// <see cref="IDbCommandInterceptor.NonQueryExecuted" /> to any <see cref="IDbCommandInterceptor" />
+        /// registered on <see cref="DbInterception" /> before/after making a
         /// call to <see cref="DbCommand.ExecuteNonQuery" />.
         /// </summary>
         /// <remarks>
@@ -53,19 +53,18 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(command, "command");
             Check.NotNull(interceptionContext, "interceptionContext");
 
-            var clonedInterceptionContext = new DbCommandInterceptionContext<int>(interceptionContext);
-
             return _internalDispatcher.Dispatch(
-                command.ExecuteNonQuery,
-                clonedInterceptionContext,
-                i => i.NonQueryExecuting(command, clonedInterceptionContext),
-                i => i.NonQueryExecuted(command, clonedInterceptionContext));
+                command,
+                (t, c) => t.ExecuteNonQuery(),
+                new DbCommandInterceptionContext<int>(interceptionContext),
+                (i, t, c) => i.NonQueryExecuting(t, c),
+                (i, t, c) => i.NonQueryExecuted(t, c));
         }
 
         /// <summary>
         /// Sends <see cref="IDbCommandInterceptor.ScalarExecuting" /> and
-        /// <see cref="IDbCommandInterceptor.ScalarExecuted" /> to any  <see cref="IDbCommandInterceptor" />
-        /// interceptors that are registered on <see cref="DbInterception" /> before/after making a
+        /// <see cref="IDbCommandInterceptor.ScalarExecuted" /> to any <see cref="IDbCommandInterceptor" />
+        /// registered on <see cref="DbInterception" /> before/after making a
         /// call to <see cref="DbCommand.ExecuteScalar" />.
         /// </summary>
         /// <remarks>
@@ -81,19 +80,18 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(command, "command");
             Check.NotNull(interceptionContext, "interceptionContext");
 
-            var clonedInterceptionContext = new DbCommandInterceptionContext<object>(interceptionContext);
-
             return _internalDispatcher.Dispatch(
-                command.ExecuteScalar,
-                clonedInterceptionContext,
-                i => i.ScalarExecuting(command, clonedInterceptionContext),
-                i => i.ScalarExecuted(command, clonedInterceptionContext));
+                command,
+                (t, c) => t.ExecuteScalar(),
+                new DbCommandInterceptionContext<object>(interceptionContext),
+                (i, t, c) => i.ScalarExecuting(t, c),
+                (i, t, c) => i.ScalarExecuted(t, c));
         }
 
         /// <summary>
         /// Sends <see cref="IDbCommandInterceptor.ReaderExecuting" /> and
-        /// <see cref="IDbCommandInterceptor.ReaderExecuted" /> to any  <see cref="IDbCommandInterceptor" />
-        /// interceptors that are registered on <see cref="DbInterception" /> before/after making a
+        /// <see cref="IDbCommandInterceptor.ReaderExecuted" /> to any <see cref="IDbCommandInterceptor" />
+        /// registered on <see cref="DbInterception" /> before/after making a
         /// call to <see cref="DbCommand.ExecuteReader(CommandBehavior)" />.
         /// </summary>
         /// <remarks>
@@ -110,20 +108,19 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(command, "command");
             Check.NotNull(interceptionContext, "interceptionContext");
 
-            var clonedInterceptionContext = new DbCommandInterceptionContext<DbDataReader>(interceptionContext);
-
             return _internalDispatcher.Dispatch(
-                () => command.ExecuteReader(clonedInterceptionContext.CommandBehavior),
-                clonedInterceptionContext,
-                i => i.ReaderExecuting(command, clonedInterceptionContext),
-                i => i.ReaderExecuted(command, clonedInterceptionContext));
+                command,
+                (t, c) => t.ExecuteReader(c.CommandBehavior),
+                new DbCommandInterceptionContext<DbDataReader>(interceptionContext),
+                (i, t, c) => i.ReaderExecuting(t, c),
+                (i, t, c) => i.ReaderExecuted(t, c));
         }
 
 #if !NET40
         /// <summary>
         /// Sends <see cref="IDbCommandInterceptor.NonQueryExecuting" /> and
-        /// <see cref="IDbCommandInterceptor.NonQueryExecuted" /> to any  <see cref="IDbCommandInterceptor" />
-        /// interceptors that are registered on <see cref="DbInterception" /> before/after making a
+        /// <see cref="IDbCommandInterceptor.NonQueryExecuted" /> to any <see cref="IDbCommandInterceptor" />
+        /// registered on <see cref="DbInterception" /> before/after making a
         /// call to <see cref="DbCommand.ExecuteNonQueryAsync(CancellationToken)" />.
         /// </summary>
         /// <remarks>
@@ -141,24 +138,19 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(command, "command");
             Check.NotNull(interceptionContext, "interceptionContext");
 
-            var clonedInterceptionContext = new DbCommandInterceptionContext<int>(interceptionContext);
-
-            if (!clonedInterceptionContext.IsAsync)
-            {
-                clonedInterceptionContext = clonedInterceptionContext.AsAsync();
-            }
-
             return _internalDispatcher.DispatchAsync(
-                () => command.ExecuteNonQueryAsync(cancellationToken),
-                clonedInterceptionContext,
-                i => i.NonQueryExecuting(command, clonedInterceptionContext),
-                i => i.NonQueryExecuted(command, clonedInterceptionContext));
+                command,
+                (t, c, ct) => t.ExecuteNonQueryAsync(ct),
+                new DbCommandInterceptionContext<int>(interceptionContext).AsAsync(),
+                (i, t, c) => i.NonQueryExecuting(t, c),
+                (i, t, c) => i.NonQueryExecuted(t, c),
+                cancellationToken);
         }
 
         /// <summary>
         /// Sends <see cref="IDbCommandInterceptor.ScalarExecuting" /> and
-        /// <see cref="IDbCommandInterceptor.ScalarExecuted" /> to any  <see cref="IDbCommandInterceptor" />
-        /// interceptors that are registered on <see cref="DbInterception" /> before/after making a
+        /// <see cref="IDbCommandInterceptor.ScalarExecuted" /> to any <see cref="IDbCommandInterceptor" />
+        /// registered on <see cref="DbInterception" /> before/after making a
         /// call to <see cref="DbCommand.ExecuteScalarAsync(CancellationToken)" />.
         /// </summary>
         /// <remarks>
@@ -176,24 +168,19 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(command, "command");
             Check.NotNull(interceptionContext, "interceptionContext");
 
-            var clonedInterceptionContext = new DbCommandInterceptionContext<object>(interceptionContext);
-
-            if (!clonedInterceptionContext.IsAsync)
-            {
-                clonedInterceptionContext = clonedInterceptionContext.AsAsync();
-            }
-
             return _internalDispatcher.DispatchAsync(
-                () => command.ExecuteScalarAsync(cancellationToken),
-                clonedInterceptionContext,
-                i => i.ScalarExecuting(command, clonedInterceptionContext),
-                i => i.ScalarExecuted(command, clonedInterceptionContext));
+                command,
+                (t, c, ct) => t.ExecuteScalarAsync(ct),
+                new DbCommandInterceptionContext<object>(interceptionContext).AsAsync(),
+                (i, t, c) => i.ScalarExecuting(t, c),
+                (i, t, c) => i.ScalarExecuted(t, c),
+                cancellationToken);
         }
 
         /// <summary>
         /// Sends <see cref="IDbCommandInterceptor.ReaderExecuting" /> and
-        /// <see cref="IDbCommandInterceptor.ReaderExecuted" /> to any  <see cref="IDbCommandInterceptor" />
-        /// interceptors that are registered on <see cref="DbInterception" /> before/after making a
+        /// <see cref="IDbCommandInterceptor.ReaderExecuted" /> to any <see cref="IDbCommandInterceptor" />
+        /// registered on <see cref="DbInterception" /> before/after making a
         /// call to <see cref="DbCommand.ExecuteReaderAsync(CommandBehavior, CancellationToken)" />.
         /// </summary>
         /// <remarks>
@@ -211,18 +198,13 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(command, "command");
             Check.NotNull(interceptionContext, "interceptionContext");
 
-            var clonedInterceptionContext = new DbCommandInterceptionContext<DbDataReader>(interceptionContext);
-
-            if (!clonedInterceptionContext.IsAsync)
-            {
-                clonedInterceptionContext = clonedInterceptionContext.AsAsync();
-            }
-
             return _internalDispatcher.DispatchAsync(
-                () => command.ExecuteReaderAsync(clonedInterceptionContext.CommandBehavior, cancellationToken),
-                clonedInterceptionContext,
-                i => i.ReaderExecuting(command, clonedInterceptionContext),
-                i => i.ReaderExecuted(command, clonedInterceptionContext));
+                command,
+                (t, c, ct) => t.ExecuteReaderAsync(c.CommandBehavior, ct),
+                new DbCommandInterceptionContext<DbDataReader>(interceptionContext).AsAsync(),
+                (i, t, c) => i.ReaderExecuting(t, c),
+                (i, t, c) => i.ReaderExecuted(t, c),
+                cancellationToken);
         }
 #endif
 

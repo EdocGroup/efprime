@@ -16,9 +16,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
     using System.Linq;
     using System.Reflection;
 
-    /// <summary>
-    /// Allows configuration to be performed for a type in a model.
-    /// </summary>
+    // <summary>
+    // Allows configuration to be performed for a type in a model.
+    // </summary>
     internal abstract class StructuralTypeConfiguration : ConfigurationBase
     {
         internal static Type GetPropertyConfigurationType(Type propertyType)
@@ -49,7 +49,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
                 return typeof(BinaryPropertyConfiguration);
             }
 
-            return (propertyType.IsValueType
+            return (propertyType.IsValueType()
                     || propertyType == typeof(DbGeography)
                     || propertyType == typeof(DbGeometry)
                    )
@@ -105,10 +105,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             get { return _primitivePropertyConfigurations; }
         }
 
-        /// <summary>
-        /// Excludes a property from the model so that it will not be mapped to the database.
-        /// </summary>
-        /// <param name="propertyInfo"> The property to be configured. </param>
+        // <summary>
+        // Excludes a property from the model so that it will not be mapped to the database.
+        // </summary>
+        // <param name="propertyInfo"> The property to be configured. </param>
         public void Ignore(PropertyInfo propertyInfo)
         {
             Check.NotNull(propertyInfo, "propertyInfo");
@@ -187,7 +187,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration.Types
             }
         }
 
-        internal void ConfigureFunctionParameters(IList<StorageModificationFunctionParameterBinding> parameterBindings)
+        internal void ConfigureFunctionParameters(IList<ModificationFunctionParameterBinding> parameterBindings)
         {
             DebugCheck.NotNull(parameterBindings);
 

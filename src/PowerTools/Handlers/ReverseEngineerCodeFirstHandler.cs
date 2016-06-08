@@ -44,6 +44,8 @@ namespace Microsoft.DbContextPackage.Handlers
 
             try
             {
+                var startTime = DateTime.Now;
+
                 // Show dialog with SqlClient selected by default
                 var dialogFactory = _package.GetService<IVsDataConnectionDialogFactory>();
                 var dialog = dialogFactory.CreateConnectionDialog();
@@ -102,7 +104,6 @@ namespace Microsoft.DbContextPackage.Handlers
                     }
 
                     // Generate Entity Classes and Mappings
-                    _package.DTE2.StatusBar.Text = Strings.ReverseEngineer_GenerateClasses;
                     var templateProcessor = new TemplateProcessor(project);
                     var modelsNamespace = projectNamespace + ".Models";
                     var modelsDirectory = Path.Combine(projectDirectory.FullName, "Models");
@@ -112,6 +113,8 @@ namespace Microsoft.DbContextPackage.Handlers
 
                     foreach (var entityType in entityTypes)
                     {
+                        _package.DTE2.StatusBar.Text = Strings.ReverseEngineer_GenerateClasses(entityType.Name);
+
                         // Generate the code file
                         var entityHost = new EfTextTemplateHost
                             {
@@ -170,7 +173,8 @@ namespace Microsoft.DbContextPackage.Handlers
                         _package.DTE2.ItemOperations.OpenFile(contextFilePath);
                     }
 
-                    _package.DTE2.StatusBar.Text = Strings.ReverseEngineer_Complete;
+                    var duration = DateTime.Now - startTime;
+                    _package.DTE2.StatusBar.Text = Strings.ReverseEngineer_Complete(duration.ToString(@"h\:mm\:ss"));
                 }
             }
             catch (Exception exception)

@@ -10,6 +10,7 @@ namespace System.Data.Entity.Core.Common.CommandTrees
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Spatial;
+    using System.Data.Entity.Utilities;
     using System.IO;
     using System.Linq;
     using System.Xml;
@@ -373,12 +374,10 @@ namespace System.Data.Entity.Core.Common.CommandTrees
         }
 
         [Fact]
-        public void IsNull_RowType()
+        public void IsNull_RowType_does_not_throw()
         {
             var argument = new Row(((DbExpression)"columnValue").As("C1"));
-            var message = Assert.Throws<ArgumentException>(() => DbExpressionBuilder.IsNull(argument)).Message;
-
-            Assert.True(message.Contains(Strings.Cqt_IsNull_InvalidType));
+            Assert.DoesNotThrow(() => DbExpressionBuilder.IsNull(argument));
         }
 
         private void VerifyIsNull(DbIsNullExpression expression, DbExpression argument)
@@ -1132,13 +1131,13 @@ namespace System.Data.Entity.Core.Common.CommandTrees
             Assert.DoesNotThrow(() => DbExpressionBuilder.Parameter(stringTypeUsage, Lm));
             Assert.DoesNotThrow(() => DbExpressionBuilder.Parameter(stringTypeUsage, Lo));
             Assert.DoesNotThrow(() => DbExpressionBuilder.Parameter(stringTypeUsage, Nl));
+            Assert.DoesNotThrow(() => DbExpressionBuilder.Parameter(stringTypeUsage, "_"));
             
             Assert.Throws<ArgumentException>(() => DbExpressionBuilder.Parameter(stringTypeUsage, Nd));
             Assert.Throws<ArgumentException>(() => DbExpressionBuilder.Parameter(stringTypeUsage, Mn));
             Assert.Throws<ArgumentException>(() => DbExpressionBuilder.Parameter(stringTypeUsage, Mc));
             Assert.Throws<ArgumentException>(() => DbExpressionBuilder.Parameter(stringTypeUsage, Pc));
             Assert.Throws<ArgumentException>(() => DbExpressionBuilder.Parameter(stringTypeUsage, Cf));
-            Assert.Throws<ArgumentException>(() => DbExpressionBuilder.Parameter(stringTypeUsage, "_"));
 
             // Following characters
             Assert.DoesNotThrow(() => DbExpressionBuilder.Parameter(stringTypeUsage, "P" + Nd));
@@ -2159,6 +2158,24 @@ namespace System.Data.Entity.Core.Common.CommandTrees
 
         #endregion
 
+        #region SetClause
+
+        [Fact]
+        public void SetClause_can_create_for_property()
+        {
+            var instance = this.productsEntitySet.Scan().Element();
+            var edmProperty = (EdmProperty)((StructuralType)this.productTypeUsage.EdmType).Members["ProductID"];
+            var propertyExpression = instance.Property(edmProperty);
+            var valueExpression = DbExpression.FromInt32(1);
+
+            var set = DbExpressionBuilder.SetClause(propertyExpression, valueExpression);
+
+            Assert.Same(propertyExpression, set.Property);
+            Assert.Same(valueExpression, set.Value);
+        }
+
+        #endregion
+
         #region Null checks
 
         [Fact]
@@ -2505,6 +2522,13 @@ namespace System.Data.Entity.Core.Common.CommandTrees
             Assert.Throws<ArgumentNullException>(() => DbExpressionBuilder.Take(DbExpressionBuilder.True, null));
         }
 
+        [Fact]
+        public void Null_check_Set()
+        {
+            Assert.Throws<ArgumentNullException>(() => DbExpressionBuilder.SetClause(null, DbExpressionBuilder.True));
+            Assert.Throws<ArgumentNullException>(() => DbExpressionBuilder.SetClause(DbExpressionBuilder.True, null));
+        }
+
         #endregion
 
         public void SetFixture(DbExpressionBuilderFixture data)
@@ -2523,6 +2547,126 @@ namespace System.Data.Entity.Core.Common.CommandTrees
             this.productsEntitySet = data.ProductsEntitySet;
             this.categoriesEntitySet = data.CategoriesEntitySet;
         }
+
+        [Fact]
+        public void TryGetAnonymousTypeValues_reads_values_from_types_that_look_anonymous()
+        {
+            var values = DbExpressionBuilder.TryGetAnonymousTypeValues<PseudoAnonymous1, int>(new PseudoAnonymous1(1, 2));
+            Assert.Equal(2, values.Count);
+            Assert.Contains(new KeyValuePair<string, int>("A", 1), values);
+            Assert.Contains(new KeyValuePair<string, int>("B", 2), values);
+
+            var anonObject = new { A = 3, B = 4 };
+
+            values = (List<KeyValuePair<string, int>>)typeof(DbExpressionBuilder)
+                .GetOnlyDeclaredMethod("TryGetAnonymousTypeValues")
+                .MakeGenericMethod(new[] { anonObject.GetType(), typeof(int) })
+                .Invoke(null, new object[] { anonObject });
+
+            Assert.Equal(2, values.Count);
+            Assert.Contains(new KeyValuePair<string, int>("A", 3), values);
+            Assert.Contains(new KeyValuePair<string, int>("B", 4), values);
+        }
+
+        [Fact]
+        public void TryGetAnonymousTypeValues_reads_values_from_types_that_look_anonymous_but_have_static_properties()
+        {
+            var values = DbExpressionBuilder.TryGetAnonymousTypeValues<PseudoAnonymous2, int>(new PseudoAnonymous2(1, 2));
+            Assert.Equal(2, values.Count);
+            Assert.Contains(new KeyValuePair<string, int>("A", 1), values);
+            Assert.Contains(new KeyValuePair<string, int>("B", 2), values);
+        }
+
+        [Fact]
+        public void TryGetAnonymousTypeValues_returns_null_for_non_anonymous_looking_types()
+        {
+            Assert.Null(DbExpressionBuilder.TryGetAnonymousTypeValues<NotAnonymous1, int>(new NotAnonymous1(1, 2)));
+            Assert.Null(DbExpressionBuilder.TryGetAnonymousTypeValues<NotAnonymous2, int>(new NotAnonymous2(1, 2)));
+            Assert.Null(DbExpressionBuilder.TryGetAnonymousTypeValues<NotAnonymous3, int>(new NotAnonymous3(1, 2)));
+            Assert.Null(DbExpressionBuilder.TryGetAnonymousTypeValues<PseudoAnonymous1, string>(new PseudoAnonymous1(1, 2)));
+        }
+
+        public class PseudoAnonymous1
+        {
+            private readonly int _a;
+            private readonly int _b;
+
+            public PseudoAnonymous1(int a, int b)
+            {
+                _a = a;
+                _b = b;
+            }
+
+            public int A { get { return _a; } }
+            public int B { get { return _b; } }
+        }
+
+        public class PseudoAnonymous2
+        {
+            private readonly int _a;
+            private readonly int _b;
+
+            public PseudoAnonymous2(int a, int b)
+            {
+                _a = a;
+                _b = b;
+            }
+
+            public int A { get { return _a; } }
+            public int B { get { return _b; } }
+
+            public static int C { get { return 7; } }
+        }
+
+        public class NotAnonymous1
+        {
+            private readonly int _a;
+            private readonly int _b;
+
+            public NotAnonymous1(int a, int b)
+            {
+                _a = a;
+                _b = b;
+            }
+
+            public int A { get { return _a; } }
+            internal int B { get { return _b; } }
+        }
+
+        public class BaseClass
+        {
+        }
+
+        public class NotAnonymous2 : BaseClass
+        {
+            private readonly int _a;
+            private readonly int _b;
+
+            public NotAnonymous2(int a, int b)
+            {
+                _a = a;
+                _b = b;
+            }
+
+            public int A { get { return _a; } }
+            public int B { get { return _b; } }
+        }
+
+        public class NotAnonymous3
+        {
+            private readonly int _a;
+            private readonly int _b;
+
+            public NotAnonymous3(int a, int b)
+            {
+                _a = a;
+                _b = b;
+            }
+
+            public int A { get { return _a; } }
+            public int B { set { } }
+        }
+
     }
 
     public class DbExpressionBuilderFixture

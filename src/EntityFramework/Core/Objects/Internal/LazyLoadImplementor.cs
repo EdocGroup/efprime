@@ -4,6 +4,7 @@ namespace System.Data.Entity.Core.Objects.Internal
 {
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Utilities;
     using System.Reflection;
     using System.Reflection.Emit;
 
@@ -27,7 +28,7 @@ namespace System.Data.Entity.Core.Objects.Internal
 
             foreach (var member in ospaceEntityType.Members)
             {
-                var clrProperty = EntityUtil.GetTopProperty(ospaceEntityType.ClrType, member.Name);
+                var clrProperty = ospaceEntityType.ClrType.GetTopProperty(member.Name);
                 if (clrProperty != null
                     &&
                     EntityProxyFactory.CanProxyGetter(clrProperty)
@@ -60,7 +61,7 @@ namespace System.Data.Entity.Core.Objects.Internal
         {
             if (_members.Contains(member))
             {
-                var baseGetter = baseProperty.GetGetMethod(true);
+                var baseGetter = baseProperty.Getter();
                 const MethodAttributes getterAttributes =
                     MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
                 var getterAccess = baseGetter.Attributes & MethodAttributes.MemberAccessMask;
@@ -76,7 +77,7 @@ namespace System.Data.Entity.Core.Objects.Internal
                 //     propertyValue is the value returned from the proxied type's property getter.
 
                 var interceptorType = typeof(Func<,,>).MakeGenericType(typeBuilder, baseProperty.PropertyType, typeof(bool));
-                var interceptorInvoke = TypeBuilder.GetMethod(interceptorType, typeof(Func<,,>).GetMethod("Invoke"));
+                var interceptorInvoke = TypeBuilder.GetMethod(interceptorType, typeof(Func<,,>).GetOnlyDeclaredMethod("Invoke"));
                 var interceptorField = typeBuilder.DefineField(
                     GetInterceptorFieldName(baseProperty.Name), interceptorType, FieldAttributes.Private | FieldAttributes.Static);
 

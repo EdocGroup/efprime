@@ -2,9 +2,11 @@
 
 namespace System.Data.Entity.Core.Common.Utils.Boolean
 {
-    /// <summary>
-    /// Services related to different identifier types for Boolean expressions.
-    /// </summary>
+    using System.Data.Entity.Utilities;
+
+    // <summary>
+    // Services related to different identifier types for Boolean expressions.
+    // </summary>
     internal abstract class IdentifierService<T_Identifier>
     {
         #region Static members
@@ -14,7 +16,7 @@ namespace System.Data.Entity.Core.Common.Utils.Boolean
         private static IdentifierService<T_Identifier> GetIdentifierService()
         {
             var identifierType = typeof(T_Identifier);
-            if (identifierType.IsGenericType
+            if (identifierType.IsGenericType()
                 &&
                 identifierType.GetGenericTypeDefinition() == typeof(DomainConstraint<,>))
             {
@@ -44,19 +46,19 @@ namespace System.Data.Entity.Core.Common.Utils.Boolean
 
         #region Service methods
 
-        /// <summary>
-        /// Returns negation of the given literal.
-        /// </summary>
+        // <summary>
+        // Returns negation of the given literal.
+        // </summary>
         internal abstract Literal<T_Identifier> NegateLiteral(Literal<T_Identifier> literal);
 
-        /// <summary>
-        /// Creates a new conversion context.
-        /// </summary>
+        // <summary>
+        // Creates a new conversion context.
+        // </summary>
         internal abstract ConversionContext<T_Identifier> CreateConversionContext();
 
-        /// <summary>
-        /// Performs local simplification appropriate to the current identifier.
-        /// </summary>
+        // <summary>
+        // Performs local simplification appropriate to the current identifier.
+        // </summary>
         internal abstract BoolExpr<T_Identifier> LocalSimplify(BoolExpr<T_Identifier> expression);
 
         #endregion

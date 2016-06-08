@@ -14,16 +14,14 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         {
             DebugCheck.NotNull(type);
 
-            const BindingFlags bindingFlags = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance;
-
-            if (type.GetConstructor(bindingFlags, null, Type.EmptyTypes, null) == null)
+            if (type.GetDeclaredConstructor() == null)
             {
                 throw new InvalidOperationException(Strings.CreateConfigurationType_NoParameterlessConstructor(type.Name));
             }
 
             return (TStructuralTypeConfiguration)typeof(StructuralTypeConfiguration<>)
                                                      .MakeGenericType(type.TryGetElementType(typeof(StructuralTypeConfiguration<>)))
-                                                     .GetProperty("Configuration", bindingFlags)
+                                                     .GetDeclaredProperty("Configuration")
                                                      .GetValue(Activator.CreateInstance(type, nonPublic: true), null);
         }
     }

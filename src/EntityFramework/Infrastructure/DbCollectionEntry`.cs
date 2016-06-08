@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Infrastructure
 {
@@ -24,16 +24,16 @@ namespace System.Data.Entity.Infrastructure
 
         private readonly InternalCollectionEntry _internalCollectionEntry;
 
-        /// <summary>
-        /// Creates a <see cref="DbCollectionEntry{TEntity,TElement}" /> from information in the given
-        /// <see
-        ///     cref="InternalCollectionEntry" />
-        /// .
-        /// Use this method in preference to the constructor since it may potentially create a subclass depending on
-        /// the type of member represented by the InternalCollectionEntry instance.
-        /// </summary>
-        /// <param name="internalCollectionEntry"> The internal collection entry. </param>
-        /// <returns> The new entry. </returns>
+        // <summary>
+        // Creates a <see cref="DbCollectionEntry{TEntity,TElement}" /> from information in the given
+        // <see
+        //     cref="InternalCollectionEntry" />
+        // .
+        // Use this method in preference to the constructor since it may potentially create a subclass depending on
+        // the type of member represented by the InternalCollectionEntry instance.
+        // </summary>
+        // <param name="internalCollectionEntry"> The internal collection entry. </param>
+        // <returns> The new entry. </returns>
         internal static DbCollectionEntry<TEntity, TElement> Create(InternalCollectionEntry internalCollectionEntry)
         {
             DebugCheck.NotNull(internalCollectionEntry);
@@ -45,10 +45,10 @@ namespace System.Data.Entity.Infrastructure
             return internalCollectionEntry.CreateDbCollectionEntry<TEntity, TElement>();
         }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DbCollectionEntry{TEntity, TProperty}" /> class.
-        /// </summary>
-        /// <param name="internalCollectionEntry"> The internal entry. </param>
+        // <summary>
+        // Initializes a new instance of the <see cref="DbCollectionEntry{TEntity, TProperty}" /> class.
+        // </summary>
+        // <param name="internalCollectionEntry"> The internal entry. </param>
         internal DbCollectionEntry(InternalCollectionEntry internalCollectionEntry)
         {
             DebugCheck.NotNull(internalCollectionEntry);
@@ -179,6 +179,7 @@ namespace System.Data.Entity.Infrastructure
         /// Returns a new instance of the non-generic <see cref="DbCollectionEntry" /> class for
         /// the navigation property represented by this object.
         /// </summary>
+        /// <param name="entry">The object representing the navigation property.</param>
         /// <returns> A non-generic version. </returns>
         [SuppressMessage("Microsoft.Usage", "CA2225:OperatorOverloadsHaveNamedAlternates",
             Justification = "Intentionally just implicit to reduce API clutter.")]
@@ -191,10 +192,10 @@ namespace System.Data.Entity.Infrastructure
 
         #region Internal entry access
 
-        /// <summary>
-        /// Gets the underlying <see cref="InternalCollectionEntry" /> as an <see cref="InternalMemberEntry" />.
-        /// </summary>
-        /// <value> The internal member entry. </value>
+        // <summary>
+        // Gets the underlying <see cref="InternalCollectionEntry" /> as an <see cref="InternalMemberEntry" />.
+        // </summary>
+        // <value> The internal member entry. </value>
         internal override InternalMemberEntry InternalMemberEntry
         {
             get { return _internalCollectionEntry; }

@@ -47,7 +47,9 @@ namespace System.Data.Entity.Infrastructure.Interception
         /// <param name="copyFrom">The context from which to copy state.</param>
         protected DbInterceptionContext(DbInterceptionContext copyFrom)
         {
-            _dbContexts = copyFrom.DbContexts.Where(c => !c.InternalContext.IsDisposed).ToList();
+            Check.NotNull(copyFrom, "copyFrom");
+
+            _dbContexts = copyFrom.DbContexts.Where(c => c.InternalContext == null || !c.InternalContext.IsDisposed).ToList();
             _objectContexts = copyFrom.ObjectContexts.Where(c => !c.IsDisposed).ToList();
             _isAsync = copyFrom._isAsync;
         }
@@ -93,7 +95,7 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(context, "context");
 
             var copy = Clone();
-            if (!copy._dbContexts.Contains(context, new ObjectReferenceEqualityComparer()))
+            if (!copy._dbContexts.Contains(context, ObjectReferenceEqualityComparer.Default))
             {
                 copy._dbContexts.Add(context);
             }
@@ -124,7 +126,7 @@ namespace System.Data.Entity.Infrastructure.Interception
             Check.NotNull(context, "context");
 
             var copy = Clone();
-            if (!copy._objectContexts.Contains(context, new ObjectReferenceEqualityComparer()))
+            if (!copy._objectContexts.Contains(context, ObjectReferenceEqualityComparer.Default))
             {
                 copy._objectContexts.Add(context);
             }

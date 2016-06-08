@@ -9,6 +9,7 @@ namespace FunctionalTests
     using System.Data.Entity;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Infrastructure.DependencyResolution;
+    using System.Data.Entity.ModelConfiguration.Conventions;
     using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Linq;
     using System.Linq.Expressions;
@@ -158,7 +159,7 @@ namespace FunctionalTests
         }
 
         [Fact]
-        public void NotMapped_should_propagate_down_inheritance_hierachy()
+        public void NotMapped_should_propagate_down_inheritance_hierarchy()
         {
             var modelBuilder = new DbModelBuilder();
 
@@ -866,9 +867,31 @@ namespace FunctionalTests
 
             // one thing configured because of key property
             Assert.Equal(1, modelBuilder.ModelConfiguration.Entity(typeof(OKeyBase)).ConfiguredProperties.Count());
+            Assert.Equal(1, modelBuilder.ModelConfiguration.Entity(typeof(OKeyBase)).KeyProperties.Count());
 
-            // should be nothing configured on derived type
-            Assert.Equal(0, modelBuilder.ModelConfiguration.Entity(typeof(DODerived)).ConfiguredProperties.Count());
+            // derived type should have equivalent configuration, but no key property
+            Assert.Equal(1, modelBuilder.ModelConfiguration.Entity(typeof(DODerived)).ConfiguredProperties.Count());
+            Assert.Equal(0, modelBuilder.ModelConfiguration.Entity(typeof(DODerived)).KeyProperties.Count());
+        }
+
+        [Fact]
+        public void Key_from_base_type_is_recognized_if_base_discovered_first()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<OKeyBase>();
+            modelBuilder.Entity<SRelated>();
+
+            var databaseMapping = BuildMapping(modelBuilder);
+            databaseMapping.AssertValid();
+
+            // one thing configured because of key property
+            Assert.Equal(1, modelBuilder.ModelConfiguration.Entity(typeof(OKeyBase)).ConfiguredProperties.Count());
+            Assert.Equal(1, modelBuilder.ModelConfiguration.Entity(typeof(OKeyBase)).KeyProperties.Count());
+
+            // derived type should have equivalent configuration, but no key property
+            Assert.Equal(1, modelBuilder.ModelConfiguration.Entity(typeof(DODerived)).ConfiguredProperties.Count());
+            Assert.Equal(0, modelBuilder.ModelConfiguration.Entity(typeof(DODerived)).KeyProperties.Count());
         }
 
         public class SRelated
@@ -1288,11 +1311,7 @@ namespace FunctionalTests
 
     #region Bug324763
 
-    namespace Bug324763
-    {
-        using System.Data.Entity.ModelConfiguration.Conventions;
-
-        public class Product
+        public class Product324763
         {
             [Timestamp]
             public byte[] Version { get; set; }
@@ -1313,10 +1332,10 @@ namespace FunctionalTests
             public byte[] Image { get; set; }
 
             [InverseProperty("Product")]
-            public ICollection<OrderLine> OrderLines { get; set; }
+            public ICollection<OrderLine324763> OrderLines { get; set; }
         }
 
-        public class OrderLine
+        public class OrderLine324763
         {
             [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
             public int Id { get; set; }
@@ -1344,17 +1363,17 @@ namespace FunctionalTests
             [ConcurrencyCheck]
             public int EngineSupplierId { get; set; }
 
-            public Product Product { get; set; }
+            public Product324763 Product { get; set; }
         }
 
         public class Test324763 : FunctionalTestBase
         {
             [Fact]
-            public void Repro324763_Build_Is_Not_Idempotent()
+            public void Build_Is_Not_Idempotent()
             {
                 var modelBuilder = new DbModelBuilder();
-                modelBuilder.Entity<Product>();
-                modelBuilder.Entity<OrderLine>();
+                modelBuilder.Entity<Product324763>();
+                modelBuilder.Entity<OrderLine324763>();
 
                 ValidateBuildIsIdempotent(modelBuilder);
             }
@@ -1367,17 +1386,16 @@ namespace FunctionalTests
             }
 
             [Fact]
-            public void Repro324763_Build_Is_Not_Idempotent_Inverse()
+            public void Build_Is_Not_Idempotent_Inverse()
             {
                 var modelBuilder = new DbModelBuilder();
                 modelBuilder.Conventions.Remove<AssociationInverseDiscoveryConvention>();
-                modelBuilder.Entity<Product>();
-                modelBuilder.Entity<OrderLine>();
+                modelBuilder.Entity<Product324763>();
+                modelBuilder.Entity<OrderLine324763>();
 
                 ValidateBuildIsIdempotent(modelBuilder);
             }
         }
-    }
 
     #endregion
 }

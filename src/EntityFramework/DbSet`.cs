@@ -32,10 +32,10 @@ namespace System.Data.Entity
 
         private readonly InternalSet<TEntity> _internalSet;
 
-        /// <summary>
-        /// Creates a new set that will be backed by the given <see cref="InternalSet{T}" />.
-        /// </summary>
-        /// <param name="internalSet"> The internal set. </param>
+        // <summary>
+        // Creates a new set that will be backed by the given <see cref="InternalSet{T}" />.
+        // </summary>
+        // <param name="internalSet"> The internal set. </param>
         internal DbSet(InternalSet<TEntity> internalSet)
             : base(internalSet)
         {
@@ -244,6 +244,7 @@ namespace System.Data.Entity
         /// <summary>
         /// Returns the equivalent non-generic <see cref="DbSet" /> object.
         /// </summary>
+        /// <param name="entry">The generic set object.</param>
         /// <returns> The non-generic set object. </returns>
         [SuppressMessage("Microsoft.Design", "CA1065:DoNotRaiseExceptionsInUnexpectedLocations")]
         [SuppressMessage("Microsoft.Usage", "CA2225:OperatorOverloadsHaveNamedAlternates",
@@ -264,10 +265,10 @@ namespace System.Data.Entity
 
         #region IInternalSetAdapter
 
-        /// <summary>
-        /// Gets the underlying internal set.
-        /// </summary>
-        /// <value> The internal set. </value>
+        // <summary>
+        // Gets the underlying internal set.
+        // </summary>
+        // <value> The internal set. </value>
         IInternalSet IInternalSetAdapter.InternalSet
         {
             get { return _internalSet; }
@@ -302,7 +303,11 @@ namespace System.Data.Entity
         /// context.Blogs.SqlQuery("SELECT * FROM dbo.Posts WHERE Author = @author", new SqlParameter("@author", userSuppliedAuthor));
         /// </summary>
         /// <param name="sql"> The SQL query string. </param>
-        /// <param name="parameters"> The parameters to apply to the SQL query string. </param>
+        /// <param name="parameters"> 
+        /// The parameters to apply to the SQL query string. If output parameters are used, their values will 
+        /// not be available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A <see cref="DbSqlQuery{TEntity}" /> object that will execute the query when it is enumerated.
         /// </returns>

@@ -8,13 +8,11 @@ namespace FunctionalTests
     using System.ComponentModel.DataAnnotations.Schema;
     using System.Data.Entity;
     using System.Data.Entity.Core;
-    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.ModelConfiguration.Edm;
+    using System.Data.Entity.ModelConfiguration.Utilities;
     using System.Linq;
-    using System.Text;
-    using System.Transactions;
-    using System.Xml;
     using FunctionalTests.Model;
     using SimpleModel;
     using Xunit;
@@ -22,6 +20,68 @@ namespace FunctionalTests
 
     public class InheritanceScenarioTests : TestBase
     {
+        public class Contract
+        {
+            public long Id { get; set; }
+            public DateTime X { get; set; }
+        }
+
+        public class ContractRevision : Contract
+        {
+        }
+
+        public class InitialContract : Contract
+        {
+        }
+
+        [Fact]
+        public void Hybrid_tpt_tph_should_introduce_discriminator_for_tph()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Contract>();
+            modelBuilder.Entity<ContractRevision>().ToTable("TPH");
+            modelBuilder.Entity<InitialContract>().ToTable("TPH");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+            databaseMapping.Assert<ContractRevision>().HasColumn("Discriminator");
+            databaseMapping.Assert<InitialContract>().HasColumn("Discriminator");
+        }
+
+        [Fact]
+        public void Hybrid_tpt_tph_should_introduce_discriminator_for_tph_no_base_properties()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Contract>().Ignore(c => c.X);
+            modelBuilder.Entity<ContractRevision>().ToTable("TPH");
+            modelBuilder.Entity<InitialContract>().ToTable("TPH");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+            databaseMapping.Assert<ContractRevision>().HasColumn("Discriminator");
+            databaseMapping.Assert<InitialContract>().HasColumn("Discriminator");
+        }
+
+        [Fact]
+        public void Hybrid_tpt_tph_should_introduce_discriminator_for_tph_leaf_tpt()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Contract>();
+            modelBuilder.Entity<ContractRevision>();
+            modelBuilder.Entity<InitialContract>().ToTable("TPT");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+            databaseMapping.Assert<ContractRevision>().HasColumn("Discriminator");
+            databaseMapping.Assert<Contract>().HasColumn("Discriminator");
+        }
+
         public class ApplicationUser
         {
             public virtual string Id { get; set; }
@@ -70,7 +130,7 @@ namespace FunctionalTests
         public class Comment : MessageBase
         {
             public MessageBase Parent { get; set; }
-            public int ParentId { get; set; }
+            public int? ParentId { get; set; }
         }
 
         [Fact]
@@ -290,13 +350,34 @@ namespace FunctionalTests
             modelBuilder.Entity<BaseEntityDuplicateProps>().ToTable("BaseEntities");
             modelBuilder.Entity<Entity1DuplicateProps>().ToTable("Entity1s");
             modelBuilder.Entity<Entity2DuplicateProps>().ToTable("Entity2s");
-            modelBuilder.Entity<Entity1DuplicateProps>().Property(e => e.SomeProperty).HasColumnName("Foo");
-            modelBuilder.Entity<Entity2DuplicateProps>().Property(e => e.SomeProperty).HasColumnName("Foo");
+            
+            modelBuilder.Entity<Entity1DuplicateProps>()
+                .Property(e => e.SomeProperty)
+                .HasColumnName("Foo")
+                .HasColumnAnnotation("Annotation1", "Entity1")
+                .HasColumnAnnotation("Annotation2", "Common");
+            
+            modelBuilder.Entity<Entity2DuplicateProps>()
+                .Property(e => e.SomeProperty)
+                .HasColumnName("Foo")
+                .HasColumnAnnotation("Annotation1", "Entity2")
+                .HasColumnAnnotation("Annotation2", "Common");
+            
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.AssertValid();
             databaseMapping.Assert<Entity1DuplicateProps>(e => e.SomeProperty).DbEqual("Foo", c => c.Name);
             databaseMapping.Assert<Entity2DuplicateProps>(e => e.SomeProperty).DbEqual("Foo", c => c.Name);
+
+            databaseMapping.Assert<Entity1DuplicateProps>("Entity1s")
+                .Column("Foo")
+                .HasAnnotation("Annotation1", "Entity1")
+                .HasAnnotation("Annotation2", "Common");
+
+            databaseMapping.Assert<Entity2DuplicateProps>("Entity2s")
+                .Column("Foo")
+                .HasAnnotation("Annotation1", "Entity2")
+                .HasAnnotation("Annotation2", "Common");
         }
 
         public class BaseEntityDuplicateProps
@@ -315,6 +396,88 @@ namespace FunctionalTests
         public class Entity2DuplicateProps : BaseEntityDuplicateProps
         {
             public string SomeProperty { get; set; }
+        }
+
+        [Fact]
+        public void Column_should_get_only_annotations_configured_for_that_column_when_property_maps_to_multiple_columns()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<SplitTeaSoup>()
+                .Map(
+                    m =>
+                    {
+                        m.ToTable("Left").Properties(p => new { p.Id, p.Prop1 });
+                        m.Property(p => p.Id).HasColumnAnnotation("A0", "V01").HasColumnAnnotation("A1", "V1");
+                    })
+                .Map(
+                    m =>
+                    {
+                        m.ToTable("Right").Properties(p => new { p.Id, p.Prop2 });
+                        m.Property(p => p.Id).HasColumnAnnotation("A0", "V02").HasColumnAnnotation("A2", "V2");
+                    });
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            databaseMapping.Assert<SplitTeaSoup>("Left")
+                .Column("Id")
+                .HasAnnotation("A0", "V01")
+                .HasAnnotation("A1", "V1")
+                .HasNoAnnotation("A2");
+
+            databaseMapping.Assert<SplitTeaSoup>("Right")
+                .Column("Id")
+                .HasAnnotation("A0", "V02")
+                .HasAnnotation("A2", "V2")
+                .HasNoAnnotation("A1");
+        }
+
+        [Fact]
+        public void Column_should_get_only_annotations_configured_for_that_column_and_all_columns()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<SplitTeaSoup>()
+                .Map(
+                    m =>
+                    {
+                        m.ToTable("Left").Properties(p => new { p.Id, p.Prop1 });
+                        m.Property(p => p.Id).HasColumnAnnotation("A0", "V01").HasColumnAnnotation("A1", "V1");
+                    })
+                .Map(
+                    m =>
+                    {
+                        m.ToTable("Right").Properties(p => new { p.Id, p.Prop2 });
+                        m.Property(p => p.Id).HasColumnAnnotation("A0", "V02").HasColumnAnnotation("A2", "V2");
+                    });
+            modelBuilder.Entity<SplitTeaSoup>().Property(e => e.Id).HasColumnAnnotation("A3", "V3");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            databaseMapping.Assert<SplitTeaSoup>("Left")
+                .Column("Id")
+                .HasAnnotation("A0", "V01")
+                .HasAnnotation("A1", "V1")
+                .HasAnnotation("A3", "V3")
+                .HasNoAnnotation("A2");
+
+            databaseMapping.Assert<SplitTeaSoup>("Right")
+                .Column("Id")
+                .HasAnnotation("A0", "V02")
+                .HasAnnotation("A2", "V2")
+                .HasAnnotation("A3", "V3")
+                .HasNoAnnotation("A1");
+        }
+
+        public class SplitTeaSoup
+        {
+            public int Id { get; set; }
+            public string Prop1 { get; set; }
+            public string Prop2 { get; set; }
         }
 
         [Fact]
@@ -727,7 +890,7 @@ namespace FunctionalTests
             Assert.Equal(
                 "ITOffice_ITOfficeId",
                 databaseMapping.EntityContainerMappings.Single().AssociationSetMappings.ElementAt(0).SourceEndMapping
-                               .PropertyMappings.ElementAt(0).ColumnProperty.Name);
+                               .PropertyMappings.ElementAt(0).Column.Name);
         }
 
         [Fact]
@@ -881,6 +1044,20 @@ namespace FunctionalTests
         }
 
         [Fact]
+        public void TPT_model_can_map_PK_property_to_different_columns_in_different_tables_if_derived_types_configured_first()
+        {
+            var modelBuilder = new AdventureWorksModelBuilder();
+
+            modelBuilder.Entity<ColoredProduct>().ToTable("ColoredProducts");
+            modelBuilder.Entity<StyledProduct>().ToTable("StyledProducts");
+            modelBuilder.Entity<Product>();
+
+            SetDerivedEntityColumnNames(modelBuilder);
+
+            ValidateTPTOrTPCWithRenamedColumns(modelBuilder);
+        }
+
+        [Fact]
         public void TPT_model_using_Map_can_map_PK_property_to_different_columns_in_different_tables()
         {
             var modelBuilder = new AdventureWorksModelBuilder();
@@ -988,9 +1165,22 @@ namespace FunctionalTests
         public void TPT_model_using_Table_attributes_can_map_PK_property_to_different_columns_in_different_tables()
         {
             var modelBuilder = new DbModelBuilder();
-            modelBuilder.Entity<TPTHorse>().Property(e => e.Id).HasColumnName("horse_id");
-            modelBuilder.Entity<TPTUnicorn>().Property(e => e.Id).HasColumnName("unicorn_id");
-            modelBuilder.Entity<TPTHornedPegasus>().Property(e => e.Id).HasColumnName("pegasus_id");
+            modelBuilder.Entity<TPTHorse>()
+                .Property(e => e.Id)
+                .HasColumnAnnotation("WhatDoesItSay", "Mor...or...or...or...orse")
+                .HasColumnAnnotation("Common", "Just a pony.")
+                .HasColumnName("horse_id");
+            
+            modelBuilder.Entity<TPTUnicorn>()
+                .Property(e => e.Id)
+                .HasColumnName("unicorn_id")
+                .HasColumnAnnotation("WhatDoesItSay", "Hor...or...or...or...orn")
+                .HasColumnAnnotation("Common", "Just a pony.");
+            
+            modelBuilder.Entity<TPTHornedPegasus>()
+                .Property(e => e.Id)
+                .HasColumnName("pegasus_id")
+                .HasColumnAnnotation("WhatDoesItSay", "Prin...in...in...in...cess");
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -1000,67 +1190,21 @@ namespace FunctionalTests
             databaseMapping.Assert<TPTHorse>(p => p.Id).DbEqual("horse_id", c => c.Name);
             databaseMapping.Assert<TPTUnicorn>(p => p.Id).DbEqual("unicorn_id", c => c.Name);
             databaseMapping.Assert<TPTHornedPegasus>(p => p.Id).DbEqual("pegasus_id", c => c.Name);
-        }
 
-        [Fact]
-        public void TPT_model_with_PK_property_to_different_columns_in_different_tables_roundtrips()
-        {
-            TPT_or_TPC_model_with_PK_property_to_different_columns_in_different_tables_roundtrips<ContextForPkNamingTPT>();
-        }
+            databaseMapping.Assert<TPTHorse>("Horses")
+                .Column("horse_id")
+                .HasAnnotation("WhatDoesItSay", "Mor...or...or...or...orse")
+                .HasAnnotation("Common", "Just a pony.");
 
-        [Fact]
-        public void TPC_model_with_PK_property_to_different_columns_in_different_tables_roundtrips()
-        {
-            TPT_or_TPC_model_with_PK_property_to_different_columns_in_different_tables_roundtrips<ContextForPkNamingTPC>();
-        }
+            databaseMapping.Assert<TPTUnicorn>("Unicorns")
+                .Column("unicorn_id")
+                .HasAnnotation("WhatDoesItSay", "Hor...or...or...or...orn")
+                .HasAnnotation("Common", "Just a pony.");
 
-        private void TPT_or_TPC_model_with_PK_property_to_different_columns_in_different_tables_roundtrips<TContext>()
-            where TContext : BaseContextForPkNaming, new()
-        {
-            using (var context = new TContext())
-            {
-                context.Database.Initialize(force: false);
-
-                using (new TransactionScope())
-                {
-                    var baseEntity = context.Bases.Add(
-                        new BaseForPKNaming
-                            {
-                                Id = 1,
-                                Foo = "Foo1"
-                            });
-                    var derivedEntity =
-                        context.Deriveds.Add(
-                            new DerivedForPKNaming
-                                {
-                                    Id = 2,
-                                    Foo = "Foo2",
-                                    Bar = "Bar2"
-                                });
-
-                    context.SaveChanges();
-
-                    context.Entry(baseEntity).State = EntityState.Detached;
-                    context.Entry(derivedEntity).State = EntityState.Detached;
-
-                    var foundBase = context.Bases.Single(e => e.Id == baseEntity.Id);
-                    var foundDerived = context.Deriveds.Single(e => e.Id == derivedEntity.Id);
-
-                    Assert.Equal("Foo1", foundBase.Foo);
-                    Assert.Equal("Foo2", foundDerived.Foo);
-                    Assert.Equal("Bar2", foundDerived.Bar);
-
-                    Assert.True(context.Database.SqlQuery<int>("select base_id from base_table").Any());
-                    Assert.True(context.Database.SqlQuery<int>("select derived_id from derived_table").Any());
-
-                    if (typeof(TContext)
-                        == typeof(ContextForPkNamingTPC))
-                    {
-                        Assert.True(context.Database.SqlQuery<string>("select base_foo from base_table").Any());
-                        Assert.True(context.Database.SqlQuery<string>("select derived_foo from derived_table").Any());
-                    }
-                }
-            }
+            databaseMapping.Assert<TPTHornedPegasus>("HornedPegasuses")
+                .Column("pegasus_id")
+                .HasAnnotation("WhatDoesItSay", "Prin...in...in...in...cess")
+                .HasAnnotation("Common", "Just a pony.");
         }
 
         [Fact] // CodePlex 583
@@ -1107,40 +1251,6 @@ namespace FunctionalTests
         }
 
         [Fact] // CodePlex 583
-        public void Subclasses_with_different_properties_to_same_column_using_TPH_can_round_trip()
-        {
-            using (var context = new TphPersonContext())
-            {
-                Assert.Equal("N/A", context.People.OfType<Student>().Single(p => p.Name == "Jesse").Career);
-                Assert.Equal("Chemistry", context.People.OfType<Teacher>().Single(p => p.Name == "Walter").Department);
-                Assert.Equal("Laundering", context.People.OfType<Lawyer>().Single(p => p.Name == "Saul").Specialty);
-                Assert.Equal("DEA", context.People.OfType<Officer>().Single(p => p.Name == "Hank").Department);
-                Assert.Equal("Skyler", context.People.Single(p => p.Name == "Skyler").Name);
-
-                Assert.IsType<CarWash>(context.Covers.OfType<CarWash>().Single(p => p.Name == "Skyler's Car Wash"));
-                Assert.IsType<FastFoodChain>(context.Covers.OfType<FastFoodChain>().Single(p => p.Name == "Chickin' Lickin'"));
-                Assert.IsType<LosPollosHermanos>(context.Covers.OfType<FastFoodChain>().Single(p => p.Name == "Chicken Bros"));
-
-                Assert.Equal(1, context.Labs.OfType<MobileLab>().Single().Vehicle.Registration);
-                Assert.Equal(2, context.Labs.OfType<MobileLab>().Single().Vehicle.Info.Depth);
-                Assert.Equal(3, context.Labs.OfType<MobileLab>().Single().Vehicle.Info.Size);
-                Assert.Equal(4, context.Labs.OfType<StaticLab>().Single().LabNumber);
-                Assert.Equal(5, context.Labs.OfType<StaticLab>().Single().LabInfo.Depth);
-                Assert.Equal(6, context.Labs.OfType<StaticLab>().Single().LabInfo.Size);
-
-                using (context.Database.BeginTransaction())
-                {
-                    context.People.Local.OfType<Teacher>().Single().Department = "Heisenberg";
-                    context.Labs.Local.OfType<MobileLab>().Single().Vehicle.Registration = 11;
-                    context.SaveChanges();
-
-                    Assert.Equal("Heisenberg", context.People.OfType<Teacher>().Select(p => p.Department).Single());
-                    Assert.Equal(11, context.Labs.OfType<MobileLab>().Select(p => p.Vehicle.Registration).Single());
-                }
-            }
-        }
-
-        [Fact] // CodePlex 583
         public void Subclasses_that_map_properties_to_same_column_with_different_facets_using_TPH_will_throw()
         {
             var modelBuilder = new DbModelBuilder();
@@ -1159,6 +1269,35 @@ namespace FunctionalTests
         }
 
         [Fact] // CodePlex 583
+        public void Subclasses_that_map_properties_to_same_column_with_different_annotations_using_TPH_will_throw()
+        {
+            var modelBuilder = new DbModelBuilder();
+            
+            modelBuilder.Entity<Person>();
+            
+            modelBuilder.Entity<Student>()
+                .Property(p => p.Career)
+                .HasColumnName("ColumnName")
+                .HasColumnAnnotation("Annotation1", "Value1")
+                .HasColumnAnnotation("Annotation2", "Value2");
+
+            modelBuilder.Entity<Officer>()
+                .Property(p => p.Department)
+                .HasColumnName("ColumnName")
+                .HasColumnAnnotation("Annotation1", "Value1")
+                .HasColumnAnnotation("Annotation2", "Different Value");
+
+            var details = Environment.NewLine + "\t" +
+                          string.Format(
+                              LookupString(
+                                  EntityFrameworkAssembly, "System.Data.Entity.Properties.Resources", "ConflictingAnnotationValue"),
+                              "Annotation2", "Different Value", "Value2");
+
+            Assert.Throws<MappingException>(() => BuildMapping(modelBuilder))
+                  .ValidateMessage("BadTphMappingToSharedColumn", "Department", "Officer", "Career", "Student", "ColumnName", "Person", details);
+        }
+
+        [Fact] // CodePlex 583
         public void Column_configuration_can_be_applied_to_only_one_property_when_properties_share_TPH_column()
         {
             var modelBuilder = new DbModelBuilder();
@@ -1166,10 +1305,12 @@ namespace FunctionalTests
             modelBuilder.Entity<Student>().Property(p => p.Career).HasColumnName("Data");
 
             modelBuilder.Entity<Officer>()
-                        .Property(p => p.Department)
-                        .HasColumnName("Data")
-                        .HasMaxLength(256)
-                        .HasColumnType("varchar");
+                .Property(p => p.Department)
+                .HasColumnName("Data")
+                .HasMaxLength(256)
+                .HasColumnType("varchar")
+                .HasColumnAnnotation("Annotation1", "Value1")
+                .HasColumnAnnotation("Annotation2", "Value2");
 
             modelBuilder.Entity<Teacher>().Property(p => p.Department).HasColumnName("Data");
             modelBuilder.Entity<Lawyer>().Property(p => p.Specialty).HasColumnName("Data");
@@ -1177,30 +1318,56 @@ namespace FunctionalTests
             var databaseMapping = BuildMapping(modelBuilder);
 
             databaseMapping.Assert<Student>(t => t.Career)
-                           .DbEqual(256, f => f.MaxLength)
-                           .DbEqual("varchar", f => f.TypeName);
+                .DbEqual(256, f => f.MaxLength)
+                .DbEqual("varchar", f => f.TypeName);
             databaseMapping.Assert<Officer>(t => t.Department)
-                           .DbEqual(256, f => f.MaxLength)
-                           .DbEqual("varchar", f => f.TypeName);
+                .DbEqual(256, f => f.MaxLength)
+                .DbEqual("varchar", f => f.TypeName);
             databaseMapping.Assert<Teacher>(t => t.Department)
-                           .DbEqual(256, f => f.MaxLength)
-                           .DbEqual("varchar", f => f.TypeName);
+                .DbEqual(256, f => f.MaxLength)
+                .DbEqual("varchar", f => f.TypeName);
             databaseMapping.Assert<Lawyer>(t => t.Specialty)
-                           .DbEqual(256, f => f.MaxLength)
-                           .DbEqual("varchar", f => f.TypeName);
+                .DbEqual(256, f => f.MaxLength)
+                .DbEqual("varchar", f => f.TypeName);
 
             databaseMapping.AssertValid();
+
+            databaseMapping.Assert("People")
+                .Column("Data")
+                .HasAnnotation("Annotation1", "Value1")
+                .HasAnnotation("Annotation2", "Value2");
         }
 
         [Fact] // CodePlex 583
         public void Non_conflicting_column_configuration_can_be_spread_across_properties_that_share_TPH_column()
         {
             var modelBuilder = new DbModelBuilder();
+            
             modelBuilder.Entity<Person>();
-            modelBuilder.Entity<Student>().Property(p => p.Career).HasColumnName("Data").HasMaxLength(256);
-            modelBuilder.Entity<Officer>().Property(p => p.Department).HasColumnName("Data").HasColumnType("varchar");
-            modelBuilder.Entity<Teacher>().Property(p => p.Department).HasColumnName("Data").HasColumnType("varchar");
-            modelBuilder.Entity<Lawyer>().Property(p => p.Specialty).HasColumnName("Data").HasMaxLength(256);
+            
+            modelBuilder.Entity<Student>()
+                .Property(p => p.Career)
+                .HasColumnName("Data")
+                .HasMaxLength(256)
+                .HasColumnAnnotation("Annotation1", "Value1")
+                .HasColumnAnnotation("Annotation2", "Value2");
+            
+            modelBuilder.Entity<Officer>()
+                .Property(p => p.Department)
+                .HasColumnName("Data")
+                .HasColumnType("varchar");
+            
+            modelBuilder.Entity<Teacher>()
+                .Property(p => p.Department)
+                .HasColumnName("Data")
+                .HasColumnType("varchar")
+                .HasColumnAnnotation("Annotation1", "Value1")
+                .HasColumnAnnotation("Annotation2", "Value2");
+            
+            modelBuilder.Entity<Lawyer>()
+                .Property(p => p.Specialty)
+                .HasColumnName("Data")
+                .HasMaxLength(256);
 
             var databaseMapping = BuildMapping(modelBuilder);
 
@@ -1218,6 +1385,11 @@ namespace FunctionalTests
                            .DbEqual("varchar", f => f.TypeName);
 
             databaseMapping.AssertValid();
+
+            databaseMapping.Assert("People")
+                .Column("Data")
+                .HasAnnotation("Annotation1", "Value1")
+                .HasAnnotation("Annotation2", "Value2");
         }
 
         public class TphPersonContext : DbContext
@@ -1441,6 +1613,582 @@ namespace FunctionalTests
 
         public class LosPollosHermanos : FastFoodChain
         {
+        }
+
+        [Fact] // CodePlex 1924
+        public void Non_shared_columns_with_non_abstract_base_class_are_made_nullable_even_if_required()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Base1924>();
+            modelBuilder.Entity<Derived1924A>().Property(e => e.SomeString).IsRequired().HasColumnName("SomeStringA");
+            modelBuilder.Entity<Derived1924B>().Property(e => e.SomeString).IsRequired().HasColumnName("SomeStringB");
+            modelBuilder.Entity<Derived1924A>().Property(e => e.SomeInt).IsRequired().HasColumnName("SomeIntA");
+            modelBuilder.Entity<Derived1924B>().Property(e => e.SomeInt).IsRequired().HasColumnName("SomeIntB");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<Derived1924A>("Base1924").Column("SomeStringA").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Derived1924B>("Base1924").Column("SomeStringB").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Derived1924A>("Base1924").Column("SomeIntA").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Derived1924B>("Base1924").Column("SomeIntB").DbEqual(true, p => p.Nullable);
+
+            databaseMapping.AssertValid();
+        }
+
+        [Fact] // CodePlex 1924
+        public void Shared_columns_with_non_abstract_base_class_are_made_nullable_even_if_required()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Base1924>();
+            modelBuilder.Entity<Derived1924A>().Property(e => e.SomeString).IsRequired().HasColumnName("NullMeString");
+            modelBuilder.Entity<Derived1924B>().Property(e => e.SomeString).IsRequired().HasColumnName("NullMeString");
+            modelBuilder.Entity<Derived1924A>().Property(e => e.SomeInt).IsRequired().HasColumnName("NullMeInt");
+            modelBuilder.Entity<Derived1924B>().Property(e => e.SomeInt).IsRequired().HasColumnName("NullMeInt");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<Derived1924A>("Base1924").Column("NullMeString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Derived1924B>("Base1924").Column("NullMeString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Derived1924A>("Base1924").Column("NullMeInt").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Derived1924B>("Base1924").Column("NullMeInt").DbEqual(true, p => p.Nullable);
+
+            databaseMapping.AssertValid();
+        }
+
+        public class Base1924
+        {
+            public int Id { get; set; }
+        }
+
+        public class Derived1924A : Base1924
+        {
+            public string SomeString { get; set; }
+            public string SomeInt { get; set; }
+        }
+
+        public class Derived1924B : Base1924
+        {
+            public string SomeString { get; set; }
+            public string SomeInt { get; set; }
+        }
+
+        [Fact] // CodePlex 1924
+        public void Non_shared_columns_with_abstract_base_class_are_made_nullable_even_if_required()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<AbstractBase1924>();
+            modelBuilder.Entity<DerivedFromAbstract1924A>().Property(e => e.SomeString).IsRequired().HasColumnName("SomeStringA");
+            modelBuilder.Entity<DerivedFromAbstract1924B>().Property(e => e.SomeString).IsRequired().HasColumnName("SomeStringB");
+            modelBuilder.Entity<DerivedFromAbstract1924A>().Property(e => e.SomeInt).IsRequired().HasColumnName("SomeIntA");
+            modelBuilder.Entity<DerivedFromAbstract1924B>().Property(e => e.SomeInt).IsRequired().HasColumnName("SomeIntB");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<DerivedFromAbstract1924A>("AbstractBase1924").Column("SomeStringA").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<DerivedFromAbstract1924B>("AbstractBase1924").Column("SomeStringB").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<DerivedFromAbstract1924A>("AbstractBase1924").Column("SomeIntA").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<DerivedFromAbstract1924B>("AbstractBase1924").Column("SomeIntB").DbEqual(true, p => p.Nullable);
+
+            databaseMapping.AssertValid();
+        }
+
+        [Fact] // CodePlex 1924
+        public void Shared_columns_with_abstract_base_class_are_made_nullable_even_if_required()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<AbstractBase1924>();
+            modelBuilder.Entity<DerivedFromAbstract1924A>().Property(e => e.SomeString).IsRequired().HasColumnName("NullMeString");
+            modelBuilder.Entity<DerivedFromAbstract1924B>().Property(e => e.SomeString).IsRequired().HasColumnName("NullMeString");
+            modelBuilder.Entity<DerivedFromAbstract1924A>().Property(e => e.SomeInt).IsRequired().HasColumnName("NullMeInt");
+            modelBuilder.Entity<DerivedFromAbstract1924B>().Property(e => e.SomeInt).IsRequired().HasColumnName("NullMeInt");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<DerivedFromAbstract1924A>("AbstractBase1924").Column("NullMeString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<DerivedFromAbstract1924B>("AbstractBase1924").Column("NullMeString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<DerivedFromAbstract1924A>("AbstractBase1924").Column("NullMeInt").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<DerivedFromAbstract1924B>("AbstractBase1924").Column("NullMeInt").DbEqual(true, p => p.Nullable);
+
+            databaseMapping.AssertValid();
+        }
+
+        public abstract class AbstractBase1924
+        {
+            public int Id { get; set; }
+        }
+
+        public class DerivedFromAbstract1924A : AbstractBase1924
+        {
+            public string SomeString { get; set; }
+            public string SomeInt { get; set; }
+        }
+
+        public class DerivedFromAbstract1924B : AbstractBase1924
+        {
+            public string SomeString { get; set; }
+            public string SomeInt { get; set; }
+        }
+
+        [Fact] // CodePlex 2254
+        public void Non_nullable_columns_in_intermediate_class_with_pure_TPH_mapping_are_made_nullable()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Base2254>().ToTable("Concretes");
+            modelBuilder.Entity<Intermediate2254>().ToTable("Concretes");
+            modelBuilder.Entity<Concrete2254A>().ToTable("Concretes");
+            modelBuilder.Entity<Concrete2254B>().ToTable("Concretes");
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<Base2254>("Concretes").Column("Id").DbEqual(false, p => p.Nullable);
+            databaseMapping.Assert<Base2254>("Concretes").Column("BaseString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Base2254>("Concretes").Column("BaseInteger").DbEqual(false, p => p.Nullable);
+            databaseMapping.Assert<Base2254>("Concretes").Column("IntermediateString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Base2254>("Concretes").Column("IntermediateInteger").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254A>("Concretes").Column("Concrete1String").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254A>("Concretes").Column("Concrete1Integer").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254B>("Concretes").Column("Concrete2String").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254B>("Concretes").Column("Concrete2Integer").DbEqual(true, p => p.Nullable);
+
+            databaseMapping.AssertValid();
+        }
+
+        [Fact] // CodePlex 2254
+        public void Non_nullable_columns_in_intermediate_class_with_hybrid_TPT_TPH_mapping_are_made_nullable()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Base2254>();
+            modelBuilder.Entity<Intermediate2254>().ToTable("Concretes");
+            modelBuilder.Entity<Concrete2254A>().ToTable("Concretes");
+            modelBuilder.Entity<Concrete2254B>().ToTable("Concretes");
+            
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<Base2254>("Base2254").Column("Id").DbEqual(false, p => p.Nullable);
+            databaseMapping.Assert<Base2254>("Base2254").Column("BaseString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Base2254>("Base2254").Column("BaseInteger").DbEqual(false, p => p.Nullable);
+            databaseMapping.Assert<Intermediate2254>("Concretes").Column("IntermediateString").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Intermediate2254>("Concretes").Column("IntermediateInteger").DbEqual(false, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254A>("Concretes").Column("Concrete1String").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254A>("Concretes").Column("Concrete1Integer").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254B>("Concretes").Column("Concrete2String").DbEqual(true, p => p.Nullable);
+            databaseMapping.Assert<Concrete2254B>("Concretes").Column("Concrete2Integer").DbEqual(true, p => p.Nullable);
+
+            databaseMapping.AssertValid();
+        }
+
+        public abstract class Base2254
+        {
+            public int Id { get; set; }
+            public string BaseString { get; set; }
+            public int BaseInteger { get; set; }
+        }
+
+        public abstract class Intermediate2254 : Base2254
+        {
+            public string IntermediateString { get; set; }
+            public int IntermediateInteger { get; set; }
+        }
+
+        public class Concrete2254A : Intermediate2254
+        {
+            public string Concrete1String { get; set; }
+            public int Concrete1Integer { get; set; }
+        }
+
+        public class Concrete2254B : Intermediate2254
+        {
+            public string Concrete2String { get; set; }
+            public int Concrete2Integer { get; set; }
+        }
+
+        [Fact] // CodePlex 1964
+        public void Subclasses_can_map_different_FKs_to_same_column_using_TPH()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<User1964>();
+            modelBuilder.Entity<Movie1964>();
+            
+            modelBuilder.Entity<Tag1964>();
+
+            modelBuilder.Entity<UserTag1964>().Property(m => m.UserId).HasColumnName("ItemId");
+            modelBuilder.Entity<UserTag1964>().HasRequired(m => m.User).WithMany().HasForeignKey(m => m.UserId);
+
+            modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieId).HasColumnName("ItemId");
+            modelBuilder.Entity<MovieTag1964>().HasRequired(m => m.Movie).WithMany().HasForeignKey(m => m.MovieId);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("ItemId");
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("ItemId");
+
+            Assert.Equal(0, databaseMapping.Database.AssociationTypes.Count());
+
+            databaseMapping.AssertValid();
+        }
+
+        [Fact] // CodePlex 1964
+        public void Subclasses_can_map_different_FKs_to_same_column_using_TPH_with_explicit_condition()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<User1964>();
+            modelBuilder.Entity<Movie1964>();
+
+            modelBuilder.Entity<Tag1964>()
+                .Map<UserTag1964>(m => m.Requires("TagType").HasValue("usertag"))
+                .Map<MovieTag1964>(m => m.Requires("TagType").HasValue("movietag"));
+
+            modelBuilder.Entity<UserTag1964>().Property(m => m.UserId).HasColumnName("ItemId");
+            modelBuilder.Entity<UserTag1964>().HasRequired(m => m.User).WithMany().HasForeignKey(m => m.UserId);
+
+            modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieId).HasColumnName("ItemId");
+            modelBuilder.Entity<MovieTag1964>().HasRequired(m => m.Movie).WithMany().HasForeignKey(m => m.MovieId);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("ItemId");
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("ItemId");
+
+            Assert.Equal(0, databaseMapping.Database.AssociationTypes.Count());
+
+            databaseMapping.AssertValid();
+        }
+
+        [Fact] // CodePlex 1964
+        public void Subclasses_can_map_different_composite_FKs_to_same_column_using_TPH()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<User1964>().HasKey(e => new { e.Id, e.MaybeId1, e.MaybeId2 });
+            modelBuilder.Entity<Movie1964>().HasKey(e => new { e.Id, e.MaybeId1, e.MaybeId2 });
+            
+            modelBuilder.Entity<Tag1964>();
+
+            modelBuilder.Entity<UserTag1964>().Property(m => m.UserId).HasColumnName("ItemId");
+            modelBuilder.Entity<UserTag1964>().Property(m => m.UserMaybeFk1).HasColumnName("ItemFk1");
+            modelBuilder.Entity<UserTag1964>().Property(m => m.UserMaybeFk2).HasColumnName("ItemFk2");
+            modelBuilder.Entity<UserTag1964>()
+                .HasRequired(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => new { m.UserId, m.UserMaybeFk1, m.UserMaybeFk2 });
+
+            modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieId).HasColumnName("ItemId");
+            modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieMaybeFk1).HasColumnName("ItemFk1");
+            modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieMaybeFk2).HasColumnName("ItemFk2");
+            modelBuilder.Entity<MovieTag1964>()
+                .HasRequired(m => m.Movie)
+                .WithMany()
+                .HasForeignKey(m => new { m.MovieId, m.MovieMaybeFk1, m.MovieMaybeFk2 });
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("ItemId");
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("ItemFk1");
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("ItemFk2");
+            
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("ItemId");
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("ItemFk1");
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("ItemFk2");
+
+            Assert.Equal(0, databaseMapping.Database.AssociationTypes.Count());
+
+            databaseMapping.AssertValid();
+        }
+
+        [Fact] // CodePlex 1964
+        public void Subclasses_can_map_parts_of_different_composite_FKs_to_same_column_using_TPH()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<User1964>().HasKey(e => new { e.Id, e.MaybeId1, e.MaybeId2 });
+            modelBuilder.Entity<Movie1964>().HasKey(e => new { e.Id, e.MaybeId1, e.MaybeId2 });
+
+            modelBuilder.Entity<Tag1964>();
+
+            modelBuilder.Entity<UserTag1964>().Property(m => m.UserId).HasColumnName("ItemId");
+            modelBuilder.Entity<UserTag1964>().Property(m => m.UserMaybeFk2).HasColumnName("ItemFk2");
+            modelBuilder.Entity<UserTag1964>()
+                .HasRequired(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => new { m.UserId, m.UserMaybeFk1, m.UserMaybeFk2 });
+
+            modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieId).HasColumnName("ItemId");
+            modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieMaybeFk1).HasColumnName("ItemFk1");
+            modelBuilder.Entity<MovieTag1964>()
+                .HasRequired(m => m.Movie)
+                .WithMany()
+                .HasForeignKey(m => new { m.MovieId, m.MovieMaybeFk1, m.MovieMaybeFk2 });
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("ItemId");
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("UserMaybeFk1");
+            databaseMapping.Assert<UserTag1964>("Tag1964").HasColumn("ItemFk2");
+
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("ItemId");
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("ItemFk1");
+            databaseMapping.Assert<MovieTag1964>("Tag1964").HasColumn("MovieMaybeFk2");
+
+            Assert.Equal(0, databaseMapping.Database.AssociationTypes.Count());
+
+            databaseMapping.AssertValid();
+        }
+
+        public class User1964
+        {
+            public int Id { get; set; }
+            public string MaybeId1 { get; set; }
+            public Guid MaybeId2 { get; set; }
+
+            public string SomeData { get; set; }
+
+        }
+
+        public class Movie1964
+        {
+            public int Id { get; set; }
+            public string MaybeId1 { get; set; }
+            public Guid MaybeId2 { get; set; }
+
+            public string SomeData { get; set; }
+        }
+
+        public abstract class Tag1964
+        {
+            public int Id { get; set; }
+
+            public string SomeData { get; set; }
+        }
+
+        public class UserTag1964 : Tag1964
+        {
+            public int UserId { get; set; }
+            public string UserMaybeFk1 { get; set; }
+            public Guid UserMaybeFk2 { get; set; }
+
+            public virtual User1964 User { get; set; }
+        }
+
+        public class MovieTag1964 : Tag1964
+        {
+            public int MovieId { get; set; }
+            public string MovieMaybeFk1 { get; set; }
+            public Guid MovieMaybeFk2 { get; set; }
+
+            public virtual Movie1964 Movie { get; set; }
+        }
+
+        [Fact] // CodePlex 1964
+        public void Subclasses_that_map_different_FKs_to_same_column_using_TPH_can_roundtrip()
+        {
+            using (var context = new Context1964())
+            {
+                context.Database.Delete();
+
+                context.UserTags.Add(new UserTag1964 { User = new User1964 { SomeData = "UserData" }, SomeData = "UserTagData" });
+                context.MovieTags.Add(new MovieTag1964 { Movie = new Movie1964 { SomeData = "MovieData" }, SomeData = "MovieTagData" });
+
+                context.SaveChanges();
+            }
+
+            using (var context = new Context1964())
+            {
+                var userTag = context.UserTags.Single();
+                var movieTag = context.MovieTags.Single();
+
+                Assert.Equal("UserTagData", userTag.SomeData);
+                Assert.Equal("UserData", userTag.User.SomeData);
+                Assert.Equal("MovieTagData", movieTag.SomeData);
+                Assert.Equal("MovieData", movieTag.Movie.SomeData);
+            }
+        }
+
+        public class Context1964 : DbContext
+        {
+            public DbSet<User1964> Users { get; set; }
+            public DbSet<Movie1964> Movies { get; set; }
+            public DbSet<UserTag1964> UserTags { get; set; }
+            public DbSet<MovieTag1964> MovieTags { get; set; }
+
+            protected override void OnModelCreating(DbModelBuilder modelBuilder)
+            {
+                modelBuilder.Entity<Tag1964>()
+                    .Map<UserTag1964>(m => m.Requires("TagType").HasValue("usertag"))
+                    .Map<MovieTag1964>(m => m.Requires("TagType").HasValue("movietag"));
+
+                modelBuilder.Entity<UserTag1964>().Property(m => m.UserId).HasColumnName("ItemId");
+                modelBuilder.Entity<UserTag1964>().HasRequired(m => m.User).WithMany().HasForeignKey(m => m.UserId);
+
+                modelBuilder.Entity<MovieTag1964>().Property(m => m.MovieId).HasColumnName("ItemId");
+                modelBuilder.Entity<MovieTag1964>().HasRequired(m => m.Movie).WithMany().HasForeignKey(m => m.MovieId);
+            }
+        }
+
+        [Fact] // CodePlex 546
+        public void Multiple_one_to_one_associations_using_same_lifted_nav_prop_are_identified_correctly()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder
+                .Entity<DerivedClassA>()
+                .HasOptional(e => e.ClassA1)
+                .WithOptionalDependent();
+
+            modelBuilder
+                .Entity<DerivedClassA>()
+                .HasOptional(e => e.ClassA2)
+                .WithOptionalDependent();
+
+            modelBuilder
+                .Entity<DerivedClassB>()
+                .HasOptional(e => e.ClassA1)
+                .WithOptionalDependent();
+
+            modelBuilder
+                .Entity<DerivedClassB>()
+                .HasOptional(e => e.ClassA2)
+                .WithOptionalDependent();
+
+            var databaseMapping = BuildMapping(modelBuilder);
+            databaseMapping.AssertValid();
+
+            var associationTypes = databaseMapping.Model.AssociationTypes.ToList();
+
+            Assert.Equal(4, associationTypes.Count);
+
+            var one = associationTypes.Single(a => a.Name == "DerivedClassA_ClassA1");
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, one.SourceEnd.RelationshipMultiplicity);
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, one.TargetEnd.RelationshipMultiplicity);
+            Assert.Equal("DerivedClassA", one.SourceEnd.GetEntityType().Name);
+            Assert.Equal("DerivedClassA", one.TargetEnd.GetEntityType().Name);
+
+            var two = associationTypes.Single(a => a.Name == "DerivedClassA_ClassA2");
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, two.SourceEnd.RelationshipMultiplicity);
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, two.TargetEnd.RelationshipMultiplicity);
+            Assert.Equal("DerivedClassA", two.SourceEnd.GetEntityType().Name);
+            Assert.Equal("DerivedClassA", two.TargetEnd.GetEntityType().Name);
+
+            var three = associationTypes.Single(a => a.Name == "DerivedClassB_ClassA1");
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, three.SourceEnd.RelationshipMultiplicity);
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, three.TargetEnd.RelationshipMultiplicity);
+            Assert.Equal("DerivedClassA", three.SourceEnd.GetEntityType().Name);
+            Assert.Equal("DerivedClassB", three.TargetEnd.GetEntityType().Name);
+
+            var four = associationTypes.Single(a => a.Name == "DerivedClassB_ClassA2");
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, four.SourceEnd.RelationshipMultiplicity);
+            Assert.Equal(RelationshipMultiplicity.ZeroOrOne, four.TargetEnd.RelationshipMultiplicity);
+            Assert.Equal("DerivedClassA", four.SourceEnd.GetEntityType().Name);
+            Assert.Equal("DerivedClassB", four.TargetEnd.GetEntityType().Name);
+        }
+
+        public abstract class TheBaseClass
+        {
+            public int Id { get; set; }
+            public DerivedClassA ClassA1 { get; set; }
+            public DerivedClassA ClassA2 { get; set; }
+        }
+
+        public class DerivedClassA : TheBaseClass
+        {
+            public string TitleA { get; set; }
+        }
+
+        public class DerivedClassB : TheBaseClass
+        {
+            public string TitleB { get; set; }
+        }
+
+        [Fact] // CodePlex 1747
+        public void Abstract_TPH_base_type_not_explicitly_added_to_the_model_is_mapped_correctly()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Message1747>();
+            modelBuilder.Entity<Comment1747>();
+
+            var databaseMapping = BuildMapping(modelBuilder);
+            databaseMapping.AssertValid();
+
+            var mappings = databaseMapping.EntityContainerMappings.Single().EntitySetMappings.Single().EntityTypeMappings.ToList();
+
+            Assert.Equal(3, mappings.Count());
+            Assert.True(mappings.Single(x => x.EntityType.Name == "MessageBase1747").IsHierarchyMapping);
+            Assert.False(mappings.Single(x => x.EntityType.Name == "Message1747").IsHierarchyMapping);
+            Assert.False(mappings.Single(x => x.EntityType.Name == "Comment1747").IsHierarchyMapping);
+        }
+
+        public abstract class MessageBase1747
+        {
+            public int Id { get; set; }
+            public string Title { get; set; }
+            public string Contents { get; set; }
+        }
+
+        public class Message1747 : MessageBase1747
+        {
+        }
+
+        public class Comment1747 : MessageBase1747
+        {
+            public MessageBase1747 Parent { get; set; }
+            public int ParentId { get; set; }
+        }
+
+        [Fact]
+        public void Single_concrete_class_has_no_discriminator_column()
+        {
+            const string databaseName = "MessageContext";
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<MessageBase>();
+            modelBuilder.Entity<Comment>();
+
+            OnModelCreating(modelBuilder);
+
+            var model = modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo);
+
+            var firstComment = new Comment
+            {
+                Title = "First comment",
+                Contents = "The message"
+            };
+
+            var secondComment = new Comment
+            {
+                Title = "Second comment",
+                Contents = "The message",
+                Parent = firstComment
+            };
+
+            using (var context = new DbContext(databaseName, model.Compile()))
+            {
+                context.Database.Delete();
+                context.Database.Create();
+
+                context.Set<Comment>().Add(firstComment);
+                context.Set<Comment>().Add(secondComment);
+
+                context.SaveChanges();
+            }
+
+            model.DatabaseMapping.AssertValid();
+            model.DatabaseMapping.Assert<Comment>().HasColumns("Id", "Title", "Contents", "ParentId");
+
+            using (var context = new DbContext(databaseName, model.Compile()))
+            {
+                var returnedComment = context.Set<Comment>().Single(c => c.Title.Contains("Second"));
+                Assert.Equal(secondComment.Title, returnedComment.Title);
+                Assert.Equal(secondComment.Contents, returnedComment.Contents);
+                Assert.Equal(secondComment.ParentId, returnedComment.ParentId);
+            }
         }
     }
 
@@ -1755,7 +2503,7 @@ namespace FunctionalTests
 
     #endregion
 
-    #region BugDevDiv#178590
+    #region Bug DevDiv#178590
 
     namespace BugDevDiv_178590
     {
@@ -1804,14 +2552,12 @@ namespace FunctionalTests
                 modelBuilder.Entity<A>();
                 modelBuilder
                     .Entity<B>()
-                    .Map(mapping => mapping.MapInheritedProperties())
-                    ;
+                    .Map(mapping => mapping.MapInheritedProperties());
 
                 modelBuilder
                     .Entity<C>()
                     .Map(mapping => mapping.MapInheritedProperties())
-                    .ToTable("C", "dbo")
-                    ;
+                    .ToTable("C", "dbo");
 
                 var databaseMapping = BuildMapping(modelBuilder);
 
@@ -1861,6 +2607,330 @@ namespace FunctionalTests
     }
 
     #endregion
+
+    public sealed class Issue2616Test : FunctionalTestBase
+    {
+        [Fact]
+        public void Can_hide_navigation_property_and_new_property_is_used()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<CustomStaffAccount>();
+            modelBuilder.Entity<CustomDomain>();
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            var association = databaseMapping.GetAssociationSetMappings().Single().AssociationSet.ElementType;
+            Assert.Equal(typeof(CustomStaffAccount).Name, association.TargetEnd.GetEntityType().Name);
+            Assert.Equal(typeof(CustomDomain).Name, association.SourceEnd.GetEntityType().Name);
+
+            using (var context = CreateContext(modelBuilder))
+            {
+                context.Database.Delete();
+                context.Database.Initialize(force: false);
+
+                var account = new CustomStaffAccount { Domain = new CustomDomain(), Name = "one" };
+                ((StaffAccount)account).Name = 1;
+                context.Set<CustomStaffAccount>().Add(account);
+                context.SaveChanges();
+            }
+
+            using (var context = CreateContext(modelBuilder))
+            {
+                var account = context.Set<CustomStaffAccount>().Single();
+                var domain = account.Domain;
+                Assert.NotNull(domain);
+                Assert.Null(((StaffAccount)account).Domain);
+                Assert.Same(account, domain.Accounts.Single());
+                Assert.Empty(((Domain)domain).Accounts);
+                Assert.Equal("one", account.Name);
+                Assert.Null(((StaffAccount)account).Name);
+
+                context.Database.Delete();
+            }
+        }
+
+        [Fact]
+        public void Can_hide_navigation_property_and_if_StaffAccount_mapped_without_proxies_base_property_is_used()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<StaffAccount>();
+            modelBuilder.Entity<CustomStaffAccount>();
+            modelBuilder.Entity<CustomDomain>();
+
+            VerifyBasePropertiesAreUsed(modelBuilder);
+        }
+
+        [Fact]
+        public void Can_hide_navigation_property_and_if_Domain_mapped_without_proxies_base_property_is_used()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<Domain>();
+            modelBuilder.Entity<CustomStaffAccount>();
+            modelBuilder.Entity<CustomDomain>();
+
+            VerifyBasePropertiesAreUsed(modelBuilder);
+        }
+
+        [Fact]
+        public void Can_hide_navigation_property_and_both_bases_mapped_without_proxies_base_property_is_used()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<StaffAccount>();
+            modelBuilder.Entity<Domain>();
+            modelBuilder.Entity<CustomStaffAccount>();
+            modelBuilder.Entity<CustomDomain>();
+
+            VerifyBasePropertiesAreUsed(modelBuilder);
+        }
+
+        private void VerifyBasePropertiesAreUsed(DbModelBuilder modelBuilder)
+        {
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            var association = databaseMapping.GetAssociationSetMappings().Single().AssociationSet.ElementType;
+            var targetIsDependent = association.TargetEnd.RelationshipMultiplicity == RelationshipMultiplicity.Many;
+            var dependentEnd = targetIsDependent ? association.TargetEnd : association.SourceEnd;
+            var principalEnd = targetIsDependent ? association.SourceEnd : association.TargetEnd;
+            Assert.Equal(typeof(StaffAccount).Name, dependentEnd.GetEntityType().Name);
+            Assert.Equal(typeof(Domain).Name, principalEnd.GetEntityType().Name);
+
+            using (var context = CreateContext(modelBuilder))
+            {
+                context.Database.Delete();
+                context.Database.Initialize(force: false);
+
+                var account = new CustomStaffAccount();
+                account.Name = "one";
+                ((StaffAccount)account).Name = 1;
+                ((StaffAccount)account).Domain = new CustomDomain();
+                context.Set<CustomStaffAccount>().Add(account);
+                context.SaveChanges();
+            }
+
+            using (var context = CreateContext(modelBuilder))
+            {
+                context.Configuration.ProxyCreationEnabled = false;
+
+                var lazyAccount = context.Set<CustomStaffAccount>().AsNoTracking().Single();
+                Assert.Null(((StaffAccount)lazyAccount).Domain);
+                Assert.Null(lazyAccount.Domain);
+
+                var lazyDomain = context.Set<CustomDomain>().AsNoTracking().Single();
+                Assert.Empty(((Domain)lazyDomain).Accounts);
+                Assert.Empty(lazyDomain.Accounts);
+
+                var account = context.Set<CustomStaffAccount>().Include(a => ((StaffAccount)a).Domain).Single();
+                var domain = ((StaffAccount)account).Domain;
+                Assert.NotNull(domain);
+                Assert.Null(account.Domain);
+                Assert.Same(account, domain.Accounts.Single());
+                Assert.Empty(((CustomDomain)domain).Accounts);
+                Assert.Null(account.Name);
+                Assert.Equal(1, ((StaffAccount)account).Name);
+
+                context.Database.Delete();
+            }
+        }
+
+        [Fact]
+        public void Can_hide_navigation_property_and_both_bases_mapped_with_proxies_base_property_is_used()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<StaffAccount>().HasOptional(a => a.Domain).WithMany();
+            modelBuilder.Entity<Domain>().Ignore(d => d.Accounts);
+            modelBuilder.Entity<CustomStaffAccountSameField>();
+            modelBuilder.Entity<CustomDomainNonVirtual>();
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            var association = databaseMapping.GetAssociationSetMappings().Single().AssociationSet.ElementType;
+            Assert.Equal(typeof(Domain).Name, association.TargetEnd.GetEntityType().Name);
+            Assert.Equal(typeof(StaffAccount).Name, association.SourceEnd.GetEntityType().Name);
+
+            using (var context = CreateContext(modelBuilder))
+            {
+                context.Database.Delete();
+                context.Database.Initialize(force: false);
+
+                var account = new CustomStaffAccountSameField();
+                account.Name = "1";
+                account.Domain = new CustomDomainNonVirtual();
+                context.Set<CustomStaffAccountSameField>().Add(account);
+                context.SaveChanges();
+            }
+
+            using (var context = CreateContext(modelBuilder))
+            {
+                var account = context.Set<CustomStaffAccountSameField>().Single();
+
+                var domain = account.Domain;
+                Assert.NotNull(domain);
+                Assert.NotNull(((StaffAccount)account).Domain);
+                Assert.Empty(((Domain)domain).Accounts);
+                Assert.Empty(domain.Accounts);
+                Assert.Equal("1", account.Name);
+                Assert.Equal(1, ((StaffAccount)account).Name);
+
+                context.Database.Delete();
+            }
+        }
+
+        [Fact]
+        public void Can_hide_navigation_property_and_ignore_new_property()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<CustomStaffAccount>().Ignore(c => c.Domain);
+            modelBuilder.Entity<CustomDomain>().Ignore(d => d.Accounts);
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            Assert.Empty(databaseMapping.GetAssociationSetMappings());
+        }
+
+        [Fact]
+        public void If_hidden_navigation_property_and_bases_mapped_ignoring_new_property_throws()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<StaffAccount>();
+            modelBuilder.Entity<Domain>();
+            modelBuilder.Entity<CustomStaffAccount>().Ignore(c => c.Domain);
+            modelBuilder.Entity<CustomDomain>().Ignore(d => d.Accounts);
+
+            Assert.Throws<InvalidOperationException>(() => BuildMapping(modelBuilder))
+                .ValidateMessage("CannotIgnoreMappedBaseProperty", "Accounts", typeof(CustomDomain).FullName, typeof(Domain).FullName);
+        }
+
+        [Fact]
+        public void Can_hide_navigation_property_and_ignore_it()
+        {
+            DbConfiguration.DependencyResolver.GetService<AttributeProvider>().ClearCache();
+
+            using (var staffConfiguration = new DynamicTypeDescriptionConfiguration<StaffAccount>())
+            {
+                using (var domainConfiguration = new DynamicTypeDescriptionConfiguration<Domain>())
+                {
+                    staffConfiguration.SetPropertyAttributes(b => b.Domain, new NotMappedAttribute());
+                    domainConfiguration.SetPropertyAttributes(b => b.Accounts, new NotMappedAttribute());
+                    var modelBuilder = new DbModelBuilder();
+
+                    modelBuilder.Entity<CustomStaffAccount>();
+                    modelBuilder.Entity<CustomDomain>();
+
+                    var databaseMapping = BuildMapping(modelBuilder);
+
+                    databaseMapping.AssertValid();
+
+                    Assert.Empty(databaseMapping.GetAssociationSetMappings());
+                }
+            }
+
+            DbConfiguration.DependencyResolver.GetService<AttributeProvider>().ClearCache();
+        }
+
+        [Fact]
+        public void Can_hide_navigation_property_and_ignore_it_if_bases_mapped()
+        {
+            var modelBuilder = new DbModelBuilder();
+
+            modelBuilder.Entity<StaffAccount>().Ignore(c => c.Domain);
+            modelBuilder.Entity<Domain>().Ignore(d => d.Accounts);
+            modelBuilder.Entity<CustomStaffAccount>();
+            modelBuilder.Entity<CustomDomain>();
+
+            var databaseMapping = BuildMapping(modelBuilder);
+
+            databaseMapping.AssertValid();
+
+            Assert.Empty(databaseMapping.GetAssociationSetMappings());
+        }
+
+        private DbContext CreateContext(DbModelBuilder modelBuilder)
+        {
+            return new DbContext("Bug2616Test", modelBuilder.Build(ProviderRegistry.Sql2008_ProviderInfo).Compile());
+        }
+
+        public abstract class Domain
+        {
+            protected Domain()
+            {
+                Accounts = new List<StaffAccount>();
+            }
+
+            public int Id { get; private set; }
+
+            public virtual ICollection<StaffAccount> Accounts { get; set; }
+        }
+        
+        public class CustomDomain
+            : Domain
+        {
+            public CustomDomain()
+            {
+                Accounts = new List<CustomStaffAccount>();
+            }
+
+            public new virtual ICollection<CustomStaffAccount> Accounts { get; set; }
+        }
+
+        public class CustomDomainNonVirtual
+            : Domain
+        {
+            public CustomDomainNonVirtual()
+            {
+                Accounts = new List<CustomStaffAccountSameField>();
+            }
+
+            public new ICollection<CustomStaffAccountSameField> Accounts { get; set; }
+        }
+
+        public abstract class StaffAccount
+        {
+            public int Id { get; private set; }
+
+            public virtual Domain Domain { get; set; }
+
+            public virtual int? Name { get; set; }
+        }
+
+        public class CustomStaffAccount
+            : StaffAccount
+        {
+            public new virtual CustomDomain Domain { get; set; }
+
+            public new virtual string Name { get; set; }
+        }
+
+        public class CustomStaffAccountSameField
+            : StaffAccount
+        {
+            public new virtual CustomDomainNonVirtual Domain
+            {
+                get { return base.Domain as CustomDomainNonVirtual; }
+                set { base.Domain = value; }
+            }
+
+            public new virtual string Name
+            {
+                get { return base.Name == null ? null : base.Name.ToString(); }
+                set { base.Name = value == null ? null : (int?)Int32.Parse(value); }
+            }
+        }
+    }
 
     #region Bug165027
 

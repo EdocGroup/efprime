@@ -3,6 +3,7 @@
 namespace System.Data.Entity.ModelConfiguration.Configuration
 {
     using System.ComponentModel;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.Utilities;
@@ -88,6 +89,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// <summary>
         /// Excludes this entity type from the model so that it will not be mapped to the database.
         /// </summary>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration{T}" /> instance so that multiple calls can be chained.
+        /// </returns>
         public ConventionTypeConfiguration<T> Ignore()
         {
             _configuration.Ignore();
@@ -98,6 +102,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// <summary>
         /// Changes this entity type to a complex type.
         /// </summary>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration{T}" /> instance so that multiple calls can be chained.
+        /// </returns>
         public ConventionTypeConfiguration<T> IsComplexType()
         {
             _configuration.IsComplexType();
@@ -110,6 +117,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// </summary>
         /// <typeparam name="TProperty"> The type of the property to be ignored. </typeparam>
         /// <param name="propertyExpression"> A lambda expression representing the property to be configured. C#: t => t.MyProperty VB.Net: Function(t) t.MyProperty </param>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration{T}" /> instance so that multiple calls can be chained.
+        /// </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         public ConventionTypeConfiguration<T> Ignore<TProperty>(Expression<Func<T, TProperty>> propertyExpression)
         {
@@ -134,12 +144,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             return _configuration.Property(propertyExpression.GetComplexPropertyAccess());
         }
 
-        /// <summary>
-        /// Configures a property that is defined on this type as a navigation property.
-        /// </summary>
-        /// <typeparam name="TProperty"> The type of the property being configured. </typeparam>
-        /// <param name="propertyExpression"> A lambda expression representing the property to be configured. C#: t => t.MyProperty VB.Net: Function(t) t.MyProperty </param>
-        /// <returns> A configuration object that can be used to configure the property. </returns>
+        // <summary>
+        // Configures a property that is defined on this type as a navigation property.
+        // </summary>
+        // <typeparam name="TProperty"> The type of the property being configured. </typeparam>
+        // <param name="propertyExpression"> A lambda expression representing the property to be configured. C#: t => t.MyProperty VB.Net: Function(t) t.MyProperty </param>
+        // <returns> A configuration object that can be used to configure the property. </returns>
         [SuppressMessage("Microsoft.Design", "CA1006:DoNotNestGenericTypesInMemberSignatures")]
         internal ConventionNavigationPropertyConfiguration NavigationProperty<TProperty>(Expression<Func<T, TProperty>> propertyExpression)
         {
@@ -173,6 +183,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// Configures the table name that this entity type is mapped to.
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration{T}" /> instance so that multiple calls can be chained.
+        /// </returns>
         /// <remarks>
         /// Calling this will have no effect once it has been configured.
         /// </remarks>
@@ -190,6 +203,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         /// </summary>
         /// <param name="tableName"> The name of the table. </param>
         /// <param name="schemaName"> The database schema of the table. </param>
+        /// <returns>
+        /// The same <see cref="ConventionTypeConfiguration{T}" /> instance so that multiple calls can be chained.
+        /// </returns>
         /// <remarks>
         /// Calling this will have no effect once it has been configured.
         /// </remarks>
@@ -198,6 +214,28 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Check.NotEmpty(tableName, "tableName");
 
             _configuration.ToTable(tableName, schemaName);
+
+            return this;
+        }
+
+        /// <summary>
+        /// Sets an annotation in the model for the table to which this entity is mapped. The annotation
+        /// value can later be used when processing the table such as when creating migrations.
+        /// </summary>
+        /// <remarks>
+        /// It will likely be necessary to register a <see cref="IMetadataAnnotationSerializer"/> if the type of
+        /// the annotation value is anything other than a string. Calling this method will have no effect if the 
+        /// annotation with the given name has already been configured.
+        /// </remarks>
+        /// <param name="name">The annotation name, which must be a valid C#/EDM identifier.</param>
+        /// <param name="value">The annotation value, which may be a string or some other type that
+        /// can be serialized with an <see cref="IMetadataAnnotationSerializer"/></param>.
+        /// <returns>The same configuration instance so that multiple calls can be chained.</returns>
+        public ConventionTypeConfiguration<T> HasTableAnnotation(string name, object value)
+        {
+            Check.NotEmpty(name, "name");
+
+            _configuration.HasTableAnnotation(name, value);
 
             return this;
         }

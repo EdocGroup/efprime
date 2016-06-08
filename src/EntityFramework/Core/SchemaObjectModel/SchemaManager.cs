@@ -17,9 +17,9 @@ namespace System.Data.Entity.Core.SchemaObjectModel
 
     internal delegate DbProviderManifest ProviderManifestNeeded(Action<string, ErrorCode, EdmSchemaErrorSeverity> addError);
 
-    /// <summary>
-    /// Class responsible for parsing,validating a collection of schema
-    /// </summary>
+    // <summary>
+    // Class responsible for parsing,validating a collection of schema
+    // </summary>
     [DebuggerDisplay("DataModel={DataModel}")]
     internal class SchemaManager
     {
@@ -219,7 +219,7 @@ namespace System.Data.Entity.Core.SchemaObjectModel
 
             if (!reader.EOF
                 &&
-                (reader.LocalName == XmlConstants.Schema || reader.LocalName == StorageMslConstructs.MappingElement))
+                (reader.LocalName == XmlConstants.Schema || reader.LocalName == MslConstructs.MappingElement))
             {
                 return TryGetSchemaVersion(reader.NamespaceURI, out version, out dataSpace);
             }
@@ -261,16 +261,16 @@ namespace System.Data.Entity.Core.SchemaObjectModel
                     version = XmlConstants.StoreVersionForV3;
                     dataSpace = DataSpace.SSpace;
                     return true;
-                case StorageMslConstructs.NamespaceUriV1:
-                    version = StorageMslConstructs.MappingVersionV1;
+                case MslConstructs.NamespaceUriV1:
+                    version = MslConstructs.MappingVersionV1;
                     dataSpace = DataSpace.CSSpace;
                     return true;
-                case StorageMslConstructs.NamespaceUriV2:
-                    version = StorageMslConstructs.MappingVersionV2;
+                case MslConstructs.NamespaceUriV2:
+                    version = MslConstructs.MappingVersionV2;
                     dataSpace = DataSpace.CSSpace;
                     return true;
-                case StorageMslConstructs.NamespaceUriV3:
-                    version = StorageMslConstructs.MappingVersionV3;
+                case MslConstructs.NamespaceUriV3:
+                    version = MslConstructs.MappingVersionV3;
                     dataSpace = DataSpace.CSSpace;
                     return true;
                 default:
@@ -305,9 +305,9 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             get { return effectiveSchemaVersion; }
         }
 
-        /// <summary>
-        /// Add the namespace of the given schema to the namespace lookup table
-        /// </summary>
+        // <summary>
+        // Add the namespace of the given schema to the namespace lookup table
+        // </summary>
         public void AddSchema(Schema schema)
         {
             Debug.Assert(schema.DataModel == _dataModel, "DataModel must match");
@@ -327,9 +327,9 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             _namespaceLookUpTable.Add(schema.Namespace);
         }
 
-        /// <summary>
-        /// Resolve the type - if the type is not found, return appropriate error
-        /// </summary>
+        // <summary>
+        // Resolve the type - if the type is not found, return appropriate error
+        // </summary>
         public bool TryResolveType(string namespaceName, string typeName, out SchemaType schemaType)
         {
             // For resolving entity container names, namespace can be null
@@ -344,9 +344,9 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return false;
         }
 
-        /// <summary>
-        /// Returns true if this is a valid namespace name or else returns false
-        /// </summary>
+        // <summary>
+        // Returns true if this is a valid namespace name or else returns false
+        // </summary>
         public bool IsValidNamespaceName(string namespaceName)
         {
             return _namespaceLookUpTable.Contains(namespaceName);
@@ -356,10 +356,10 @@ namespace System.Data.Entity.Core.SchemaObjectModel
 
         #region Private Methods
 
-        /// <summary>
-        /// Checks if the xml reader has base uri. If it doesn't have, it adds error, other
-        /// returns the location from the base uri
-        /// </summary>
+        // <summary>
+        // Checks if the xml reader has base uri. If it doesn't have, it adds error, other
+        // returns the location from the base uri
+        // </summary>
         internal static bool TryGetBaseUri(XmlReader xmlReader, out string location)
         {
             var baseUri = xmlReader.BaseURI;
@@ -381,11 +381,11 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             }
         }
 
-        /// <summary>
-        /// Add the given list of newErrors to the error collection. If there is a error in the new errors,
-        /// it sets the errorEncountered to true. Returns true if the number of errors encountered is more
-        /// than max errors
-        /// </summary>
+        // <summary>
+        // Add the given list of newErrors to the error collection. If there is a error in the new errors,
+        // it sets the errorEncountered to true. Returns true if the number of errors encountered is more
+        // than max errors
+        // </summary>
         private static bool UpdateErrorCollectionAndCheckForMaxErrors(
             List<EdmSchemaError> errorCollection,
             IList<EdmSchemaError> newErrors, ref bool errorEncountered)

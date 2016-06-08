@@ -1,10 +1,11 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Utilities
 {
     using System.Data.Common;
     using System.Data.Entity.Core;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Resources;
 
     internal static class DbProviderServicesExtensions
@@ -21,11 +22,6 @@ namespace System.Data.Entity.Utilities
             }
             catch (ProviderIncompatibleException ex)
             {
-                if ("(localdb)\v11.0".Equals(connection.DataSource, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new ProviderIncompatibleException(Strings.BadLocalDBDatabaseName, ex);
-                }
-
                 throw new ProviderIncompatibleException(Strings.FailedToGetProviderInformation, ex);
             }
         }

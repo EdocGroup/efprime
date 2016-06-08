@@ -6,6 +6,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using System.Linq;
     using Moq;
     using Xunit;
@@ -51,6 +52,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             config.IsMaxLength();
             config.IsRowVersion();
             config.IsKey();
+            config.HasColumnAnnotation("Fox", "Like an angel in disguise");
         }
 
         [Fact]
@@ -90,6 +92,39 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 () => config.HasColumnName(""));
 
             Assert.Equal(Strings.ArgumentIsNullOrWhitespace("columnName"), ex.Message);
+        }
+
+        [Fact]
+        public void HasAnnotation_configures_only_annotations_that_have_not_already_been_set()
+        {
+            var innerConfig = new Properties.Primitive.PrimitivePropertyConfiguration();
+            innerConfig.SetAnnotation("A1", "V1");
+            var config = new ConventionPrimitivePropertyConfiguration(new MockPropertyInfo(), () => innerConfig);
+
+            var result = config.HasColumnAnnotation("A1", "V1B").HasColumnAnnotation("A2", "V2");
+
+            Assert.Equal("V1", innerConfig.Annotations["A1"]);
+            Assert.Equal("V2", innerConfig.Annotations["A2"]);
+            Assert.Same(config, result);
+        }
+
+        [Fact]
+        public void HasAnnotation_evaluates_preconditions()
+        {
+            var innerConfig = new Properties.Primitive.PrimitivePropertyConfiguration();
+            var config = new ConventionPrimitivePropertyConfiguration(new MockPropertyInfo(), () => innerConfig);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => config.HasColumnAnnotation(null, null)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("name"),
+                Assert.Throws<ArgumentException>(() => config.HasColumnAnnotation(" ", null)).Message);
+
+            Assert.Equal(
+                Strings.BadAnnotationName("Cheese:Pickle"),
+                Assert.Throws<ArgumentException>(() => config.HasColumnAnnotation("Cheese:Pickle", null)).Message);
         }
 
         [Fact]
@@ -530,7 +565,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         }
 
         [Fact]
-        public void HasMaxLength_configures_IsUnicode_when_unset()
+        public void HasMaxLength_does_not_configure_IsUnicode_when_unset()
         {
             var innerConfig = new Properties.Primitive.StringPropertyConfiguration();
             var config = new ConventionPrimitivePropertyConfiguration(new MockPropertyInfo(), () => innerConfig);
@@ -539,7 +574,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
             Assert.Equal(256, innerConfig.MaxLength);
             Assert.Equal(false, innerConfig.IsFixedLength);
-            Assert.Equal(true, innerConfig.IsUnicode);
+            Assert.Equal(null, innerConfig.IsUnicode);
             Assert.Same(config, result);
         }
 
@@ -834,14 +869,12 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         [Fact]
         public void IsKey_configures_when_unset()
         {
-            var type = new MockType()
-                .Property<int>("Property1");
-            var typeConfig = new EntityTypeConfiguration(type);
+            var typeConfig = new EntityTypeConfiguration(typeof(AType1));
             var innerConfig = new Properties.Primitive.PrimitivePropertyConfiguration
                 {
                     TypeConfiguration = typeConfig
                 };
-            var propertyInfo = type.GetProperty("Property1");
+            var propertyInfo = typeof(AType1).GetDeclaredProperty("Property1");
             var config = new ConventionPrimitivePropertyConfiguration(propertyInfo, () => innerConfig);
 
             var result = config.IsKey();
@@ -851,25 +884,33 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             Assert.Same(config, result);
         }
 
+        public class AType1
+        {
+            public int Property1 { get; set; }
+        }
+
         [Fact]
         public void IsKey_is_noop_when_set()
         {
-            var type = new MockType()
-                .Property<int>("Property1")
-                .Property<int>("Property2");
-            var typeConfig = new EntityTypeConfiguration(type);
-            typeConfig.Key(new[] { type.GetProperty("Property1") });
+            var typeConfig = new EntityTypeConfiguration(typeof(AType2));
+            typeConfig.Key(new[] { typeof(AType2).GetDeclaredProperty("Property1") });
             var innerConfig = new Properties.Primitive.PrimitivePropertyConfiguration
                 {
                     TypeConfiguration = typeConfig
                 };
-            var propertyInfo = type.GetProperty("Property2");
+            var propertyInfo = typeof(AType2).GetDeclaredProperty("Property2");
             var config = new ConventionPrimitivePropertyConfiguration(propertyInfo, () => innerConfig);
 
             var result = config.IsKey();
 
             Assert.DoesNotContain(propertyInfo, typeConfig.KeyProperties);
             Assert.Same(config, result);
+        }
+
+        public class AType2
+        {
+            public int Property1 { get; set; }
+            public int Property2 { get; set; }
         }
 
         [Fact]

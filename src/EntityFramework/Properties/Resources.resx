@@ -127,7 +127,7 @@
     <value>InitialCreate</value>
   </data>
   <data name="AutomaticDataLoss" xml:space="preserve">
-    <value>Automatic migration was not applied because it would result in data loss.</value>
+    <value>Automatic migration was not applied because it would result in data loss. Set AutomaticMigrationDataLossAllowed to 'true' on your DbMigrationsConfiguration to allow application of automatic migrations even if they might cause data loss. Alternately, use Update-Database with the '-Force' option, or scaffold an explicit migration.</value>
     <comment>## ExceptionType=Migrations.Infrastructure.AutomaticDataLossException</comment>
   </data>
   <data name="LoggingAutoMigrate" xml:space="preserve">
@@ -221,10 +221,6 @@
     <value>More than one migrations configuration type was found in the assembly '{0}'. Specify the name of the one to use.</value>
     <comment>## ExceptionType=Migrations.Infrastructure.MigrationsException</comment>
   </data>
-  <data name="SqlCeColumnRenameNotSupported" xml:space="preserve">
-    <value>Direct column renaming is not supported by SQL Server Compact. To rename a column in SQL Server Compact, you will need to recreate it.</value>
-    <comment>## ExceptionType=Migrations.Infrastructure.MigrationsException</comment>
-  </data>
   <data name="MigrationsNamespaceNotUnderRootNamespace" xml:space="preserve">
     <value>In VB.NET projects, the migrations namespace '{0}' must be under the root namespace '{1}'. Update the migrations project's root namespace to allow classes under the migrations namespace to be added.</value>
     <comment>## ExceptionType=Migrations.Infrastructure.MigrationsException</comment>
@@ -291,12 +287,43 @@
     <value>Conflicting configuration settings were specified for property '{0}' on type '{1}': {2}</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
+  <data name="ConflictingTypeAnnotation" xml:space="preserve">
+    <value>Annotation '{0}' value '{1}' conflicts with value '{2}' for table '{3}'. Annotations of a given name configured for a given table must be specified only once or have have matching values in each configuration.</value>
+    <comment>## ExceptionType=InvalidOperationException</comment>
+  </data>
   <data name="ConflictingColumnConfiguration" xml:space="preserve">
     <value>Conflicting configuration settings were specified for column '{0}' on table '{1}': {2}</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
   <data name="ConflictingConfigurationValue" xml:space="preserve">
     <value>{0} = {1} conflicts with {2} = {3}</value>
+  </data>
+  <data name="ConflictingAnnotationValue" xml:space="preserve">
+    <value>Custom annotation '{0}' = '{1}' conflicts with custom annotation '{0}' = '{2}'</value>
+  </data>
+  <data name="ConflictingIndexAttributeProperty" xml:space="preserve">
+    <value>Index attribute property '{0}' = '{1}' conflicts with index attribute property '{0}' = '{2}'</value>
+  </data>
+  <data name="ConflictingIndexAttribute" xml:space="preserve">
+    <value>IndexAttributes with name '{0}' cannot be merged because they contain conflicting configuration: {1}</value>
+  </data>
+  <data name="ConflictingIndexAttributesOnProperty" xml:space="preserve">
+    <value>Property '{0}' on type '{1}' is attributed with two IndexAttributes with name '{2}' that contain conflicting configuration: {3}</value>
+  </data>
+  <data name="IncompatibleTypes" xml:space="preserve">
+    <value>Objects of type '{0}' are not compatible with objects of type '{1}' and cannot be merged.</value>
+  </data>
+  <data name="AnnotationSerializeWrongType" xml:space="preserve">
+    <value>An object of type '{0}' cannot be serialized by the {1}. Only '{2}' objects can be serialized.</value>
+  </data>
+  <data name="AnnotationSerializeBadFormat" xml:space="preserve">
+    <value>The string '{0}' was not in the expected format to be deserialized by the {1}. Serialized values are expected to have the format '{2}'.</value>
+  </data>
+  <data name="ConflictWhenConsolidating" xml:space="preserve">
+    <value>The index with name '{0}' on table '{1}' has conflicting configuration for different columns in the index. All configuration for a given index on a given table must be consistent: {2}</value>
+  </data>
+  <data name="OrderConflictWhenConsolidating" xml:space="preserve">
+    <value>The index with name '{0}' on table '{1}' has the same column order of '{2}' specified for columns '{3}' and '{4}'. Make sure a different order value is used for the IndexAttribute on each column of a multi-column index.</value>
   </data>
   <data name="CodeFirstInvalidComplexType" xml:space="preserve">
     <value>The type '{0}' was not mapped. Check that the type has not been explicitly excluded by using the Ignore method or NotMappedAttribute data annotation. Verify that the type was defined as a class, is not primitive or generic, and does not inherit from ComplexObject.</value>
@@ -342,7 +369,7 @@
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
   <data name="ModelGeneration_UnableToDetermineKeyOrder" xml:space="preserve">
-    <value>Unable to determine composite primary key ordering for type '{0}'. Use the ColumnAttribute or the HasKey method to specify an order for composite primary keys.</value>
+    <value>Unable to determine composite primary key ordering for type '{0}'. Use the ColumnAttribute (see http://go.microsoft.com/fwlink/?LinkId=386388) or the HasKey method (see http://go.microsoft.com/fwlink/?LinkId=386387) to specify an order for composite primary keys.</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
   <data name="ForeignKeyAttributeConvention_EmptyKey" xml:space="preserve">
@@ -437,6 +464,10 @@
     <value>The entity types '{0}' and '{1}' cannot share table '{2}' because they are not in the same type hierarchy or do not have a valid one to one foreign key relationship with matching primary keys between them.</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
+  <data name="EntityMappingConfiguration_TPCWithIAsOnNonLeafType" xml:space="preserve">
+    <value>The association '{0}' between entity types '{1}' and '{2}' is invalid. In a TPC hierarchy independent associations are only allowed on the most derived types.</value>
+    <comment>## ExceptionType=InvalidOperationException</comment>
+  </data>
   <data name="CannotIgnoreMappedBaseProperty" xml:space="preserve">
     <value>You cannot use Ignore method on the property '{0}' on type '{1}' because this type inherits from the type '{2}' where this property is mapped. To exclude this property from your model, use NotMappedAttribute or Ignore method on the base type.</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
@@ -452,6 +483,12 @@
   <data name="IncorrectColumnCount" xml:space="preserve">
     <value>The specified association foreign key columns '{0}' are invalid. The number of columns specified must match the number of primary key columns.</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
+  </data>
+  <data name="BadKeyNameForAnnotation" xml:space="preserve">
+    <value>The foreign key column name '{0}' specified for the '{1}' annotation is not valid. The column name to annotate must match a column name set using the MapKey method.</value>
+  </data>
+  <data name="BadAnnotationName" xml:space="preserve">
+    <value>The annotation name '{0}' is not valid. Annotation names have the same restrictions as C# and EDM identifiers.</value>
   </data>
   <data name="CircularComplexTypeHierarchy" xml:space="preserve">
     <value>A circular ComplexType hierarchy was detected. Self-referencing ComplexTypes are not supported.</value>
@@ -488,11 +525,8 @@
     <value>Multiple potential primary key properties named '{0}' but differing only by case were found on entity type '{1}'. Configure the primary key explicitly using the HasKey fluent API or the KeyAttribute data annotation.</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
-  <data name="BadLocalDBDatabaseName" xml:space="preserve">
-    <value>Connection to the database failed. The connection string is configured with an invalid LocalDB server name. This may have been set in 'global.asax' by a pre-release version of MVC4. The default connection factory is now set in web.config so the line in 'global.asax' starting with 'Database.DefaultConnectionFactory = ' should be removed. See http://go.microsoft.com/fwlink/?LinkId=243166 for details.</value>
-  </data>
   <data name="FailedToGetProviderInformation" xml:space="preserve">
-    <value>An error occurred while getting provider information from the database. This can be caused by Entity Framework using an incorrect connection string. Check the inner exceptions for details and ensure that the connection string is correct.</value>
+    <value>An error occurred accessing the database. This usually means that the connection to the database failed. Check that the connection string is correct and that the appropriate DbContext constructor is being used to specify it or find it in the application's config file. See http://go.microsoft.com/fwlink/?LinkId=386386 for information on DbContext and connections. See the inner exception for details of the failure.</value>
   </data>
   <data name="DbPropertyEntry_CannotGetCurrentValue" xml:space="preserve">
     <value>Cannot get value for property '{0}' from entity of type '{1}' because the property has no get accessor.</value>
@@ -640,12 +674,6 @@
     <value>The model backing the '{0}' context has changed since the database was created. Consider using Code First Migrations to update the database (http://go.microsoft.com/fwlink/?LinkId=238269).</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
-  <data name="DatabaseInitializationStrategy_MigrationsEnabled" xml:space="preserve">
-    <value>Migrations is enabled for context '{0}' but the database does not exist or contains no mapped tables. Use Migrations to create the database and its tables, for example by running the 'Update-Database' command from the Package Manager Console.</value>
-  </data>
-  <data name="DatabaseInitializationStrategy_MigrationsEnabledNoDrop" xml:space="preserve">
-    <value>The DropCreateDatabaseAlways initializer did not drop or create the database backing context '{0}' because Migrations are enabled for the context. Use Migrations to manage the database for this context, for example by running the 'Update-Database' command from the Package Manager Console.</value>
-  </data>
   <data name="Database_DatabaseAlreadyExists" xml:space="preserve">
     <value>Database '{0}' cannot be created because it already exists.</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
@@ -725,7 +753,7 @@
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
   <data name="DbQuery_BindingToDbQueryNotSupported" xml:space="preserve">
-    <value>Data binding directly to a store query (DbSet, DbQuery, DbSqlQuery, DbRawSqlQuery) is not supported. Instead populate a DbSet with data, for example by calling Load on the DbSet, and then bind to local data. For WPF bind to DbSet.Local. For WinForms bind to DbSet.Local.ToBindingList().</value>
+    <value>Data binding directly to a store query (DbSet, DbQuery, DbSqlQuery, DbRawSqlQuery) is not supported. Instead populate a DbSet with data, for example by calling Load on the DbSet, and then bind to local data. For WPF bind to DbSet.Local. For WinForms bind to DbSet.Local.ToBindingList(). For ASP.NET WebForms you can bind to the result of calling ToList() on the query or use Model Binding, for more information see http://go.microsoft.com/fwlink/?LinkId=389592.</value>
     <comment>## ExceptionType=NotSupportedException</comment>
   </data>
   <data name="DbExtensions_InvalidIncludePathExpression" xml:space="preserve">
@@ -780,10 +808,10 @@
     <comment>## ExceptionType=NotSupportedException</comment>
   </data>
   <data name="UnintentionalCodeFirstException_Message" xml:space="preserve">
-    <value>Code generated using the T4 templates for Database First and Model First development may not work correctly if used in Code First mode. To continue using Database First or Model First ensure that the Entity Framework connection string is specified in the config file of executing application. To use these classes, that were generated from Database First or Model First, with Code First add any additional configuration using attributes or the DbModelBuilder API and then remove the code that throws this exception.</value>
+    <value>The context is being used in Code First mode with code that was generated from an EDMX file for either Database First or Model First development.  This will not work correctly. To fix this problem do not remove the line of code that throws this exception. If you wish to use Database First or Model First, then make sure that the Entity Framework connection string is included in the app.config or web.config of the start-up project. If you are creating your own DbConnection, then make sure that it is an EntityConnection and not some other type of DbConnection, and that you pass it to one of the base DbContext constructors that take a DbConnection. To learn more about Code First, Database First, and Model First see the Entity Framework documentation here: http://go.microsoft.com/fwlink/?LinkId=394715</value>
   </data>
   <data name="DbContextServices_MissingDefaultCtor" xml:space="preserve">
-    <value>The context factory type '{0}' must have a public default constructor.</value>
+    <value>The context factory type '{0}' does not have a public parameterless constructor. Either add a public parameterless constructor, create an IDbContextFactory implementation in the context assembly, or register a context factory using DbConfiguration.</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
   <data name="CannotCallGenericSetWithProxyType" xml:space="preserve">
@@ -955,8 +983,8 @@
   <data name="EdmModel_Validator_Syntactic_EdmTypeReferenceNotValid" xml:space="preserve">
     <value>The type is not a valid EdmTypeReference.</value>
   </data>
-  <data name="EdmModel_InvalidDataSpace" xml:space="preserve">
-    <value>'{0}' is not valid data space for EdmModel. EdmModel supports only DataSpace.CSpace and DataSpace.SSpace.</value>
+  <data name="MetadataItem_InvalidDataSpace" xml:space="preserve">
+    <value>'{0}' is not valid data space for {1}. {1} supports only DataSpace.CSpace and DataSpace.SSpace.</value>
   </data>
   <data name="EdmModel_AddItem_NonMatchingNamespace" xml:space="preserve">
     <value>The data space of the item does not match the data space of the EdmModel.</value>
@@ -1405,6 +1433,15 @@
   <data name="ELinq_DbFunctionDirectCall" xml:space="preserve">
     <value>This function can only be invoked from LINQ to Entities.</value>
   </data>
+  <data name="ELinq_HasFlagArgumentAndSourceTypeMismatch" xml:space="preserve">
+    <value>The argument type, '{0}', is not the same as the enum type '{1}'."</value>
+  </data>
+  <data name="Elinq_ToStringNotSupportedForType" xml:space="preserve">
+    <value>Values of type '{0}' can not be converted to string.</value>
+  </data>
+  <data name="Elinq_ToStringNotSupportedForEnumsWithFlags" xml:space="preserve">
+    <value>Values of enumerated types decorated with the FlagsAttribute can not be converted to string.</value>
+  </data>
   <data name="CompiledELinq_UnsupportedParameterTypes" xml:space="preserve">
     <value>The specified parameter type '{0}' is not valid. Only scalar parameters (such as Int32, Decimal, and Guid) are supported.</value>
   </data>
@@ -1433,7 +1470,7 @@
     <value>Internal error. Unsupported projection expression type ({0}). Only DBNewInstanceExpression projections are supported in update mapping views.</value>
   </data>
   <data name="Update_ConcurrencyError" xml:space="preserve">
-    <value>Store update, insert, or delete statement affected an unexpected number of rows ({0}). Entities may have been modified or deleted since entities were loaded. Refresh ObjectStateManager entries.</value>
+    <value>Store update, insert, or delete statement affected an unexpected number of rows ({0}). Entities may have been modified or deleted since entities were loaded. See http://go.microsoft.com/fwlink/?LinkId=472540 for information on understanding and handling optimistic concurrency exceptions.</value>
   </data>
   <data name="Update_MissingEntity" xml:space="preserve">
     <value>In order to update the AssociationSet '{0}', the corresponding entity from EntitySet '{1}' must be available in the ObjectStateManager.</value>
@@ -2640,13 +2677,13 @@
     <value>Objects in a detached state do not exist in the ObjectStateManager.</value>
   </data>
   <data name="ObjectStateManager_ObjectStateManagerContainsThisEntityKey" xml:space="preserve">
-    <value>An object with the same key already exists in the ObjectStateManager. The ObjectStateManager cannot track multiple objects with the same key.</value>
+    <value>Attaching an entity of type '{0}' failed because another entity of the same type already has the same primary key value. This can happen when using the 'Attach' method or setting the state of an entity to 'Unchanged' or 'Modified' if any entities in the graph have conflicting key values. This may be because some entities are new and have not yet received database-generated key values. In this case use the 'Add' method or the 'Added' entity state to track the graph and then set the state of non-new entities to 'Unchanged' or 'Modified' as appropriate.</value>
   </data>
   <data name="ObjectStateManager_DoesnotAllowToReAddUnchangedOrModifiedOrDeletedEntity" xml:space="preserve">
     <value>An object with the same key already exists in the ObjectStateManager. The existing object is in the {0} state. An object can only be added to the ObjectStateManager again if it is in the added state.</value>
   </data>
   <data name="ObjectStateManager_CannotFixUpKeyToExistingValues" xml:space="preserve">
-    <value>AcceptChanges cannot continue because the object's key values conflict with another object in the ObjectStateManager. Make sure that the key values are unique before calling AcceptChanges.</value>
+    <value>Saving or accepting changes failed because more than one entity of type '{0}' have the same primary key value. Ensure that explicitly set primary key values are unique. Ensure that database-generated primary keys are configured correctly in the database and in the Entity Framework model. Use the Entity Designer for Database First/Model First configuration. Use the 'HasDatabaseGeneratedOption" fluent API or 'DatabaseGeneratedAttribute' for Code First configuration.</value>
   </data>
   <data name="ObjectStateManager_KeyPropertyDoesntMatchValueInKey" xml:space="preserve">
     <value>The value of a property that is part of an object's key does not match the corresponding property value stored in the ObjectContext.  This can occur if properties that are part of the key return inconsistent or incorrect values or if DetectChanges is not called after changes are made to a property that is part of the key.</value>
@@ -3008,8 +3045,7 @@
     <value>A referential integrity constraints violation occurred: Not all of the property values that define referential integrity constraints could be retrieved from related entities.</value>
   </data>
   <data name="RelationshipManager_InconsistentReferentialConstraintProperties" xml:space="preserve">
-    <value>A referential integrity constraint violation occurred: The property values that define the referential constraints are not consistent between principal and dependent objects in the relationship.</value>
-    <comment>## ExceptionType=InvalidOperationException</comment>
+    <value>A referential integrity constraint violation occurred: The property value(s) of '{0}' on one end of a relationship do not match the property value(s) of '{1}' on the other end.</value>
   </data>
   <data name="RelationshipManager_CircularRelationshipsWithReferentialConstraints" xml:space="preserve">
     <value>A circular relationship path has been detected while enforcing a referential integrity constraints. Referential integrity cannot be enforced on circular relationships.</value>
@@ -4846,7 +4882,7 @@
   <data name="InvalidPropertyInRelationshipConstraint" xml:space="preserve">
     <value>There is no property with name '{0}' defined in type referred by Role '{1}'.</value>
   </data>
-  <data name="TypeMismatchRelationshipConstaint" xml:space="preserve">
+  <data name="TypeMismatchRelationshipConstraint" xml:space="preserve">
     <value>The types of all properties in the Dependent Role of a referential constraint must be the same as the corresponding property types in the Principal Role. The type of property '{0}' on entity '{1}' does not match the type of property '{2}' on entity '{3}' in the referential constraint '{4}'.</value>
   </data>
   <data name="InvalidMultiplicityFromRoleUpperBoundMustBeOne" xml:space="preserve">
@@ -5148,7 +5184,7 @@
     <value>The 'Instance' member of the Entity Framework provider type '{0}' did not return an object that inherits from 'System.Data.Entity.Core.Common.DbProviderServices'. Entity Framework providers must inherit from this class and the 'Instance' member must return the singleton instance of the provider. This may be because the provider does not support Entity Framework 6 or later; see http://go.microsoft.com/fwlink/?LinkId=260882 for more information.</value>
   </data>
   <data name="ProviderInvariantRepeatedInConfig" xml:space="preserve">
-    <value>The provider for invariant name '{0}' is specified multiple times in the application configuration. The invariant name must be unique for each configured provider.</value>
+    <value>The provider for invariant name '{0}' is specified in the application configuration multiple times with different provider type names. The provider type names have to be unique for each configured provider.</value>
   </data>
   <data name="DbDependencyResolver_NoProviderInvariantName" xml:space="preserve">
     <value>No name was passed to the IDbDependencyResolver.GetService method. The provider invariant name must be supplied when attempting to resolve a '{0}' dependency.</value>
@@ -5256,6 +5292,9 @@
   <data name="DbMigrationsConfiguration_ContextType" xml:space="preserve">
     <value>The type '{0}' does not inherit from DbContext. The DbMigrationsConfiguration.ContextType property must be set to a type that inherits from DbContext.</value>
   </data>
+  <data name="ContextFactoryContextType" xml:space="preserve">
+    <value>The type '{0}' does not inherit from DbContext.  Context factories can only be registered for context types that inherit from DbContext.</value>
+  </data>
   <data name="DbMigrationsConfiguration_RootedPath" xml:space="preserve">
     <value>The 'MigrationsDirectory' property of 'DbMigrationsConfiguration' was set to the absolute path '{0}'. The migrations directory must be set to a relative path for a sub-directory under the Visual Studio project root.</value>
   </data>
@@ -5296,10 +5335,6 @@
   </data>
   <data name="EntityClient_CannotOpenBrokenConnection" xml:space="preserve">
     <value>The connection could not be opened because it is broken. The connection must be closed before it can be opened.</value>
-    <comment>## ExceptionType=InvalidOperationException</comment>
-  </data>
-  <data name="SqlServerMigrationSqlGenerator_UnknownOperation" xml:space="preserve">
-    <value>The current migration SQL generator ({0}) is unable to generate SQL for operations of type '{1}'. Call SetSqlGenerator on your migrations configuration class to use a different SQL generator. To create a custom SQL generator that can handle this type of operation, add a new class that derives from {0} and override Generate(MigrationOperation).</value>
     <comment>## ExceptionType=InvalidOperationException</comment>
   </data>
   <data name="ModificationFunctionParameterNotFoundOriginal" xml:space="preserve">
@@ -5346,6 +5381,9 @@
   </data>
   <data name="StorageScalarPropertyMapping_OnlyScalarPropertiesAllowed" xml:space="preserve">
     <value>Invalid scalar property mapping. Both entity model property and store column must be scalar properties.</value>
+  </data>
+  <data name="StorageComplexPropertyMapping_OnlyComplexPropertyAllowed" xml:space="preserve">
+    <value>Invalid complex property mapping. The entity model property must be a complex property.</value>
   </data>
   <data name="MetadataItemErrorsFoundDuringGeneration" xml:space="preserve">
     <value>Errors Found During Generation:</value>
@@ -5453,5 +5491,83 @@
   </data>
   <data name="CommitFailed" xml:space="preserve">
     <value>An error was reported while committing a database transaction but it could not be determined whether the transaction succeeded or failed on the database server. See the inner exception and http://go.microsoft.com/fwlink/?LinkId=313468 for more information.</value>
+  </data>
+  <data name="InterceptorTypeNotFound" xml:space="preserve">
+    <value>The type '{0}' registered in the application config file as an IDbInterceptor not be loaded. Make sure that the assembly-qualified name is used and that the assembly is available to the running application.</value>
+  </data>
+  <data name="InterceptorTypeNotInterceptor" xml:space="preserve">
+    <value>The type '{0}' registered in the application config file as an IDbInterceptor does not implement the IDbInterceptor interface. Interceptors must implement this interface.</value>
+  </data>
+  <data name="ViewGenContainersNotFound" xml:space="preserve">
+    <value>Unable to generate views because no mapping was found between conceptual model container '{0}' and store model container '{1}'. Ensure that the names match those defined in the EDMX or Code First model.</value>
+  </data>
+  <data name="HashCalcContainersNotFound" xml:space="preserve">
+    <value>Unable to calculate model hash because no mapping was found between conceptual model container '{0}' and store model container '{1}'. Ensure that the names match those defined in the EDMX or Code First model.</value>
+  </data>
+  <data name="ViewGenMultipleContainers" xml:space="preserve">
+    <value>Unable to generate views because the model contained more than one container. Choose the conceptual and store model containers to use by passing their names to the appropriate overload of the GenerateViews method.</value>
+  </data>
+  <data name="HashCalcMultipleContainers" xml:space="preserve">
+    <value>Unable to calculate model hash because the model contained more than one container. Choose the conceptual and store model containers to use by passing their names to the appropriate overload of the ComputeMappingHashValue method.</value>
+  </data>
+  <data name="BadConnectionWrapping" xml:space="preserve">
+    <value>Unexpected connection state. When using a wrapping provider ensure that the StateChange event is implemented on the wrapped DbConnection.</value>
+  </data>
+  <data name="ConnectionClosedLog" xml:space="preserve">
+    <value>Closed connection at {0}{1}</value>
+  </data>
+  <data name="ConnectionCloseErrorLog" xml:space="preserve">
+    <value>Failed to close connection at {0} with error: {1}{2}</value>
+  </data>
+  <data name="ConnectionOpenedLog" xml:space="preserve">
+    <value>Opened connection at {0}{1}</value>
+  </data>
+  <data name="ConnectionOpenErrorLog" xml:space="preserve">
+    <value>Failed to open connection at {0} with error: {1}{2}</value>
+  </data>
+  <data name="ConnectionOpenedLogAsync" xml:space="preserve">
+    <value>Opened connection asynchronously at {0}{1}</value>
+  </data>
+  <data name="ConnectionOpenErrorLogAsync" xml:space="preserve">
+    <value>Failed to open connection asynchronously at {0} with error: {1}{2}</value>
+  </data>
+  <data name="TransactionStartedLog" xml:space="preserve">
+    <value>Started transaction at {0}{1}</value>
+  </data>
+  <data name="TransactionStartErrorLog" xml:space="preserve">
+    <value>Failed to start transaction at {0} with error: {1}{2}</value>
+  </data>
+  <data name="TransactionCommittedLog" xml:space="preserve">
+    <value>Committed transaction at {0}{1}</value>
+  </data>
+  <data name="TransactionCommitErrorLog" xml:space="preserve">
+    <value>Failed to commit transaction at {0} with error: {1}{2}</value>
+  </data>
+  <data name="TransactionRolledBackLog" xml:space="preserve">
+    <value>Rolled back transaction at {0}{1}</value>
+  </data>
+  <data name="TransactionRollbackErrorLog" xml:space="preserve">
+    <value>Failed to rollback transaction at {0} with error: {1}{2}</value>
+  </data>
+  <data name="ConnectionOpenCanceledLog" xml:space="preserve">
+    <value>Cancelled open connection at {0}{1}</value>
+  </data>
+  <data name="TransactionHandler_AlreadyInitialized" xml:space="preserve">
+    <value>This instance of TransactionHandler has already been initialized.</value>
+  </data>
+  <data name="ConnectionDisposedLog" xml:space="preserve">
+    <value>Disposed connection at {0}{1}</value>
+  </data>
+  <data name="TransactionDisposedLog" xml:space="preserve">
+    <value>Disposed transaction at {0}{1}</value>
+  </data>
+  <data name="UnableToLoadEmbeddedResource" xml:space="preserve">
+    <value>Unable to load embedded resource '{1}' from assembly '{0}'.</value>
+  </data>
+  <data name="CannotSetBaseTypeCyclicInheritance" xml:space="preserve">
+    <value>Cannot set the base type '{0}' on type '{1}' because it creates cyclic inheritance.</value>
+  </data>
+  <data name="CannotDefineKeysOnBothBaseAndDerivedTypes" xml:space="preserve">
+    <value>Cannot define key members on both the base and the derived types.</value>
   </data>
 </root>

@@ -11,10 +11,12 @@ namespace System.Data.Entity.SqlServer
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Data.Entity.Migrations.Infrastructure.FunctionsModel;
     using System.Data.Entity.Migrations.Model;
-    using System.Data.Entity.Resources;
+    using System.Data.Entity.Migrations.Utilities;
+    using System.Data.Entity.SqlServer.Resources;
     using System.Data.Entity.Spatial;
     using System.Data.Entity.Utilities;
     using System.Globalization;
+    using System.IO;
     using System.Linq;
     using System.Threading;
     using Moq;
@@ -29,6 +31,7 @@ namespace System.Data.Entity.SqlServer
 
             var historyRepository
                 = new HistoryRepository(
+                    Mock.Of<InternalContextForMock>(),
                     new SqlConnectionFactory().CreateConnection("Foo").ConnectionString,
                     DbProviderFactories.GetFactory(ProviderRegistry.Sql2008_ProviderInfo.ProviderInvariantName),
                     "MyKey",
@@ -272,6 +275,32 @@ END
         }
 
         [Fact]
+        public void Generate_should_output_column_nullability_for_altered_nullable_columns()
+        {
+            var migrationSqlGenerator = new SqlServerMigrationSqlGenerator();
+
+            var alterColumnOperation =
+                new AlterColumnOperation("Customers", new ColumnModel(PrimitiveTypeKind.Int32) { Name = "Baz", IsNullable = true }, false);
+
+            var sql = migrationSqlGenerator.Generate(new[] { alterColumnOperation }, "2012").Join(s => s.Sql, Environment.NewLine);
+
+            Assert.Contains("ALTER TABLE [Customers] ALTER COLUMN [Baz] [int] NULL", sql);
+        }
+
+        [Fact]
+        public void Generate_should_output_column_nullability_for_altered_non_nullable_columns()
+        {
+            var migrationSqlGenerator = new SqlServerMigrationSqlGenerator();
+
+            var alterColumnOperation =
+                new AlterColumnOperation("Customers", new ColumnModel(PrimitiveTypeKind.Int32) { Name = "Baz", IsNullable = false }, false);
+
+            var sql = migrationSqlGenerator.Generate(new[] { alterColumnOperation }, "2012").Join(s => s.Sql, Environment.NewLine);
+
+            Assert.Contains("ALTER TABLE [Customers] ALTER COLUMN [Baz] [int] NOT NULL", sql);
+        }
+
+        [Fact]
         public void Generate_can_output_drop_column()
         {
             var migrationSqlGenerator = new SqlServerMigrationSqlGenerator();
@@ -310,6 +339,24 @@ END
                 s => s.Sql, Environment.NewLine);
 
             Assert.Contains(@"insert into foo", sql);
+        }
+
+        [Fact]
+        public void Generate_should_output_batched_custom_sql_operation()
+        {
+            var migrationSqlGenerator = new SqlServerMigrationSqlGenerator();
+
+            var statementBatch = File.ReadAllText("TestDataFiles/SqlOperation_Batch.sql");
+
+            var statements = migrationSqlGenerator
+                .Generate(new[] { new SqlOperation(statementBatch) }, "2008")
+                .ToList();
+
+            Assert.Equal(3, statements.Count);
+
+            Assert.Equal("insert into foo", statements[0].Sql.Trim());
+            Assert.Equal("insert into bar VALUES ('ab')", statements[1].Sql.Trim());
+            Assert.Equal("insert into bar VALUES ('ab')", statements[2].Sql.Trim());
         }
 
         [Fact]
@@ -429,6 +476,19 @@ BEGIN
     WHERE @@ROWCOUNT > 0 AND t0.[order_id] = @order_id AND t0.[Key] = @key_for_update2 AND t0.[Code] = @Code AND t0.[Signature] = @Signature
 END", sql);
         }
+        
+        [Fact]
+        public void Generate_can_output_rename_index_statements()
+        {
+            var renameIndexOperation = new RenameIndexOperation("dbo.Foo", "Bar", "Baz");
+
+            var migrationSqlGenerator = new SqlServerMigrationSqlGenerator();
+
+            var sql = migrationSqlGenerator.Generate(new[] { renameIndexOperation }, "2008").Join(s => s.Sql, Environment.NewLine);
+
+            Assert.Contains(
+                @"EXECUTE sp_rename @objname = N'dbo.Foo.Bar', @newname = N'Baz', @objtype = N'INDEX'", sql);
+        }
 
         [Fact]
         public void Generate_can_output_rename_procedure_statements()
@@ -547,6 +607,22 @@ CREATE TABLE [foo].[Customers] (
     [Name] [nvarchar](max) NOT NULL,
     CONSTRAINT [PK_foo.Customers] PRIMARY KEY NONCLUSTERED ([Id])
 )", sql);
+        }
+
+        [Fact]
+        public void Generate_can_output_rename_table_statements()
+        {
+            var renameTableOperation = new RenameTableOperation("dbo.Foo", "Bar");
+
+            var migrationSqlGenerator = new SqlServerMigrationSqlGenerator();
+
+            var sql = migrationSqlGenerator.Generate(new[] { renameTableOperation }, "2008").Join(s => s.Sql, Environment.NewLine);
+
+            Assert.Contains(
+                @"EXECUTE sp_rename @objname = N'dbo.Foo', @newname = N'Bar', @objtype = N'OBJECT'
+IF object_id('[PK_dbo.Foo]') IS NOT NULL BEGIN
+    EXECUTE sp_rename @objname = N'[PK_dbo.Foo]', @newname = N'PK_dbo.Bar', @objtype = N'OBJECT'
+END", sql);
         }
 
         [Fact]
@@ -1007,8 +1083,8 @@ WHERE parent_object_id = object_id(N'T')
 AND col_name(parent_object_id, parent_column_id) = 'C';
 IF @var0 IS NOT NULL
     EXECUTE('ALTER TABLE [T] DROP CONSTRAINT [' + @var0 + ']')
-ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'SRID=4326;POINT (6 7)' FOR [C]
-ALTER TABLE [T] ALTER COLUMN [C] [geography] NOT NULL", sql);
+ALTER TABLE [T] ALTER COLUMN [C] [geography] NOT NULL
+ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'SRID=4326;POINT (6 7)' FOR [C]", sql);
         }
 
         [Fact]
@@ -1035,8 +1111,8 @@ WHERE parent_object_id = object_id(N'T')
 AND col_name(parent_object_id, parent_column_id) = 'C';
 IF @var0 IS NOT NULL
     EXECUTE('ALTER TABLE [T] DROP CONSTRAINT [' + @var0 + ']')
-ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'SRID=0;POINT (8 9)' FOR [C]
-ALTER TABLE [T] ALTER COLUMN [C] [geometry] NOT NULL", sql);
+ALTER TABLE [T] ALTER COLUMN [C] [geometry] NOT NULL
+ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'SRID=0;POINT (8 9)' FOR [C]", sql);
         }
 
         [Fact]
@@ -1063,8 +1139,8 @@ WHERE parent_object_id = object_id(N'T')
 AND col_name(parent_object_id, parent_column_id) = 'C';
 IF @var0 IS NOT NULL
     EXECUTE('ALTER TABLE [T] DROP CONSTRAINT [' + @var0 + ']')
-ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'POINT (6 7)' FOR [C]
-ALTER TABLE [T] ALTER COLUMN [C] [geography] NOT NULL", sql);
+ALTER TABLE [T] ALTER COLUMN [C] [geography] NOT NULL
+ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'POINT (6 7)' FOR [C]", sql);
         }
 
         [Fact]
@@ -1091,8 +1167,8 @@ WHERE parent_object_id = object_id(N'T')
 AND col_name(parent_object_id, parent_column_id) = 'C';
 IF @var0 IS NOT NULL
     EXECUTE('ALTER TABLE [T] DROP CONSTRAINT [' + @var0 + ']')
-ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'POINT (8 9)' FOR [C]
-ALTER TABLE [T] ALTER COLUMN [C] [geometry] NOT NULL", sql);
+ALTER TABLE [T] ALTER COLUMN [C] [geometry] NOT NULL
+ALTER TABLE [T] ADD CONSTRAINT [DF_T_C] DEFAULT 'POINT (8 9)' FOR [C]", sql);
         }
 
         [Fact]
@@ -1393,6 +1469,53 @@ EXECUTE sp_rename @objname = N'dbo.__MigrationHistory2', @newname = N'__Migratio
     DROP INDEX [IX_na'me] ON [sch'ema].[Ta'ble]";
 
             Assert.Equal(expectedSql, sql);
+        }
+
+        [Fact]
+        public void Generate_for_AlterTableAnnotationsOperation_checks_its_arguments()
+        {
+            var generator = new SqlServerMigrationSqlGenerator();
+
+            Assert.Equal(
+                "alterTableOperation",
+                Assert.Throws<ArgumentNullException>(() => generator.Generate((AlterTableOperation)null)).ParamName);
+        }
+
+        [Fact]
+        public void DropDefaultConstraint_checks_its_arguments()
+        {
+            var generator = new SqlServerMigrationSqlGenerator();
+            var writer = new IndentedTextWriter(new Mock<TextWriter>().Object);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("table"),
+                Assert.Throws<ArgumentException>(
+                    () => generator.DropDefaultConstraint(null, "Spektor", writer)).Message);
+
+            Assert.Equal(
+                Strings.ArgumentIsNullOrWhitespace("column"),
+                Assert.Throws<ArgumentException>(
+                    () => generator.DropDefaultConstraint("Regina", null, writer)).Message);
+
+            Assert.Equal(
+                "writer",
+                Assert.Throws<ArgumentNullException>(() => generator.DropDefaultConstraint("Regina", "Spektor", null)).ParamName);
+        }
+
+        [Fact]
+        public void Generate_for_ColumnModel_checks_its_arguments()
+        {
+            var generator = new SqlServerMigrationSqlGenerator();
+            var writer = new IndentedTextWriter(new Mock<TextWriter>().Object);
+            var columnModel = new ColumnModel(PrimitiveTypeKind.Int32);
+
+            Assert.Equal(
+                "column",
+                Assert.Throws<ArgumentNullException>(() => generator.Generate(null, writer)).ParamName);
+
+            Assert.Equal(
+                "writer",
+                Assert.Throws<ArgumentNullException>(() => generator.Generate(columnModel, null)).ParamName);
         }
     }
 }

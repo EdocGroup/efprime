@@ -3,6 +3,8 @@
 namespace System.Data.Entity.Infrastructure
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Core.Objects.DataClasses;
+    using System.Data.Entity.Core.Objects.Internal;
     using System.Data.Entity.Internal;
     using System.Data.Entity.ModelConfiguration.Internal.UnitTests;
     using System.Data.Entity.Resources;
@@ -287,6 +289,48 @@ namespace System.Data.Entity.Infrastructure
                 return nonGeneric;
             }
         }
+
+#if !NET40
+
+        public class LoadAsync
+        {
+            [Fact]
+            public void Generic_DbCollectionEntry_throws_OperationCanceledException_if_task_is_cancelled()
+            {
+                var entityEntry = new DbEntityEntry<FakeWithProps>(FakeWithProps.CreateMockInternalEntityEntry().Object);
+
+                var mockWrapper = new Mock<IEntityWrapper>();
+                mockWrapper.Setup(w => w.Entity).Returns(new object());
+
+                ((RelatedEnd)entityEntry
+                    .Collection(e => e.Collection).InternalMemberEntry.InternalEntityEntry.GetRelatedEnd("Collection"))
+                    .SetWrappedOwner(mockWrapper.Object);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => entityEntry.Collection(e => e.Collection).LoadAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }
+
+            [Fact]
+            public void Non_generic_DbCollectionEntry_throws_OperationCanceledException_if_task_is_cancelled()
+            {
+                var entityEntry = new DbEntityEntry<FakeWithProps>(FakeWithProps.CreateMockInternalEntityEntry().Object);
+
+                var mockWrapper = new Mock<IEntityWrapper>();
+                mockWrapper.Setup(w => w.Entity).Returns(new object());
+
+                ((RelatedEnd)entityEntry
+                    .Collection(e => e.Collection).InternalMemberEntry.InternalEntityEntry.GetRelatedEnd("Collection"))
+                    .SetWrappedOwner(mockWrapper.Object);
+
+                Assert.Throws<OperationCanceledException>(
+                    () => ((DbCollectionEntry)entityEntry.Collection(e => e.Collection))
+                        .LoadAsync(new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+            }            
+        }
+
+#endif
 
         #region Helpers
 

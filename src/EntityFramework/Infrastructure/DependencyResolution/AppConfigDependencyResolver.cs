@@ -5,15 +5,16 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Utilities;
     using System.Globalization;
     using System.Linq;
     using System.Reflection;
 
-    /// <summary>
-    /// Resolves dependencies from a config file.
-    /// </summary>
+    // <summary>
+    // Resolves dependencies from a config file.
+    // </summary>
     internal class AppConfigDependencyResolver : IDbDependencyResolver
     {
         private readonly AppConfig _appConfig;
@@ -22,6 +23,9 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
         private readonly ConcurrentDictionary<Tuple<Type, object>, Func<object>> _serviceFactories
             = new ConcurrentDictionary<Tuple<Type, object>, Func<object>>();
 
+        private readonly ConcurrentDictionary<Tuple<Type, object>, IEnumerable<Func<object>>> _servicesFactories
+            = new ConcurrentDictionary<Tuple<Type, object>, IEnumerable<Func<object>>>();
+
         private readonly Dictionary<string, DbProviderServices> _providerFactories
             = new Dictionary<string, DbProviderServices>();
 
@@ -29,9 +33,9 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
         private readonly ProviderServicesFactory _providerServicesFactory;
 
-        /// <summary>
-        /// For testing.
-        /// </summary>
+        // <summary>
+        // For testing.
+        // </summary>
         public AppConfigDependencyResolver()
         {
         }
@@ -57,8 +61,19 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
 
         public IEnumerable<object> GetServices(Type type, object key)
         {
-            // Currently only one of any given service/key combination can be registered in app config
-            return this.GetServiceAsServices(type, key);
+            return _servicesFactories.GetOrAdd(
+                Tuple.Create(type, key),
+                t => GetServicesFactory(type, key)).Select(f => f()).Where(s => s != null).ToList();
+        }
+
+        public virtual IEnumerable<Func<object>> GetServicesFactory(Type type, object key)
+        {
+            if (type == typeof(IDbInterceptor))
+            {
+                return _appConfig.Interceptors.Select(i => (Func<object>)(() => i)).ToList();
+            }
+
+            return new List<Func<object>> { GetServiceFactory(type, key as string) };
         }
 
         public virtual Func<object> GetServiceFactory(Type type, string name)
@@ -146,17 +161,15 @@ namespace System.Data.Entity.Infrastructure.DependencyResolution
             var providerTypeName = string.Format(
                     CultureInfo.InvariantCulture,
                     "System.Data.Entity.SqlServer.SqlProviderServices, EntityFramework.SqlServer, Version={0}, Culture=neutral, PublicKeyToken=b77a5c561934e089",
-                    new AssemblyName(typeof(DbContext).Assembly.FullName).Version);
+                    new AssemblyName(typeof(DbContext).Assembly().FullName).Version);
 
             var provider = _providerServicesFactory.TryGetInstance(providerTypeName);
 
             if (provider != null)
             {
                 // This provider goes just above the root resolver so that any other provider registered in code
-                // still takes precedence.
-                _internalConfiguration.AddDefaultResolver(
-                    new SingletonDependencyResolver<DbProviderServices>(provider, "System.Data.SqlClient"));
-                _internalConfiguration.AddDefaultResolver(provider);
+                // still takes precedence, including any additional services registered by that provider.
+                _internalConfiguration.SetDefaultProviderServices(provider, "System.Data.SqlClient");
             }
         }
     }

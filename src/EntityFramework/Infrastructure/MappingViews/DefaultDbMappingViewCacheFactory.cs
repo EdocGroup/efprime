@@ -4,11 +4,11 @@ namespace System.Data.Entity.Infrastructure.MappingViews
 {
     using System.Data.Entity.Utilities;
 
-    /// <summary>
-    /// Provides a default DbMappingViewCacheFactory implementation that uses the cache type
-    /// specified by a DbMappingViewCacheTypeAttribute to create a concrete DbMappingViewCache.
-    /// The implementation assumes that the model has a single container mapping.
-    /// </summary>
+    // <summary>
+    // Provides a default DbMappingViewCacheFactory implementation that uses the cache type
+    // specified by a DbMappingViewCacheTypeAttribute to create a concrete DbMappingViewCache.
+    // The implementation assumes that the model has a single container mapping.
+    // </summary>
     internal class DefaultDbMappingViewCacheFactory : DbMappingViewCacheFactory
     {
         private readonly Type _cacheType;

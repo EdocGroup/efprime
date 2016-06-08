@@ -5,11 +5,14 @@ namespace System.Data.Entity
     using System.ComponentModel;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Infrastructure.Pluralization;
     using System.Data.Entity.Migrations;
+    using System.Data.Entity.Migrations.Design;
     using System.Data.Entity.Migrations.History;
     using System.Data.Entity.Migrations.Sql;
     using System.Data.Entity.Resources;
@@ -54,6 +57,7 @@ namespace System.Data.Entity
         /// set at application start before any Entity Framework features have been used and afterwards
         /// should be treated as read-only.
         /// </summary>
+        /// <param name="configuration">The instance of <see cref="DbConfiguration" />.</param>
         public static void SetConfiguration(DbConfiguration configuration)
         {
             Check.NotNull(configuration, "configuration");
@@ -191,7 +195,6 @@ namespace System.Data.Entity
         /// </remarks>
         /// <param name="providerInvariantName"> The ADO.NET provider invariant name indicating the type of ADO.NET connection for which this provider will be used. </param>
         /// <param name="provider"> The provider instance. </param>
-        [CLSCompliant(false)]
         protected internal void SetProviderServices(string providerInvariantName, DbProviderServices provider)
         {
             Check.NotEmpty(providerInvariantName, "providerInvariantName");
@@ -250,15 +253,18 @@ namespace System.Data.Entity
 
         /// <summary>
         /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to register an
-        /// <see cref="IDbExecutionStrategy" /> for use with the provider represented by the given invariant name and for a given server name.
+        /// <see cref="IDbExecutionStrategy" /> for use with the provider represented by the given invariant name and
+        /// for a given server name.
         /// </summary>
         /// <remarks>
         /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
-        /// Internally it works in the same way as using AddDependencyResolver to add an appropriate resolver for
+        /// Internally it works in the same way as using <see cref="AddDependencyResolver"/> to add an appropriate resolver for
         /// <see cref="IDbExecutionStrategy" />. This means that, if desired, the same functionality can be achieved using
         /// a custom resolver or a resolver backed by an Inversion-of-Control container.
         /// </remarks>
-        /// <param name="providerInvariantName"> The ADO.NET provider invariant name indicating the type of ADO.NET connection for which this execution strategy will be used. </param>
+        /// <param name="providerInvariantName">
+        /// The ADO.NET provider invariant name indicating the type of ADO.NET connection for which this execution strategy will be used.
+        /// </param>
         /// <param name="getExecutionStrategy"> A function that returns a new instance of an execution strategy. </param>
         /// <param name="serverName"> A string that will be matched against the server name in the connection string. </param>
         protected internal void SetExecutionStrategy(
@@ -271,6 +277,77 @@ namespace System.Data.Entity
             _internalConfiguration.CheckNotLocked("SetExecutionStrategy");
             _internalConfiguration.AddDependencyResolver(
                 new ExecutionStrategyResolver<IDbExecutionStrategy>(providerInvariantName, serverName, getExecutionStrategy));
+        }
+
+        /// <summary>
+        /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to register a
+        /// <see cref="TransactionHandler" />.
+        /// </summary>
+        /// <remarks>
+        /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
+        /// Internally it works in the same way as using <see cref="AddDependencyResolver"/> to add an appropriate resolver for
+        /// <see cref="TransactionHandler" />. This means that, if desired, the same functionality can be achieved using
+        /// a custom resolver or a resolver backed by an Inversion-of-Control container.
+        /// </remarks>
+        /// <param name="transactionHandlerFactory"> A function that returns a new instance of a transaction handler. </param>
+        protected internal void SetDefaultTransactionHandler(Func<TransactionHandler> transactionHandlerFactory)
+        {
+            Check.NotNull(transactionHandlerFactory, "transactionHandlerFactory");
+
+            _internalConfiguration.CheckNotLocked("SetTransactionHandler");
+            _internalConfiguration.AddDependencyResolver(
+                new TransactionHandlerResolver(transactionHandlerFactory, providerInvariantName: null, serverName: null));
+        }
+
+        /// <summary>
+        /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to register a
+        /// <see cref="TransactionHandler" /> for use with the provider represented by the given invariant name.
+        /// </summary>
+        /// <remarks>
+        /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
+        /// Internally it works in the same way as using <see cref="AddDependencyResolver"/> to add an appropriate resolver for
+        /// <see cref="TransactionHandler" />. This means that, if desired, the same functionality can be achieved using
+        /// a custom resolver or a resolver backed by an Inversion-of-Control container.
+        /// </remarks>
+        /// <param name="providerInvariantName">
+        /// The ADO.NET provider invariant name indicating the type of ADO.NET connection for which this transaction handler will be used.
+        /// </param>
+        /// <param name="transactionHandlerFactory"> A function that returns a new instance of a transaction handler. </param>
+        protected internal void SetTransactionHandler(string providerInvariantName, Func<TransactionHandler> transactionHandlerFactory)
+        {
+            Check.NotNull(transactionHandlerFactory, "transactionHandlerFactory");
+            Check.NotEmpty(providerInvariantName, "providerInvariantName");
+
+            _internalConfiguration.CheckNotLocked("SetTransactionHandler");
+            _internalConfiguration.AddDependencyResolver(
+                new TransactionHandlerResolver(transactionHandlerFactory, providerInvariantName, serverName: null));
+        }
+
+        /// <summary>
+        /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to register a
+        /// <see cref="TransactionHandler" /> for use with the provider represented by the given invariant name and
+        /// for a given server name.
+        /// </summary>
+        /// <remarks>
+        /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
+        /// Internally it works in the same way as using <see cref="AddDependencyResolver"/> to add an appropriate resolver for
+        /// <see cref="TransactionHandler" />. This means that, if desired, the same functionality can be achieved using
+        /// a custom resolver or a resolver backed by an Inversion-of-Control container.
+        /// </remarks>
+        /// <param name="providerInvariantName">
+        /// The ADO.NET provider invariant name indicating the type of ADO.NET connection for which this transaction handler will be used.
+        /// </param>
+        /// <param name="transactionHandlerFactory"> A function that returns a new instance of a transaction handler. </param>
+        /// <param name="serverName"> A string that will be matched against the server name in the connection string. </param>
+        protected internal void SetTransactionHandler(string providerInvariantName, Func<TransactionHandler> transactionHandlerFactory, string serverName)
+        {
+            Check.NotEmpty(providerInvariantName, "providerInvariantName");
+            Check.NotNull(transactionHandlerFactory, "transactionHandlerFactory");
+            Check.NotEmpty(serverName, "serverName");
+
+            _internalConfiguration.CheckNotLocked("SetTransactionHandler");
+            _internalConfiguration.AddDependencyResolver(
+                new TransactionHandlerResolver(transactionHandlerFactory, providerInvariantName, serverName));
         }
 
         /// <summary>
@@ -377,6 +454,30 @@ namespace System.Data.Entity
 
             _internalConfiguration.CheckNotLocked("SetManifestTokenResolver");
             _internalConfiguration.RegisterSingleton(resolver);
+        }
+
+        /// <summary>
+        /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to set
+        /// a factory for implementations of <see cref="IMetadataAnnotationSerializer" /> which allows custom annotations
+        /// represented by <see cref="MetadataProperty"/> instances to be serialized to and from the EDMX XML.
+        /// </summary>
+        /// <remarks>
+        /// Note that an <see cref="Func{IMetadataAnnotationSerializer}" /> is not needed if the annotation uses a simple string value.
+        /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
+        /// Internally it works in the same way as using AddDependencyResolver to add an appropriate resolver for
+        /// <see cref="IMetadataAnnotationSerializer" />. This means that, if desired, the same functionality can be achieved using
+        /// a custom resolver or a resolver backed by an Inversion-of-Control container.
+        /// </remarks>
+        /// <param name="annotationName"> The name of custom annotation that will be handled by this serializer. </param>
+        /// <param name="serializerFactory"> A delegate that will be used to create serializer instances. </param>
+        protected internal void SetMetadataAnnotationSerializer(
+            string annotationName, Func<IMetadataAnnotationSerializer> serializerFactory)
+        {
+            Check.NotEmpty(annotationName, "annotationName");
+            Check.NotNull(serializerFactory, "serializerFactory");
+
+            _internalConfiguration.CheckNotLocked("SetMetadataAnnotationSerializer");
+            _internalConfiguration.RegisterSingleton(serializerFactory, annotationName);
         }
 
         /// <summary>
@@ -613,6 +714,81 @@ namespace System.Data.Entity
 
             _internalConfiguration.CheckNotLocked("AddInterceptor");
             _internalConfiguration.RegisterSingleton(interceptor);
+        }
+
+        /// <summary>
+        /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to set
+        /// a factory to allow <see cref="DbContextInfo"/> to create instances of a context that does not have a public,
+        /// parameterless constructor.
+        /// </summary>
+        /// <remarks>
+        /// This is typically needed to allow design-time tools like Migrations or scaffolding code to use contexts that
+        /// do not have public, parameterless constructors.
+        /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
+        /// Internally it works in the same way as using AddDependencyResolver to add an appropriate resolver for
+        /// <see cref="Func{DbContext}" /> with the context <see cref="Type"/> as the key. This means that, if desired,
+        /// the same functionality can be achieved using a custom resolver or a resolver backed by an
+        /// Inversion-of-Control container.
+        /// </remarks>
+        /// <param name="contextType">The context type for which the factory should be used.</param>
+        /// <param name="factory">The delegate to use to create context instances.</param>
+        protected internal void SetContextFactory(Type contextType, Func<DbContext> factory)
+        {
+            Check.NotNull(contextType, "contextType");
+            Check.NotNull(factory, "factory");
+
+            if (!typeof(DbContext).IsAssignableFrom(contextType))
+            {
+                throw new ArgumentException(Strings.ContextFactoryContextType(contextType.FullName));
+            }
+
+            _internalConfiguration.CheckNotLocked("SetContextFactory");
+            _internalConfiguration.RegisterSingleton(factory, contextType);
+        }
+
+        /// <summary>
+        /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to set
+        /// a factory to allow <see cref="DbContextInfo"/> to create instances of a context that does not have a public,
+        /// parameterless constructor.
+        /// </summary>
+        /// <remarks>
+        /// This is typically needed to allow design-time tools like Migrations or scaffolding code to use contexts that
+        /// do not have public, parameterless constructors.
+        /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
+        /// Internally it works in the same way as using AddDependencyResolver to add an appropriate resolver for
+        /// <see cref="Func{DbContext}" /> with the context <see cref="Type"/> as the key. This means that, if desired,
+        /// the same functionality can be achieved using a custom resolver or a resolver backed by an
+        /// Inversion-of-Control container.
+        /// </remarks>
+        /// <typeparam name="TContext">The context type for which the factory should be used.</typeparam>
+        /// <param name="factory">The delegate to use to create context instances.</param>
+        protected internal void SetContextFactory<TContext>(Func<TContext> factory) where TContext : DbContext
+        {
+            Check.NotNull(factory, "factory");
+
+            SetContextFactory(typeof(TContext), factory);
+        }
+
+        /// <summary>
+        /// Call this method from the constructor of a class derived from <see cref="DbConfiguration" /> to register
+        /// a database table existence checker for a given provider.
+        /// </summary>
+        /// <remarks>
+        /// This method is provided as a convenient and discoverable way to add configuration to the Entity Framework.
+        /// Internally it works in the same way as using AddDependencyResolver to add an appropriate resolver for
+        /// <see cref="DbProviderServices" /> and also using AddDefaultResolver to add the provider as a default
+        /// resolver. This means that, if desired, the same functionality can be achieved using a custom resolver or a
+        /// resolver backed by an Inversion-of-Control container.
+        /// </remarks>
+        /// <param name="providerInvariantName"> The ADO.NET provider invariant name indicating the type of ADO.NET connection for which this provider will be used. </param>
+        /// <param name="tableExistenceChecker"> The table existence checker to use. </param>
+        protected internal void SetTableExistenceChecker(string providerInvariantName, TableExistenceChecker tableExistenceChecker)
+        {
+            Check.NotEmpty(providerInvariantName, "providerInvariantName");
+            Check.NotNull(tableExistenceChecker, "tableExistenceChecker");
+
+            _internalConfiguration.CheckNotLocked("SetTableExistenceChecker");
+            _internalConfiguration.RegisterSingleton(tableExistenceChecker, providerInvariantName);
         }
 
         internal virtual InternalConfiguration InternalConfiguration

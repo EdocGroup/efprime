@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Objects
 {
@@ -103,6 +103,8 @@ namespace System.Data.Entity.Core.Objects
         private static readonly ConcurrentDictionary<Type, bool> _contextTypesWithViewCacheInitialized
             = new ConcurrentDictionary<Type, bool>();
 
+        private TransactionHandler _transactionHandler;
+
         #endregion Fields
 
         #region Constructors
@@ -194,8 +196,7 @@ namespace System.Data.Entity.Core.Objects
         }
 
         [SuppressMessage("Microsoft.Usage", "CA2208:InstantiateArgumentExceptionsCorrectly")]
-        [SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors",
-            Justification = "Class is internal and methods are made virtual for testing purposes only. They cannot be overrided by user.")]
+        [SuppressMessage("Microsoft.Usage", "CA2214:DoNotCallOverridableMethodsInConstructors")]
         internal ObjectContext(
             EntityConnection connection,
             bool isConnectionConstructor,
@@ -253,9 +254,9 @@ namespace System.Data.Entity.Core.Objects
             InitializeMappingViewCacheFactory();
         }
 
-        /// <summary>
-        /// For testing porpoises only.
-        /// </summary>
+        // <summary>
+        // For testing purposes only.
+        // </summary>
         internal ObjectContext(
             ObjectQueryExecutionPlanFactory objectQueryExecutionPlanFactory = null,
             Translator translator = null,
@@ -350,10 +351,10 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// ContextOwnsConnection sets whether this context should dispose
-        /// its underlying EntityConnection.
-        /// </summary>
+        // <summary>
+        // ContextOwnsConnection sets whether this context should dispose
+        // its underlying EntityConnection.
+        // </summary>
         internal bool ContextOwnsConnection
         {
             set
@@ -362,9 +363,9 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// ClrPerspective based on the MetadataWorkspace.
-        /// </summary>
+        // <summary>
+        // ClrPerspective based on the MetadataWorkspace.
+        // </summary>
         internal ClrPerspective Perspective
         {
             get
@@ -415,15 +416,15 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// Whether or not we are in the middle of materialization
-        /// Used to suppress operations such as lazy loading that are not allowed during materialization
-        /// </summary>
+        // <summary>
+        // Whether or not we are in the middle of materialization
+        // Used to suppress operations such as lazy loading that are not allowed during materialization
+        // </summary>
         internal bool InMaterialization { get; set; }
 
-        /// <summary>
-        /// Indicates whether there is an asynchronous method currently running that uses this instance
-        /// </summary>
+        // <summary>
+        // Indicates whether there is an asynchronous method currently running that uses this instance
+        // </summary>
         internal ThrowingMonitor AsyncMonitor
         {
             get { return _asyncMonitor; }
@@ -464,10 +465,29 @@ namespace System.Data.Entity.Core.Objects
             get { return this; }
         }
 
-        internal DbInterceptionContext InterceptionContext
+        /// <summary>
+        /// Gets the transaction handler in use by this context. May be null if no transaction have been started.
+        /// </summary>
+        /// <value>
+        /// The transaction handler.
+        /// </value>
+        public TransactionHandler TransactionHandler
+        {
+            get
+            {
+                EnsureTransactionHandlerRegistered();
+
+                return _transactionHandler;
+            }
+        }
+
+        /// <summary>
+        /// Returns the <see cref="DbInterceptionContext"/> being used for this context.
+        /// </summary>
+        public DbInterceptionContext InterceptionContext
         {
             get { return _interceptionContext; }
-            set
+            internal set
             {
                 DebugCheck.NotNull(_interceptionContext);
                 Debug.Assert(_interceptionContext.ObjectContexts.Contains(this));
@@ -487,9 +507,9 @@ namespace System.Data.Entity.Core.Objects
             remove { _onSavingChanges -= value; }
         }
 
-        /// <summary>
-        /// A private helper function for the _savingChanges/SavingChanges event.
-        /// </summary>
+        // <summary>
+        // A private helper function for the _savingChanges/SavingChanges event.
+        // </summary>
         private void OnSavingChanges()
         {
             if (null != _onSavingChanges)
@@ -513,11 +533,11 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// Returns true if any handlers for the ObjectMaterialized event exist.  This is
-        /// used for perf reasons to avoid collecting the information needed for the event
-        /// if there is no point in firing it.
-        /// </summary>
+        // <summary>
+        // Returns true if any handlers for the ObjectMaterialized event exist.  This is
+        // used for perf reasons to avoid collecting the information needed for the event
+        // if there is no point in firing it.
+        // </summary>
         internal bool OnMaterializedHasHandlers
         {
             get { return _onObjectMaterialized != null && _onObjectMaterialized.GetInvocationList().Length != 0; }
@@ -618,7 +638,8 @@ namespace System.Data.Entity.Core.Objects
             {
                 if (!ReferenceEquals(existingEntry.Entity, wrappedEntity.Entity))
                 {
-                    throw new InvalidOperationException(Strings.ObjectStateManager_ObjectStateManagerContainsThisEntityKey);
+                    throw new InvalidOperationException(
+                        Strings.ObjectStateManager_ObjectStateManagerContainsThisEntityKey(wrappedEntity.IdentityType.FullName));
                 }
                 else
                 {
@@ -738,13 +759,13 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// Adds an object to the cache without adding its related
-        /// entities.
-        /// </summary>
-        /// <param name="entitySet"> EntitySet for the Object to be added. </param>
-        /// <param name="wrappedEntity"> Object to be added. </param>
-        /// <param name="argumentName"> Name of the argument passed to a public method, for use in exceptions. </param>
+        // <summary>
+        // Adds an object to the cache without adding its related
+        // entities.
+        // </summary>
+        // <param name="entitySet"> EntitySet for the Object to be added. </param>
+        // <param name="wrappedEntity"> Object to be added. </param>
+        // <param name="argumentName"> Name of the argument passed to a public method, for use in exceptions. </param>
         internal void AddSingleObject(EntitySet entitySet, IEntityWrapper wrappedEntity, string argumentName)
         {
             DebugCheck.NotNull(entitySet);
@@ -828,6 +849,7 @@ namespace System.Data.Entity.Core.Objects
         }
 
         /// <summary>Explicitly loads an object that is related to the supplied object by the specified LINQ query and by using the default merge option. </summary>
+        /// <typeparam name="TEntity">The type of the entity.</typeparam>
         /// <param name="entity">The source object for which related objects are to be loaded.</param>
         /// <param name="selector">A LINQ expression that defines the related objects to be loaded.</param>
         /// <exception cref="T:System.ArgumentException"> selector  does not supply a valid input parameter.</exception>
@@ -854,6 +876,7 @@ namespace System.Data.Entity.Core.Objects
         }
 
         /// <summary>Explicitly loads an object that is related to the supplied object by the specified LINQ query and by using the specified merge option. </summary>
+        /// <typeparam name="TEntity">The type of the entity.</typeparam>
         /// <param name="entity">The source object for which related objects are to be loaded.</param>
         /// <param name="selector">A LINQ expression that defines the related objects to be loaded.</param>
         /// <param name="mergeOption">
@@ -938,10 +961,10 @@ namespace System.Data.Entity.Core.Objects
         /// When the <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> from  entitySetName  does not match the
         /// <see
         ///     cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" />
-        /// of the object’s
+        /// of the object
         /// <see
         ///     cref="T:System.Data.Entity.Core.EntityKey" />
-        /// or Wwen the entity is in a state other than
+        /// or when the entity is in a state other than
         /// <see
         ///     cref="F:System.Data.Entity.EntityState.Modified" />
         /// or
@@ -984,7 +1007,7 @@ namespace System.Data.Entity.Core.Objects
         /// The <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> from  entitySetName  does not match the
         /// <see
         ///     cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" />
-        /// of the object’s
+        /// of the object
         /// <see
         ///     cref="T:System.Data.Entity.Core.EntityKey" />
         ///  or the object is not in the
@@ -1058,7 +1081,7 @@ namespace System.Data.Entity.Core.Objects
         /// The <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> from  entitySetName  does not match the
         /// <see
         ///     cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" />
-        /// of the object’s
+        /// of the object
         /// <see
         ///     cref="T:System.Data.Entity.Core.EntityKey" />
         ///  or an
@@ -1260,11 +1283,11 @@ namespace System.Data.Entity.Core.Objects
             AttachTo(null, entity);
         }
 
-        /// <summary>
-        /// Attaches single object to the cache without adding its related entities.
-        /// </summary>
-        /// <param name="wrappedEntity"> Entity to be attached. </param>
-        /// <param name="entitySet"> "Computed" entity set. </param>
+        // <summary>
+        // Attaches single object to the cache without adding its related entities.
+        // </summary>
+        // <param name="wrappedEntity"> Entity to be attached. </param>
+        // <param name="entitySet"> "Computed" entity set. </param>
         internal void AttachSingleObject(IEntityWrapper wrappedEntity, EntitySet entitySet)
         {
             DebugCheck.NotNull(wrappedEntity);
@@ -1341,7 +1364,8 @@ namespace System.Data.Entity.Core.Objects
                 else
                 {
                     Debug.Assert(!ReferenceEquals(entry.Entity, wrappedEntity.Entity));
-                    throw new InvalidOperationException(Strings.ObjectStateManager_ObjectStateManagerContainsThisEntityKey);
+                    throw new InvalidOperationException(
+                        Strings.ObjectStateManager_ObjectStateManagerContainsThisEntityKey(wrappedEntity.IdentityType.FullName));
                 }
             }
             else
@@ -1366,10 +1390,10 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// When attaching we need to check that the entity is not already attached to a different context
-        /// before we wipe away that context.
-        /// </summary>
+        // <summary>
+        // When attaching we need to check that the entity is not already attached to a different context
+        // before we wipe away that context.
+        // </summary>
         private void VerifyContextForAddOrAttach(IEntityWrapper wrappedEntity)
         {
             if (wrappedEntity.Context != null
@@ -1489,7 +1513,7 @@ namespace System.Data.Entity.Core.Objects
         /// The <see cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" /> from  entitySetName  does not match the
         /// <see
         ///     cref="T:System.Data.Entity.Core.Metadata.Edm.EntitySet" />
-        /// of the object’s
+        /// of the object
         /// <see
         ///     cref="T:System.Data.Entity.Core.EntityKey" />
         ///  or the
@@ -1507,11 +1531,11 @@ namespace System.Data.Entity.Core.Objects
             return new ObjectSet<TEntity>(entitySet, this);
         }
 
-        /// <summary>
-        /// Find the EntitySet in the default EntityContainer for the specified CLR type.
-        /// Must be a valid mapped entity type and must be mapped to exactly one EntitySet across all of the EntityContainers in the metadata for this context.
-        /// </summary>
-        /// <param name="entityCLRType"> CLR type to use for EntitySet lookup. </param>
+        // <summary>
+        // Find the EntitySet in the default EntityContainer for the specified CLR type.
+        // Must be a valid mapped entity type and must be mapped to exactly one EntitySet across all of the EntityContainers in the metadata for this context.
+        // </summary>
+        // <param name="entityCLRType"> CLR type to use for EntitySet lookup. </param>
         private EntitySet GetEntitySetForType(Type entityCLRType, string exceptionParameterName)
         {
             EntitySet entitySetForType = null;
@@ -1585,13 +1609,13 @@ namespace System.Data.Entity.Core.Objects
             return entitySet;
         }
 
-        /// <summary>
-        /// Finds an EntitySet with the specified name and verifies that its type matches the specified type.
-        /// </summary>
-        /// <param name="entitySetName"> Name of the EntitySet to find. Can be fully-qualified or unqualified if the DefaultContainerName is set </param>
-        /// <param name="entityCLRType"> Expected CLR type of the EntitySet. Must exactly match the type for the EntitySet, base types are not valid. </param>
-        /// <param name="exceptionParameterName"> Argument name to use if an exception occurs. </param>
-        /// <returns> EntitySet that was found in metadata with the specified parameters </returns>
+        // <summary>
+        // Finds an EntitySet with the specified name and verifies that its type matches the specified type.
+        // </summary>
+        // <param name="entitySetName"> Name of the EntitySet to find. Can be fully-qualified or unqualified if the DefaultContainerName is set </param>
+        // <param name="entityCLRType"> Expected CLR type of the EntitySet. Must exactly match the type for the EntitySet, base types are not valid. </param>
+        // <param name="exceptionParameterName"> Argument name to use if an exception occurs. </param>
+        // <returns> EntitySet that was found in metadata with the specified parameters </returns>
         private EntitySet GetEntitySetForNameAndType(string entitySetName, Type entityCLRType, string exceptionParameterName)
         {
             // Verify that the specified entitySetName exists in metadata
@@ -1611,15 +1635,21 @@ namespace System.Data.Entity.Core.Objects
 
         #region Connection Management
 
-        /// <summary>
-        /// Ensures that the connection is opened for an operation that requires an open connection to the store.
-        /// Calls to EnsureConnection MUST be matched with a single call to ReleaseConnection.
-        /// </summary>
-        /// <exception cref="ObjectDisposedException">
-        /// If the <see cref="ObjectContext" /> instance has been disposed.
-        /// </exception>
-        internal virtual void EnsureConnection()
+        // <summary>
+        // Ensures that the connection is opened for an operation that requires an open connection to the store.
+        // Calls to EnsureConnection MUST be matched with a single call to ReleaseConnection.
+        // </summary>
+        // <param name="shouldMonitorTransactions"> Whether there will be a transaction started on the connection that should be monitored. </param>
+        // <exception cref="ObjectDisposedException">
+        // If the <see cref="ObjectContext" /> instance has been disposed.
+        // </exception>
+        internal virtual void EnsureConnection(bool shouldMonitorTransactions)
         {
+            if (shouldMonitorTransactions)
+            {
+                EnsureTransactionHandlerRegistered();
+            }
+
             if (Connection.State == ConnectionState.Broken)
             {
                 Connection.Close();
@@ -1645,8 +1675,7 @@ namespace System.Data.Entity.Core.Objects
                     () =>
                     {
                         Connection.Open();
-                        _openedConnection = true;
-                        _connectionRequestCount++;
+                        Debug.Assert(_openedConnection);
                         return true;
                     },
                     false);
@@ -1666,15 +1695,23 @@ namespace System.Data.Entity.Core.Objects
 
 #if !NET40
 
-        /// <summary>
-        /// Ensures that the connection is opened for an operation that requires an open connection to the store.
-        /// Calls to EnsureConnection MUST be matched with a single call to ReleaseConnection.
-        /// </summary>
-        /// <exception cref="ObjectDisposedException">
-        /// If the <see cref="ObjectContext" /> instance has been disposed.
-        /// </exception>
-        internal virtual async Task EnsureConnectionAsync(CancellationToken cancellationToken)
+        // <summary>
+        // Ensures that the connection is opened for an operation that requires an open connection to the store.
+        // Calls to EnsureConnection MUST be matched with a single call to ReleaseConnection.
+        // </summary>
+        // <param name="shouldMonitorTransactions"> Whether there will be a transaction started on the connection that should be monitored. </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <exception cref="ObjectDisposedException">
+        // If the <see cref="ObjectContext" /> instance has been disposed.
+        // </exception>
+        internal virtual async Task EnsureConnectionAsync(bool shouldMonitorTransactions, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (shouldMonitorTransactions)
+            {
+                EnsureTransactionHandlerRegistered();
+            }
+
             if (Connection.State == ConnectionState.Broken)
             {
                 Connection.Close();
@@ -1682,7 +1719,7 @@ namespace System.Data.Entity.Core.Objects
 
             if (Connection.State == ConnectionState.Closed)
             {
-                await Connection.OpenAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                await Connection.OpenAsync(cancellationToken).WithCurrentCulture();
                 _openedConnection = true;
             }
 
@@ -1697,15 +1734,12 @@ namespace System.Data.Entity.Core.Objects
 
                 await EnsureContextIsEnlistedInCurrentTransaction(
                     currentTransaction, async () =>
-                        {
-                            await
-                                Connection.OpenAsync(cancellationToken).ConfigureAwait(
-                                    continueOnCapturedContext: false);
-                            _openedConnection = true;
-                            _connectionRequestCount++;
-                            return true;
-                        },
-                    Task.FromResult(false)).ConfigureAwait(continueOnCapturedContext: false);
+                    {
+                        await Connection.OpenAsync(cancellationToken).WithCurrentCulture();
+                        Debug.Assert(_openedConnection);
+                        return true;
+                    },
+                    Task.FromResult(false)).WithCurrentCulture();
 
                 // If we get here, we have an open connection, either enlisted in the current
                 // transaction (if it's non-null) or unenlisted from all transactions (if the
@@ -1722,10 +1756,33 @@ namespace System.Data.Entity.Core.Objects
 
 #endif
 
+        private void EnsureTransactionHandlerRegistered()
+        {
+            if (_transactionHandler == null
+                && !InterceptionContext.DbContexts.Any(dbc => dbc is TransactionContext))
+            {
+                var storeMetadata = (StoreItemCollection)MetadataWorkspace.GetItemCollection(DataSpace.SSpace);
+
+                var providerInvariantName =
+                    DbConfiguration.DependencyResolver.GetService<IProviderInvariantName>(storeMetadata.ProviderFactory).Name;
+
+                var transactionHandlerFactory = DbConfiguration.DependencyResolver.GetService<Func<TransactionHandler>>(
+                    new ExecutionStrategyKey(providerInvariantName, Connection.DataSource));
+
+                if (transactionHandlerFactory != null)
+                {
+                    _transactionHandler = transactionHandlerFactory();
+                    _transactionHandler.Initialize(this);
+                }
+            }
+        }
+
         private T EnsureContextIsEnlistedInCurrentTransaction<T>(Transaction currentTransaction, Func<T> openConnection, T defaultValue)
         {
-            // The following conditions are no longer valid since Metadata Independence.
-            Debug.Assert(ConnectionState.Open == Connection.State, "Connection must be open.");
+            if (Connection.State != ConnectionState.Open)
+            {
+                throw new InvalidOperationException(Strings.BadConnectionWrapping);
+            }
 
             // IF YOU MODIFIED THIS TABLE YOU MUST UPDATE TESTS IN SaveChangesTransactionTests SUITE ACCORDINGLY AS SOME CASES REFER TO NUMBERS IN THIS TABLE
             //
@@ -1815,9 +1872,9 @@ namespace System.Data.Entity.Core.Objects
             return defaultValue;
         }
 
-        /// <summary>
-        /// Resets the state of connection management when the connection becomes closed.
-        /// </summary>
+        // <summary>
+        // Resets the state of connection management when the connection becomes closed.
+        // </summary>
         private void ConnectionStateChange(object sender, StateChangeEventArgs e)
         {
             if (e.CurrentState
@@ -1828,16 +1885,16 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// Releases the connection, potentially closing the connection if no active operations
-        /// require the connection to be open. There should be a single ReleaseConnection call
-        /// for each EnsureConnection call.
-        /// </summary>
-        /// <exception cref="ObjectDisposedException">
-        /// If the
-        /// <see cref="ObjectContext" />
-        /// instance has been disposed.
-        /// </exception>
+        // <summary>
+        // Releases the connection, potentially closing the connection if no active operations
+        // require the connection to be open. There should be a single ReleaseConnection call
+        // for each EnsureConnection call.
+        // </summary>
+        // <exception cref="ObjectDisposedException">
+        // If the
+        // <see cref="ObjectContext" />
+        // instance has been disposed.
+        // </exception>
         internal virtual void ReleaseConnection()
         {
             if (_disposed)
@@ -1900,11 +1957,11 @@ namespace System.Data.Entity.Core.Objects
             return query;
         }
 
-        /// <summary>
-        /// Creates an EntityConnection from the given connection string.
-        /// </summary>
-        /// <param name="connectionString"> the connection string </param>
-        /// <returns> the newly created connection </returns>
+        // <summary>
+        // Creates an EntityConnection from the given connection string.
+        // </summary>
+        // <param name="connectionString"> the connection string </param>
+        // <returns> the newly created connection </returns>
         [ResourceExposure(ResourceScope.Machine)] //Exposes the file names as part of ConnectionString which are a Machine resource
         [ResourceConsumption(ResourceScope.Machine)] //For EntityConnection constructor. But the paths are not created in this method.
         private static EntityConnection CreateEntityConnection(string connectionString)
@@ -1917,15 +1974,15 @@ namespace System.Data.Entity.Core.Objects
             return connection;
         }
 
-        /// <summary>
-        /// Given an entity connection, returns a copy of its MetadataWorkspace. Ensure we get
-        /// all of the metadata item collections by priming the entity connection.
-        /// </summary>
-        /// <exception cref="ObjectDisposedException">
-        /// If the
-        /// <see cref="ObjectContext" />
-        /// instance has been disposed.
-        /// </exception>
+        // <summary>
+        // Given an entity connection, returns a copy of its MetadataWorkspace. Ensure we get
+        // all of the metadata item collections by priming the entity connection.
+        // </summary>
+        // <exception cref="ObjectDisposedException">
+        // If the
+        // <see cref="ObjectContext" />
+        // instance has been disposed.
+        // </exception>
         private MetadataWorkspace RetrieveMetadataWorkspaceFromConnection()
         {
             if (_disposed)
@@ -1954,11 +2011,11 @@ namespace System.Data.Entity.Core.Objects
             ObjectStateManager.AssertAllForeignKeyIndexEntriesAreValid();
         }
 
-        /// <summary>
-        /// Common DeleteObject method that is used by both ObjectContext.DeleteObject and ObjectSet.DeleteObject.
-        /// </summary>
-        /// <param name="entity"> Object to be deleted. </param>
-        /// <param name="expectedEntitySet"> EntitySet that the specified object is expected to be in. Null if the caller doesn't want to validate against a particular EntitySet. </param>
+        // <summary>
+        // Common DeleteObject method that is used by both ObjectContext.DeleteObject and ObjectSet.DeleteObject.
+        // </summary>
+        // <param name="entity"> Object to be deleted. </param>
+        // <param name="expectedEntitySet"> EntitySet that the specified object is expected to be in. Null if the caller doesn't want to validate against a particular EntitySet. </param>
         internal void DeleteObject(object entity, EntitySet expectedEntitySet)
         {
             DebugCheck.NotNull(entity);
@@ -2012,11 +2069,11 @@ namespace System.Data.Entity.Core.Objects
             ObjectStateManager.AssertAllForeignKeyIndexEntriesAreValid();
         }
 
-        /// <summary>
-        /// Common Detach method that is used by both ObjectContext.Detach and ObjectSet.Detach.
-        /// </summary>
-        /// <param name="entity"> Object to be detached. </param>
-        /// <param name="expectedEntitySet"> EntitySet that the specified object is expected to be in. Null if the caller doesn't want to validate against a particular EntitySet. </param>
+        // <summary>
+        // Common Detach method that is used by both ObjectContext.Detach and ObjectSet.Detach.
+        // </summary>
+        // <param name="entity"> Object to be detached. </param>
+        // <param name="expectedEntitySet"> EntitySet that the specified object is expected to be in. Null if the caller doesn't want to validate against a particular EntitySet. </param>
         internal void Detach(object entity, EntitySet expectedEntitySet)
         {
             DebugCheck.NotNull(entity);
@@ -2047,23 +2104,38 @@ namespace System.Data.Entity.Core.Objects
             cacheEntry.Detach();
         }
 
+        /// <summary>
+        /// Finalizes an instance of the <see cref="ObjectContext"/> class.
+        /// </summary>
+        ~ObjectContext()
+        {
+            Dispose(false);
+        }
+
         /// <summary>Releases the resources used by the object context.</summary>
         [SuppressMessage("Microsoft.Design", "CA1063:ImplementIDisposableCorrectly")]
         public void Dispose()
         {
-            // Technically, calling GC.SuppressFinalize is not required because the class does not
-            // have a finalizer, but it does no harm, protects against the case where a finalizer is added
-            // in the future, and prevents an FxCop warning.
             Dispose(true);
             GC.SuppressFinalize(this);
         }
 
-        /// <summary>Releases the resources used by the object context.</summary>
-        /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
+        /// <summary>
+        /// Releases the resources used by the object context.
+        /// </summary>
+        /// <param name="disposing">
+        /// <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.
+        /// </param>
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposed)
             {
+                // Need to dispose _transactionHandler even if being finalized
+                if (_transactionHandler != null)
+                {
+                    _transactionHandler.Dispose();
+                }
+
                 if (disposing)
                 {
                     // Release managed resources here.
@@ -2095,14 +2167,14 @@ namespace System.Data.Entity.Core.Objects
 
         #region GetEntitySet
 
-        /// <summary>
-        /// Returns the EntitySet with the given name from given container.
-        /// </summary>
-        /// <param name="entitySetName"> Name of entity set. </param>
-        /// <param name="entityContainerName"> Name of container. </param>
-        /// <returns> The appropriate EntitySet. </returns>
-        /// <exception cref="InvalidOperationException">The entity set could not be found for the given name.</exception>
-        /// <exception cref="InvalidOperationException">The entity container could not be found for the given name.</exception>
+        // <summary>
+        // Returns the EntitySet with the given name from given container.
+        // </summary>
+        // <param name="entitySetName"> Name of entity set. </param>
+        // <param name="entityContainerName"> Name of container. </param>
+        // <returns> The appropriate EntitySet. </returns>
+        // <exception cref="InvalidOperationException">The entity set could not be found for the given name.</exception>
+        // <exception cref="InvalidOperationException">The entity container could not be found for the given name.</exception>
         internal EntitySet GetEntitySet(string entitySetName, string entityContainerName)
         {
             DebugCheck.NotNull(entitySetName);
@@ -2173,11 +2245,11 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        /// <summary>
-        /// Validate that an EntitySet is compatible with a given entity instance's CLR type.
-        /// </summary>
-        /// <param name="entitySet"> an EntitySet </param>
-        /// <param name="entityType"> The CLR type of an entity instance </param>
+        // <summary>
+        // Validate that an EntitySet is compatible with a given entity instance's CLR type.
+        // </summary>
+        // <param name="entitySet"> an EntitySet </param>
+        // <param name="entityType"> The CLR type of an entity instance </param>
         [SuppressMessage("Microsoft.Usage", "CA2208:InstantiateArgumentExceptionsCorrectly")]
         private void ValidateEntitySet(EntitySet entitySet, Type entityType)
         {
@@ -2332,6 +2404,8 @@ namespace System.Data.Entity.Core.Objects
         {
             Check.NotNull(collection, "collection");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             AsyncMonitor.EnsureNotEntered();
             ObjectStateManager.AssertAllForeignKeyIndexEntriesAreValid();
             EntityUtil.CheckArgumentRefreshMode(refreshMode);
@@ -2384,6 +2458,8 @@ namespace System.Data.Entity.Core.Objects
             Check.NotNull(entity, "entity");
             Debug.Assert(!(entity is IEntityWrapper), "Object is an IEntityWrapper instance instead of the raw entity.");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             AsyncMonitor.EnsureNotEntered();
             ObjectStateManager.AssertAllForeignKeyIndexEntriesAreValid();
             EntityUtil.CheckArgumentRefreshMode(refreshMode);
@@ -2393,14 +2469,12 @@ namespace System.Data.Entity.Core.Objects
 
 #endif
 
-        /// <summary>
-        /// Validates that the given entity/key pair has an ObjectStateEntry
-        /// and that entry is not in the added state.
-        /// The entity is added to the entities dictionary, and checked for duplicates.
-        /// </summary>
-        /// <param name="entities"> on exit, entity is added to this dictionary. </param>
-        /// <param name="key"> </param>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Validates that the given entity/key pair has an ObjectStateEntry
+        // and that entry is not in the added state.
+        // The entity is added to the entities dictionary, and checked for duplicates.
+        // </summary>
+        // <param name="entities"> on exit, entity is added to this dictionary. </param>
         private void RefreshCheck(
             Dictionary<EntityKey, EntityEntry> entities, EntityKey key)
         {
@@ -2460,7 +2534,7 @@ namespace System.Data.Entity.Core.Objects
 
                 if (refreshKeys.Count > 0)
                 {
-                    EnsureConnection();
+                    EnsureConnection(shouldMonitorTransactions: false);
                     openedConnection = true;
 
                     // All entities from a single set can potentially be refreshed in the same query.
@@ -2605,7 +2679,7 @@ namespace System.Data.Entity.Core.Objects
 
                 if (refreshKeys.Count > 0)
                 {
-                    await EnsureConnectionAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    await EnsureConnectionAsync(/*shouldMonitorTransactions:*/ false, cancellationToken).WithCurrentCulture();
                     openedConnection = true;
 
                     // All entities from a single set can potentially be refreshed in the same query.
@@ -2620,7 +2694,7 @@ namespace System.Data.Entity.Core.Objects
                             refreshedCount =
                                 await
                                 BatchRefreshEntitiesByKeyAsync(refreshMode, entities, targetSet, setKeys, refreshedCount, cancellationToken)
-                                    .ConfigureAwait(continueOnCapturedContext: false);
+                                    .WithCurrentCulture();
                         }
                     }
                 }
@@ -2715,7 +2789,7 @@ namespace System.Data.Entity.Core.Objects
                     () => queryPlanAndNextPosition.Item1.ExecuteAsync<object>(this, null, cancellationToken),
                     executionStrategy, startLocalTransaction: false,
                     releaseConnectionOnSuccess: true, cancellationToken: cancellationToken), cancellationToken)
-                                                 .ConfigureAwait(continueOnCapturedContext: false);
+                                                 .WithCurrentCulture();
 
             ProcessRefreshedEntities(trackedEntities, results);
 
@@ -2794,7 +2868,8 @@ namespace System.Data.Entity.Core.Objects
             DbExpression refreshQuery = entitySetBinding.Filter(entitySetFilter);
 
             // Initialize the command tree used to issue the refresh query.
-            var tree = DbQueryCommandTree.FromValidExpression(MetadataWorkspace, DataSpace.CSpace, refreshQuery);
+            var tree = DbQueryCommandTree.FromValidExpression(
+                MetadataWorkspace, DataSpace.CSpace, refreshQuery, useDatabaseNullSemantics: true);
 
             // Evaluate the refresh query using ObjectQuery<T> and process the results to update the ObjectStateManager.
             var mergeOption = (RefreshMode.StoreWins == refreshMode
@@ -2847,10 +2922,10 @@ namespace System.Data.Entity.Core.Objects
 
         /// <summary>Persists all updates to the database and resets change tracking in the object context.</summary>
         /// <returns>
-        /// The number of objects in an <see cref="F:System.Data.Entity.EntityState.Added" />,
-        /// <see cref="F:System.Data.Entity.EntityState.Modified" />, 
-        /// or <see cref="F:System.Data.Entity.EntityState.Deleted" /> state when
-        /// <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges" /> was called.
+        /// The number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.OptimisticConcurrencyException">An optimistic concurrency violation has occurred while saving changes.</exception>
         public virtual int SaveChanges()
@@ -2866,11 +2941,11 @@ namespace System.Data.Entity.Core.Objects
         /// that any asynchronous operations have completed before calling another method on this context.
         /// </remarks>
         /// <returns>
-        /// A task that represents the asynchronous operation.
-        /// The task result contains the number of objects in an <see cref="F:System.Data.Entity.EntityState.Added" />,
-        /// <see cref="F:System.Data.Entity.EntityState.Modified" />, 
-        /// or <see cref="F:System.Data.Entity.EntityState.Deleted" /> state when
-        /// <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges" /> was called.
+        /// A task that represents the asynchronous save operation.
+        /// The task result contains the number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.OptimisticConcurrencyException">An optimistic concurrency violation has occurred while saving changes.</exception>
         public virtual Task<Int32> SaveChangesAsync()
@@ -2887,11 +2962,11 @@ namespace System.Data.Entity.Core.Objects
         /// A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
         /// </param>
         /// <returns>
-        /// A task that represents the asynchronous operation.
-        /// The task result contains the number of objects in an <see cref="F:System.Data.Entity.EntityState.Added" />,
-        /// <see cref="F:System.Data.Entity.EntityState.Modified" />, 
-        /// or <see cref="F:System.Data.Entity.EntityState.Deleted" /> state when
-        /// <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges" /> was called.
+        /// A task that represents the asynchronous save operation.
+        /// The task result contains the number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.OptimisticConcurrencyException">An optimistic concurrency violation has occurred while saving changes.</exception>
         public virtual Task<Int32> SaveChangesAsync(CancellationToken cancellationToken)
@@ -2909,10 +2984,10 @@ namespace System.Data.Entity.Core.Objects
         /// method after <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges(System.Boolean)" />.
         /// </param>
         /// <returns>
-        /// The number of objects in an <see cref="F:System.Data.Entity.EntityState.Added" />,
-        /// <see cref="F:System.Data.Entity.EntityState.Modified" />, 
-        /// or <see cref="F:System.Data.Entity.EntityState.Deleted" /> state when
-        /// <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges" /> was called.
+        /// The number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.OptimisticConcurrencyException">An optimistic concurrency violation has occurred while saving changes.</exception>
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -2931,13 +3006,18 @@ namespace System.Data.Entity.Core.Objects
         /// A <see cref="T:System.Data.Entity.Core.Objects.SaveOptions" /> value that determines the behavior of the operation.
         /// </param>
         /// <returns>
-        /// The number of objects in an <see cref="F:System.Data.Entity.EntityState.Added" />,
-        /// <see cref="F:System.Data.Entity.EntityState.Modified" />, 
-        /// or <see cref="F:System.Data.Entity.EntityState.Deleted" /> state when
-        /// <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges" /> was called.
+        /// The number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.OptimisticConcurrencyException">An optimistic concurrency violation has occurred while saving changes.</exception>
         public virtual int SaveChanges(SaveOptions options)
+        {
+            return SaveChangesInternal(options, executeInExistingTransaction: false);
+        }
+
+        internal int SaveChangesInternal(SaveOptions options, bool executeInExistingTransaction)
         {
             AsyncMonitor.EnsureNotEntered();
 
@@ -2948,9 +3028,16 @@ namespace System.Data.Entity.Core.Objects
             // if there are no changes to save, perform fast exit to avoid interacting with or starting of new transactions
             if (ObjectStateManager.HasChanges())
             {
-                var executionStrategy = DbProviderServices.GetExecutionStrategy(Connection, MetadataWorkspace);
-                entriesAffected = executionStrategy.Execute(
-                    () => SaveChangesToStore(options, executionStrategy));
+                if (executeInExistingTransaction)
+                {
+                    entriesAffected = SaveChangesToStore(options, null, startLocalTransaction: false);
+                }
+                else
+                {
+                    var executionStrategy = DbProviderServices.GetExecutionStrategy(Connection, MetadataWorkspace);
+                    entriesAffected = executionStrategy.Execute(
+                        () => SaveChangesToStore(options, executionStrategy, startLocalTransaction: true));
+                }
             }
 
             ObjectStateManager.AssertAllForeignKeyIndexEntriesAreValid();
@@ -2968,11 +3055,11 @@ namespace System.Data.Entity.Core.Objects
         /// A <see cref="T:System.Data.Entity.Core.Objects.SaveOptions" /> value that determines the behavior of the operation.
         /// </param>
         /// <returns>
-        /// A task that represents the asynchronous operation.
-        /// The task result contains the number of objects in an <see cref="F:System.Data.Entity.EntityState.Added" />,
-        /// <see cref="F:System.Data.Entity.EntityState.Modified" />, 
-        /// or <see cref="F:System.Data.Entity.EntityState.Deleted" /> state when
-        /// <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges" /> was called.
+        /// A task that represents the asynchronous save operation.
+        /// The task result contains the number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.OptimisticConcurrencyException">An optimistic concurrency violation has occurred while saving changes.</exception>
         public virtual Task<Int32> SaveChangesAsync(SaveOptions options)
@@ -2992,21 +3079,23 @@ namespace System.Data.Entity.Core.Objects
         /// A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
         /// </param>
         /// <returns>
-        /// A task that represents the asynchronous operation.
-        /// The task result contains the number of objects in an <see cref="F:System.Data.Entity.EntityState.Added" />,
-        /// <see cref="F:System.Data.Entity.EntityState.Modified" />, 
-        /// or <see cref="F:System.Data.Entity.EntityState.Deleted" /> state when
-        /// <see cref="M:System.Data.Entity.Core.Objects.ObjectContext.SaveChanges" /> was called.
+        /// A task that represents the asynchronous save operation.
+        /// The task result contains the number of state entries written to the underlying database. This can include
+        /// state entries for entities and/or relationships. Relationship state entries are created for 
+        /// many-to-many relationships and relationships where there is no foreign key property
+        /// included in the entity class (often referred to as independent associations).
         /// </returns>
         /// <exception cref="T:System.Data.Entity.Core.OptimisticConcurrencyException">An optimistic concurrency violation has occurred while saving changes.</exception>
         public virtual Task<Int32> SaveChangesAsync(SaveOptions options, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             AsyncMonitor.EnsureNotEntered();
 
-            return SaveChangesInternalAsync(options, cancellationToken);
+            return SaveChangesInternalAsync(options, /*executeInExistingTransaction:*/ false, cancellationToken);
         }
 
-        private async Task<Int32> SaveChangesInternalAsync(SaveOptions options, CancellationToken cancellationToken)
+        internal async Task<Int32> SaveChangesInternalAsync(SaveOptions options, bool executeInExistingTransaction, CancellationToken cancellationToken)
         {
             AsyncMonitor.Enter();
             try
@@ -3018,10 +3107,20 @@ namespace System.Data.Entity.Core.Objects
                 // if there are no changes to save, perform fast exit to avoid interacting with or starting of new transactions
                 if (ObjectStateManager.HasChanges())
                 {
-                    var executionStrategy = DbProviderServices.GetExecutionStrategy(Connection, MetadataWorkspace);
-                    entriesAffected = await executionStrategy.ExecuteAsync(
-                        () => SaveChangesToStoreAsync(options, executionStrategy, cancellationToken),
-                        cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    if (executeInExistingTransaction)
+                    {
+                        entriesAffected =
+                            await SaveChangesToStoreAsync(
+                                options, /*executionStrategy:*/ null, /*startLocalTransaction:*/ false,
+                                cancellationToken).WithCurrentCulture();
+                    }
+                    else
+                    {
+                        var executionStrategy = DbProviderServices.GetExecutionStrategy(Connection, MetadataWorkspace);
+                        entriesAffected = await executionStrategy.ExecuteAsync(
+                            () => SaveChangesToStoreAsync(options, executionStrategy, /*startLocalTransaction:*/ true, cancellationToken),
+                            cancellationToken).WithCurrentCulture();
+                    }
                 }
 
                 ObjectStateManager.AssertAllForeignKeyIndexEntriesAreValid();
@@ -3057,7 +3156,7 @@ namespace System.Data.Entity.Core.Objects
             }
         }
 
-        private int SaveChangesToStore(SaveOptions options, IDbExecutionStrategy executionStrategy)
+        private int SaveChangesToStore(SaveOptions options, IDbExecutionStrategy executionStrategy, bool startLocalTransaction)
         {
             // only accept changes after the local transaction commits
             _adapter.AcceptChangesDuringUpdate = false;
@@ -3068,7 +3167,7 @@ namespace System.Data.Entity.Core.Objects
                 = ExecuteInTransaction(
                     () => _adapter.Update(),
                     executionStrategy,
-                    startLocalTransaction: true,
+                    startLocalTransaction,
                     releaseConnectionOnSuccess: true);
 
             if ((SaveOptions.AcceptAllChangesAfterSave & options) != 0)
@@ -3081,7 +3180,7 @@ namespace System.Data.Entity.Core.Objects
                 {
                     // If AcceptAllChanges throws - let's inform user that changes in database were committed 
                     // and that Context and Database can be in inconsistent state.
-                    throw new InvalidOperationException(Strings.ObjectContext_AcceptAllChangesFailure(e.Message));
+                    throw new InvalidOperationException(Strings.ObjectContext_AcceptAllChangesFailure(e.Message), e);
                 }
             }
 
@@ -3091,7 +3190,7 @@ namespace System.Data.Entity.Core.Objects
 #if !NET40
 
         private async Task<int> SaveChangesToStoreAsync(
-            SaveOptions options, IDbExecutionStrategy executionStrategy, CancellationToken cancellationToken)
+            SaveOptions options, IDbExecutionStrategy executionStrategy, bool startLocalTransaction, CancellationToken cancellationToken)
         {
             // only accept changes after the local transaction commits
             _adapter.AcceptChangesDuringUpdate = false;
@@ -3100,8 +3199,8 @@ namespace System.Data.Entity.Core.Objects
 
             var entriesAffected = await ExecuteInTransactionAsync(
                 () => _adapter.UpdateAsync(cancellationToken), executionStrategy,
-                /*startLocalTransaction:*/ true, /*releaseConnectionOnSuccess:*/ true, cancellationToken)
-                                            .ConfigureAwait(continueOnCapturedContext: false);
+                startLocalTransaction, /*releaseConnectionOnSuccess:*/ true, cancellationToken)
+                                            .WithCurrentCulture();
 
             if ((SaveOptions.AcceptAllChangesAfterSave & options) != 0)
             {
@@ -3113,7 +3212,7 @@ namespace System.Data.Entity.Core.Objects
                 {
                     // If AcceptAllChanges throws - let's inform user that changes in database were committed 
                     // and that Context and Database can be in inconsistent state.
-                    throw new InvalidOperationException(Strings.ObjectContext_AcceptAllChangesFailure(e.Message));
+                    throw new InvalidOperationException(Strings.ObjectContext_AcceptAllChangesFailure(e.Message), e);
                 }
             }
 
@@ -3124,27 +3223,27 @@ namespace System.Data.Entity.Core.Objects
 
         #endregion //SaveChanges
 
-        /// <summary>
-        /// Executes a function in a local transaction and returns the result.
-        /// </summary>
-        /// <remarks>
-        /// A local transaction is created only if there are no existing local nor ambient transactions.
-        /// This method will ensure that the connection is opened and release it if an exception is thrown.
-        /// The caller is responsible of releasing the connection if no exception is thrown, unless
-        /// <paramref name="releaseConnectionOnSuccess" /> is set to <c>true</c>.
-        /// </remarks>
-        /// <typeparam name="T"> Type of the result. </typeparam>
-        /// <param name="func"> The function to invoke. </param>
-        /// <param name="executionStrategy"> The execution strategy used for this operation. </param>
-        /// <param name="startLocalTransaction"> Whether should start a new local transaction when there's no existing one. </param>
-        /// <param name="releaseConnectionOnSuccess"> Whether the connection will also be released when no exceptions are thrown. </param>
-        /// <returns>
-        /// The result from invoking <paramref name="func" />.
-        /// </returns>
+        // <summary>
+        // Executes a function in a local transaction and returns the result.
+        // </summary>
+        // <remarks>
+        // A local transaction is created only if there are no existing local nor ambient transactions.
+        // This method will ensure that the connection is opened and release it if an exception is thrown.
+        // The caller is responsible of releasing the connection if no exception is thrown, unless
+        // <paramref name="releaseConnectionOnSuccess" /> is set to <c>true</c>.
+        // </remarks>
+        // <typeparam name="T"> Type of the result. </typeparam>
+        // <param name="func"> The function to invoke. </param>
+        // <param name="executionStrategy"> The execution strategy used for this operation. </param>
+        // <param name="startLocalTransaction"> Whether should start a new local transaction when there's no existing one. </param>
+        // <param name="releaseConnectionOnSuccess"> Whether the connection will also be released when no exceptions are thrown. </param>
+        // <returns>
+        // The result from invoking <paramref name="func" />.
+        // </returns>
         internal virtual T ExecuteInTransaction<T>(
             Func<T> func, IDbExecutionStrategy executionStrategy, bool startLocalTransaction, bool releaseConnectionOnSuccess)
         {
-            EnsureConnection();
+            EnsureConnection(startLocalTransaction);
 
             var needLocalTransaction = false;
             var connection = (EntityConnection)Connection;
@@ -3154,7 +3253,8 @@ namespace System.Data.Entity.Core.Objects
             {
                 needLocalTransaction = startLocalTransaction;
             }
-            else if (executionStrategy.RetriesOnFailure)
+            else if (executionStrategy != null
+                && executionStrategy.RetriesOnFailure)
             {
                 throw new InvalidOperationException(Strings.ExecutionStrategy_ExistingTransaction(executionStrategy.GetType().Name));
             }
@@ -3174,14 +3274,7 @@ namespace System.Data.Entity.Core.Objects
                 if (localTransaction != null)
                 {
                     // we started the local transaction; so we also commit it
-                    try
-                    {
-                        localTransaction.Commit();
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new CommitFailedException(Strings.CommitFailed, ex);
-                    }
+                    localTransaction.Commit();
                 }
                 // else on success with no exception is thrown, caller generally commits the transaction
 
@@ -3210,30 +3303,30 @@ namespace System.Data.Entity.Core.Objects
 
 #if !NET40
 
-        /// <summary>
-        /// An asynchronous version of ExecuteStoreQuery, which
-        /// executes a function in a local transaction and returns the result.
-        /// </summary>
-        /// <remarks>
-        /// A local transaction is created only if there are no existing local nor ambient transactions.
-        /// This method will ensure that the connection is opened and release it if an exception is thrown.
-        /// The caller is responsible of releasing the connection if no exception is thrown, unless
-        /// <paramref name="releaseConnectionOnSuccess" /> is set to <c>true</c>.
-        /// </remarks>
-        /// <typeparam name="T"> Type of the result. </typeparam>
-        /// <param name="func"> The function to invoke. </param>
-        /// <param name="executionStrategy"> The execution strategy used for this operation. </param>
-        /// <param name="startLocalTransaction"> Whether should start a new local transaction when there's no existing one. </param>
-        /// <param name="releaseConnectionOnSuccess"> Whether the connection will also be released when no exceptions are thrown. </param>
-        /// <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
-        /// <returns>
-        /// A task containing the result from invoking <paramref name="func" />.
-        /// </returns>
+        // <summary>
+        // An asynchronous version of ExecuteStoreQuery, which
+        // executes a function in a local transaction and returns the result.
+        // </summary>
+        // <remarks>
+        // A local transaction is created only if there are no existing local nor ambient transactions.
+        // This method will ensure that the connection is opened and release it if an exception is thrown.
+        // The caller is responsible of releasing the connection if no exception is thrown, unless
+        // <paramref name="releaseConnectionOnSuccess" /> is set to <c>true</c>.
+        // </remarks>
+        // <typeparam name="T"> Type of the result. </typeparam>
+        // <param name="func"> The function to invoke. </param>
+        // <param name="executionStrategy"> The execution strategy used for this operation. </param>
+        // <param name="startLocalTransaction"> Whether should start a new local transaction when there's no existing one. </param>
+        // <param name="releaseConnectionOnSuccess"> Whether the connection will also be released when no exceptions are thrown. </param>
+        // <param name="cancellationToken"> The token to monitor for cancellation requests. </param>
+        // <returns>
+        // A task containing the result from invoking <paramref name="func" />.
+        // </returns>
         internal virtual async Task<T> ExecuteInTransactionAsync<T>(
             Func<Task<T>> func, IDbExecutionStrategy executionStrategy,
             bool startLocalTransaction, bool releaseConnectionOnSuccess, CancellationToken cancellationToken)
         {
-            await EnsureConnectionAsync(cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+            await EnsureConnectionAsync(startLocalTransaction, cancellationToken).WithCurrentCulture();
 
             var needLocalTransaction = false;
             var connection = (EntityConnection)Connection;
@@ -3258,19 +3351,12 @@ namespace System.Data.Entity.Core.Objects
                     localTransaction = connection.BeginTransaction();
                 }
 
-                var result = await func().ConfigureAwait(continueOnCapturedContext: false);
+                var result = await func().WithCurrentCulture();
 
                 if (localTransaction != null)
                 {
                     // we started the local transaction; so we also commit it
-                    try
-                    {
-                        localTransaction.Commit();
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new CommitFailedException(Strings.CommitFailed, ex);
-                    }
+                    localTransaction.Commit();
                 }
                 // else on success with no exception is thrown, caller generally commits the transaction
 
@@ -3411,7 +3497,9 @@ namespace System.Data.Entity.Core.Objects
         /// </returns>
         /// <param name="functionName">The name of the stored procedure or function. The name can include the container name, such as &lt;Container Name&gt;.&lt;Function Name&gt;. When the default container name is known, only the function name is required.</param>
         /// <param name="parameters">
-        /// An array of <see cref="T:System.Data.Entity.Core.Objects.ObjectParameter" /> objects.
+        /// An array of <see cref="T:System.Data.Entity.Core.Objects.ObjectParameter" /> objects. If output parameters are used, 
+        /// their values will not be available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
         /// </param>
         /// <typeparam name="TElement">
         /// The entity type of the <see cref="T:System.Data.Entity.Core.Objects.ObjectResult`1" /> returned when the function is executed against the data source. This type must implement
@@ -3442,7 +3530,9 @@ namespace System.Data.Entity.Core.Objects
         /// The <see cref="T:System.Data.Entity.Core.Objects.MergeOption" /> to use when executing the query.
         /// </param>
         /// <param name="parameters">
-        /// An array of <see cref="T:System.Data.Entity.Core.Objects.ObjectParameter" /> objects.
+        /// An array of <see cref="T:System.Data.Entity.Core.Objects.ObjectParameter" /> objects. If output parameters are used, 
+        /// their values will not be available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
         /// </param>
         /// <typeparam name="TElement">
         /// The entity type of the <see cref="T:System.Data.Entity.Core.Objects.ObjectResult`1" /> returned when the function is executed against the data source. This type must implement
@@ -3468,7 +3558,12 @@ namespace System.Data.Entity.Core.Objects
         /// Name of function. May include container (e.g. ContainerName.FunctionName) or just function name when DefaultContainerName is known.
         /// </param>
         /// <param name="executionOptions"> The options for executing this function. </param>
-        /// <param name="parameters"> The parameter values to use for the function. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the function. If output parameters are used, their values 
+        /// will not be available until the results have been read completely. This is due to the underlying 
+        /// behavior of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
+        /// <returns>An object representing the result of executing this function.</returns>
         /// <exception cref="ArgumentException"> If function is null or empty </exception>
         /// <exception cref="InvalidOperationException">
         /// If function is invalid (syntax,
@@ -3508,10 +3603,12 @@ namespace System.Data.Entity.Core.Objects
                 executionOptions = new ExecutionOptions(executionOptions.MergeOption, !executionStrategy.RetriesOnFailure);
             }
 
+            var startLocalTransaction = !executionOptions.UserSpecifiedStreaming.Value
+                                        && _options.EnsureTransactionsForFunctionsAndCommands;
             return executionStrategy.Execute(
                 () => ExecuteInTransaction(
                     () => CreateFunctionObjectResult<TElement>(entityCommand, functionImport.EntitySets, expectedEdmTypes, executionOptions),
-                    executionStrategy, startLocalTransaction: !executionOptions.UserSpecifiedStreaming.Value,
+                    executionStrategy, startLocalTransaction: startLocalTransaction,
                     releaseConnectionOnSuccess: !executionOptions.UserSpecifiedStreaming.Value));
         }
 
@@ -3519,7 +3616,9 @@ namespace System.Data.Entity.Core.Objects
         /// <returns>The number of rows affected.</returns>
         /// <param name="functionName">The name of the stored procedure or function. The name can include the container name, such as &lt;Container Name&gt;.&lt;Function Name&gt;. When the default container name is known, only the function name is required.</param>
         /// <param name="parameters">
-        /// An array of <see cref="T:System.Data.Entity.Core.Objects.ObjectParameter" /> objects.
+        /// An array of <see cref="T:System.Data.Entity.Core.Objects.ObjectParameter" /> objects. If output parameters are used, 
+        /// their values will not be available until the results have been read completely. This is due to the underlying 
+        /// behavior of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
         /// </param>
         /// <exception cref="T:System.ArgumentException"> function  is null or empty or function  is not found.</exception>
         /// <exception cref="T:System.InvalidOperationException">The entity reader does not support this  function or there is a type mismatch on the reader and the  function .</exception>
@@ -3537,7 +3636,8 @@ namespace System.Data.Entity.Core.Objects
             return executionStrategy.Execute(
                 () => ExecuteInTransaction(
                     () => ExecuteFunctionCommand(entityCommand), executionStrategy,
-                    startLocalTransaction: true, releaseConnectionOnSuccess: true));
+                    startLocalTransaction: _options.EnsureTransactionsForFunctionsAndCommands,
+                    releaseConnectionOnSuccess: true));
         }
 
         private static int ExecuteFunctionCommand(EntityCommand entityCommand)
@@ -3637,7 +3737,7 @@ namespace System.Data.Entity.Core.Objects
                 {
                     var storeItemCollection = (StoreItemCollection)MetadataWorkspace.GetItemCollection(DataSpace.SSpace);
                     var providerServices = DbConfiguration.DependencyResolver.GetService<DbProviderServices>(storeItemCollection.ProviderInvariantName);
-                    
+
                     shaperFactory = _translator.TranslateColumnMap<TElement>(
                         commandDefinition.CreateColumnMap(storeReader, 0),
                         MetadataWorkspace, null, executionOptions.MergeOption, false, valueLayer: false);
@@ -3662,9 +3762,9 @@ namespace System.Data.Entity.Core.Objects
                 entityCommand, storeReader, 0, entitySets, edmTypes, shaperFactory, executionOptions.MergeOption, executionOptions.UserSpecifiedStreaming.Value);
         }
 
-        /// <summary>
-        /// Get the materializer for the resultSetIndexth result set of storeReader.
-        /// </summary>
+        // <summary>
+        // Get the materializer for the resultSetIndexth result set of storeReader.
+        // </summary>
         internal ObjectResult<TElement> MaterializedDataRecord<TElement>(
             EntityCommand entityCommand, DbDataReader storeReader, int resultSetIndex, ReadOnlyCollection<EntitySet> entitySets,
             EdmType[] edmTypes, ShaperFactory<TElement> shaperFactory, MergeOption mergeOption, bool streaming)
@@ -3704,16 +3804,16 @@ namespace System.Data.Entity.Core.Objects
                 // its GetEnumerator is called explicitly, and the resulting enumerator is never disposed.
                 var onReaderDisposeHasRun = false;
                 Action<object, EventArgs> onReaderDispose = (object sender, EventArgs e) =>
+                {
+                    if (!onReaderDisposeHasRun)
                     {
-                        if (!onReaderDisposeHasRun)
-                        {
-                            onReaderDisposeHasRun = true;
-                            // consume the store reader
-                            CommandHelper.ConsumeReader(storeReader);
-                            // trigger event callback
-                            entityCommand.NotifyDataReaderClosing();
-                        }
-                    };
+                        onReaderDisposeHasRun = true;
+                        // consume the store reader
+                        CommandHelper.ConsumeReader(storeReader);
+                        // trigger event callback
+                        entityCommand.NotifyDataReaderClosing();
+                    }
+                };
 
                 if (shaperOwnsReader)
                 {
@@ -3891,7 +3991,7 @@ namespace System.Data.Entity.Core.Objects
         {
             Check.NotNull(type, "type");
 
-            return EntityProxyFactory.IsProxyType(type) ? type.BaseType : type;
+            return EntityProxyFactory.IsProxyType(type) ? type.BaseType() : type;
         }
 
         /// <summary>Creates and returns an instance of the requested type .</summary>
@@ -3970,7 +4070,10 @@ namespace System.Data.Entity.Core.Objects
         /// <returns>The number of rows affected.</returns>
         public virtual int ExecuteStoreCommand(string commandText, params object[] parameters)
         {
-            return ExecuteStoreCommand(TransactionalBehavior.EnsureTransaction, commandText, parameters);
+            return ExecuteStoreCommand(
+                _options.EnsureTransactionsForFunctionsAndCommands ? TransactionalBehavior.EnsureTransaction : TransactionalBehavior.DoNotEnsureTransaction,
+                commandText,
+                parameters);
         }
 
         /// <summary>
@@ -4025,7 +4128,11 @@ namespace System.Data.Entity.Core.Objects
         /// </returns>
         public Task<int> ExecuteStoreCommandAsync(string commandText, params object[] parameters)
         {
-            return ExecuteStoreCommandAsync(TransactionalBehavior.EnsureTransaction, commandText, CancellationToken.None, parameters);
+            return ExecuteStoreCommandAsync(
+                _options.EnsureTransactionsForFunctionsAndCommands ? TransactionalBehavior.EnsureTransaction : TransactionalBehavior.DoNotEnsureTransaction,
+                commandText,
+                CancellationToken.None,
+                parameters);
         }
 
         /// <summary>
@@ -4081,7 +4188,11 @@ namespace System.Data.Entity.Core.Objects
         public virtual Task<int> ExecuteStoreCommandAsync(
             string commandText, CancellationToken cancellationToken, params object[] parameters)
         {
-            return ExecuteStoreCommandAsync(TransactionalBehavior.EnsureTransaction, commandText, cancellationToken, parameters);
+            return ExecuteStoreCommandAsync(
+                _options.EnsureTransactionsForFunctionsAndCommands ? TransactionalBehavior.EnsureTransaction : TransactionalBehavior.DoNotEnsureTransaction,
+                commandText,
+                cancellationToken,
+                parameters);
         }
 
         /// <summary>
@@ -4110,6 +4221,8 @@ namespace System.Data.Entity.Core.Objects
         public virtual Task<int> ExecuteStoreCommandAsync(
             TransactionalBehavior transactionalBehavior, string commandText, CancellationToken cancellationToken, params object[] parameters)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             AsyncMonitor.EnsureNotEntered();
             return ExecuteStoreCommandInternalAsync(transactionalBehavior, commandText, cancellationToken, parameters);
         }
@@ -4128,7 +4241,7 @@ namespace System.Data.Entity.Core.Objects
                         executionStrategy,
                         /*startLocalTransaction:*/ transactionalBehavior != TransactionalBehavior.DoNotEnsureTransaction,
                         /*releaseConnectionOnSuccess:*/ true, cancellationToken),
-                    cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    cancellationToken).WithCurrentCulture();
             }
             finally
             {
@@ -4150,7 +4263,11 @@ namespace System.Data.Entity.Core.Objects
         /// </summary>
         /// <typeparam name="TElement"> The element type of the result sequence. </typeparam>
         /// <param name="commandText"> The query specified in the server's native query language. </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// An enumeration of objects of type <typeparamref name="TElement" /> .
         /// </returns>
@@ -4173,7 +4290,11 @@ namespace System.Data.Entity.Core.Objects
         /// <typeparam name="TElement"> The element type of the result sequence. </typeparam>
         /// <param name="commandText"> The query specified in the server's native query language. </param>
         /// <param name="executionOptions"> The options for executing this query. </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior of 
+        /// DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// An enumeration of objects of type <typeparamref name="TElement" /> .
         /// </returns>
@@ -4201,7 +4322,11 @@ namespace System.Data.Entity.Core.Objects
         /// The <see cref="T:System.Data.Entity.Core.Objects.MergeOption" /> to use when executing the query. The default is
         /// <see cref="F:System.Data.Entity.Core.Objects.MergeOption.AppendOnly" />.
         /// </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// An enumeration of objects of type <typeparamref name="TElement" /> .
         /// </returns>
@@ -4227,7 +4352,11 @@ namespace System.Data.Entity.Core.Objects
         /// <param name="commandText"> The query specified in the server's native query language. </param>
         /// <param name="entitySetName">The entity set of the  TResult  type. If an entity set name is not provided, the results are not going to be tracked.</param>
         /// <param name="executionOptions"> The options for executing this query. </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// An enumeration of objects of type <typeparamref name="TElement" /> .
         /// </returns>
@@ -4281,21 +4410,21 @@ namespace System.Data.Entity.Core.Objects
             string commandText, string entitySetName, ExecutionOptions executionOptions, params object[] parameters)
         {
             DbDataReader reader = null;
+            DbCommand command = null;
             EntitySet entitySet;
             TypeUsage edmType;
             ShaperFactory<TElement> shaperFactory;
             try
             {
-                using (var command = CreateStoreCommand(commandText, parameters))
-                {
-                    reader = command.ExecuteReader(
-                        executionOptions.UserSpecifiedStreaming.Value
-                            ? CommandBehavior.Default
-                            : CommandBehavior.SequentialAccess);
-                }
+                command = CreateStoreCommand(commandText, parameters);
+                reader = command.ExecuteReader(
+                    executionOptions.UserSpecifiedStreaming.Value
+                        ? CommandBehavior.Default
+                        : CommandBehavior.SequentialAccess);
 
                 shaperFactory = InternalTranslate<TElement>(
-                    reader, entitySetName, executionOptions.MergeOption, executionOptions.UserSpecifiedStreaming.Value, out entitySet, out edmType);
+                    reader, entitySetName, executionOptions.MergeOption, executionOptions.UserSpecifiedStreaming.Value, out entitySet,
+                    out edmType);
             }
             catch
             {
@@ -4304,6 +4433,11 @@ namespace System.Data.Entity.Core.Objects
                 if (reader != null)
                 {
                     reader.Dispose();
+                }
+
+                if (command != null)
+                {
+                    command.Dispose();
                 }
 
                 throw;
@@ -4332,7 +4466,15 @@ namespace System.Data.Entity.Core.Objects
                 }
             }
 
-            return ShapeResult(reader, executionOptions.MergeOption, /*readerOwned:*/ true, executionOptions.UserSpecifiedStreaming.Value, shaperFactory, entitySet, edmType);
+            return ShapeResult(
+                reader, 
+                executionOptions.MergeOption, 
+                /*readerOwned:*/ true, 
+                executionOptions.UserSpecifiedStreaming.Value, 
+                shaperFactory, 
+                entitySet, 
+                edmType, 
+                command);
         }
 
 #if !NET40
@@ -4353,7 +4495,11 @@ namespace System.Data.Entity.Core.Objects
         /// </remarks>
         /// <typeparam name="TElement"> The element type of the result sequence. </typeparam>
         /// <param name="commandText"> The query specified in the server's native query language. </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains an enumeration of objects of type <typeparamref name="TElement" /> .
@@ -4383,7 +4529,11 @@ namespace System.Data.Entity.Core.Objects
         /// <param name="cancellationToken">
         /// A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
         /// </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains an enumeration of objects of type <typeparamref name="TElement" /> .
@@ -4417,7 +4567,11 @@ namespace System.Data.Entity.Core.Objects
         /// <typeparam name="TElement"> The element type of the result sequence. </typeparam>
         /// <param name="commandText"> The query specified in the server's native query language. </param>
         /// <param name="executionOptions"> The options for executing this query. </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains an enumeration of objects of type <typeparamref name="TElement" /> .
@@ -4450,7 +4604,11 @@ namespace System.Data.Entity.Core.Objects
         /// <param name="cancellationToken">
         /// A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
         /// </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains an enumeration of objects of type <typeparamref name="TElement" /> .
@@ -4490,7 +4648,11 @@ namespace System.Data.Entity.Core.Objects
         /// <param name="commandText"> The query specified in the server's native query language. </param>
         /// <param name="entitySetName">The entity set of the  TResult  type. If an entity set name is not provided, the results are not going to be tracked.</param>
         /// <param name="executionOptions"> The options for executing this query. </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains an enumeration of objects of type <typeparamref name="TElement" /> .
@@ -4523,7 +4685,11 @@ namespace System.Data.Entity.Core.Objects
         /// <param name="cancellationToken">
         /// A <see cref="CancellationToken" /> to observe while waiting for the task to complete.
         /// </param>
-        /// <param name="parameters"> The parameter values to use for the query. </param>
+        /// <param name="parameters"> 
+        /// The parameter values to use for the query. If output parameters are used, their values will not be 
+        /// available until the results have been read completely. This is due to the underlying behavior 
+        /// of DbDataReader, see http://go.microsoft.com/fwlink/?LinkID=398589 for more details.
+        /// </param>
         /// <returns>
         /// A task that represents the asynchronous operation.
         /// The task result contains an enumeration of objects of type <typeparamref name="TElement" /> .
@@ -4579,7 +4745,7 @@ namespace System.Data.Entity.Core.Objects
                         executionStrategy,
                         /*startLocalTransaction:*/ false, /*releaseConnectionOnSuccess:*/ !executionOptions.UserSpecifiedStreaming.Value,
                         cancellationToken),
-                    cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
+                    cancellationToken).WithCurrentCulture();
             }
             finally
             {
@@ -4595,22 +4761,22 @@ namespace System.Data.Entity.Core.Objects
             CancellationToken cancellationToken, params object[] parameters)
         {
             DbDataReader reader = null;
+            DbCommand command = null;
             EntitySet entitySet;
             TypeUsage edmType;
             ShaperFactory<TElement> shaperFactory;
             try
             {
-                using (var command = CreateStoreCommand(commandText, parameters))
-                {
-                    reader = await command.ExecuteReaderAsync(
-                        executionOptions.UserSpecifiedStreaming.Value
-                            ? CommandBehavior.Default
-                            : CommandBehavior.SequentialAccess,
-                        cancellationToken).ConfigureAwait(continueOnCapturedContext: false);
-                }
+                command = CreateStoreCommand(commandText, parameters);
+                reader = await command.ExecuteReaderAsync(
+                    executionOptions.UserSpecifiedStreaming.Value
+                        ? CommandBehavior.Default
+                        : CommandBehavior.SequentialAccess,
+                    cancellationToken).WithCurrentCulture();
 
                 shaperFactory = InternalTranslate<TElement>(
-                    reader, entitySetName, executionOptions.MergeOption, executionOptions.UserSpecifiedStreaming.Value, out entitySet, out edmType);
+                    reader, entitySetName, executionOptions.MergeOption, executionOptions.UserSpecifiedStreaming.Value, out entitySet,
+                    out edmType);
             }
             catch
             {
@@ -4619,6 +4785,11 @@ namespace System.Data.Entity.Core.Objects
                 if (reader != null)
                 {
                     reader.Dispose();
+                }
+
+                if (command != null)
+                {
+                    command.Dispose();
                 }
 
                 throw;
@@ -4634,7 +4805,7 @@ namespace System.Data.Entity.Core.Objects
 
                     bufferedReader = new BufferedDataReader(reader);
                     await bufferedReader.InitializeAsync(storeItemCollection.ProviderManifestToken, providerServices, shaperFactory.ColumnTypes, shaperFactory.NullableColumns, cancellationToken)
-                        .ConfigureAwait(continueOnCapturedContext: false);
+                        .WithCurrentCulture();
                     reader = bufferedReader;
                 }
                 catch
@@ -4649,7 +4820,14 @@ namespace System.Data.Entity.Core.Objects
             }
 
             return ShapeResult(
-                reader, executionOptions.MergeOption, /*readerOwned:*/ true, executionOptions.UserSpecifiedStreaming.Value, shaperFactory, entitySet, edmType);
+                reader,
+                executionOptions.MergeOption, 
+                /*readerOwned:*/ true, 
+                executionOptions.UserSpecifiedStreaming.Value, 
+                shaperFactory, 
+                entitySet, 
+                edmType,
+                command);
         }
 
 #endif
@@ -4657,6 +4835,7 @@ namespace System.Data.Entity.Core.Objects
         /// <summary>
         /// Translates a <see cref="T:System.Data.Common.DbDataReader" /> that contains rows of entity data to objects of the requested entity type.
         /// </summary>
+        /// <typeparam name="TElement">The entity type.</typeparam>
         /// <returns>An enumeration of objects of type  TResult .</returns>
         /// <param name="reader">
         /// The <see cref="T:System.Data.Common.DbDataReader" /> that contains entity data to translate into entity objects.
@@ -4685,6 +4864,7 @@ namespace System.Data.Entity.Core.Objects
         /// <summary>
         /// Translates a <see cref="T:System.Data.Common.DbDataReader" /> that contains rows of entity data to objects of the requested entity type, in a specific entity set, and with the specified merge option.
         /// </summary>
+        /// <typeparam name="TEntity">The entity type.</typeparam>
         /// <returns>An enumeration of objects of type  TResult .</returns>
         /// <param name="reader">
         /// The <see cref="T:System.Data.Common.DbDataReader" /> that contains entity data to translate into entity objects.
@@ -4742,7 +4922,7 @@ namespace System.Data.Entity.Core.Objects
             CollectionColumnMap columnMap;
             // for enums that are not in the model we use the enum underlying type
             if (MetadataWorkspace.TryDetermineCSpaceModelType<TElement>(out modelEdmType)
-                || (unwrappedTElement.IsEnum &&
+                || (unwrappedTElement.IsEnum() &&
                     MetadataWorkspace.TryDetermineCSpaceModelType(unwrappedTElement.GetEnumUnderlyingType(), out modelEdmType)))
             {
                 if (entitySet != null
@@ -4769,12 +4949,12 @@ namespace System.Data.Entity.Core.Objects
 
         private ObjectResult<TElement> ShapeResult<TElement>(
             DbDataReader reader, MergeOption mergeOption, bool readerOwned, bool streaming, ShaperFactory<TElement> shaperFactory, EntitySet entitySet,
-            TypeUsage edmType)
+            TypeUsage edmType, DbCommand command = null)
         {
             var shaper = shaperFactory.Create(
                 reader, this, MetadataWorkspace, mergeOption, readerOwned, streaming);
             return new ObjectResult<TElement>(
-                shaper, entitySet, MetadataHelper.GetElementType(edmType), readerOwned, streaming);
+                shaper, entitySet, MetadataHelper.GetElementType(edmType), readerOwned, streaming, command);
         }
 
         [SuppressMessage("Microsoft.Security", "CA2100:Review SQL queries for security vulnerabilities")]
@@ -4823,11 +5003,11 @@ namespace System.Data.Entity.Core.Objects
                         // By default, we attempt to swap in a SQL Server friendly representation of the parameter.
                         // For other providers, users may write:
                         //
-                        //      ExecuteStoreQuery("select * from foo f where f.X = ?", 1);
+                        //      ExecuteStoreQuery("select * from xyz f where f.X = ?", 1);
                         //
                         // rather than:
                         //
-                        //      ExecuteStoreQuery("select * from foo f where f.X = {0}", 1);
+                        //      ExecuteStoreQuery("select * from xyz f where f.X = {0}", 1);
                         parameterSql[i] = "@" + parameterNames[i];
                     }
                     command.CommandText = string.Format(CultureInfo.InvariantCulture, command.CommandText, parameterSql);
@@ -4868,6 +5048,7 @@ namespace System.Data.Entity.Core.Objects
         /// Checks if the database that is specified as the database in the current store connection exists on the store. Most of the actual work
         /// is done by the DbProviderServices implementation for the current store connection.
         /// </summary>
+        /// <returns>true if the database exists; otherwise, false.</returns>
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes")]
         public virtual bool DatabaseExists()
         {
@@ -4940,13 +5121,13 @@ namespace System.Data.Entity.Core.Objects
             return services.CreateDatabaseScript(targetProviderManifestToken, GetStoreItemCollection());
         }
 
-        /// <summary>
-        /// Attempts to retrieve an DbGeneratedViewCacheTypeAttribute specified at assembly level,
-        /// that associates the type of the context with an mapping view cache type. If one is found
-        /// this method initializes the mapping view cache factory for this context with a new 
-        /// instance of DefaultDbMappingViewCacheFactory.
-        /// </summary>
-        /// <param name="owner">A DbContext that owns this ObjectContext.</param>
+        // <summary>
+        // Attempts to retrieve an DbGeneratedViewCacheTypeAttribute specified at assembly level,
+        // that associates the type of the context with an mapping view cache type. If one is found
+        // this method initializes the mapping view cache factory for this context with a new 
+        // instance of DefaultDbMappingViewCacheFactory.
+        // </summary>
+        // <param name="owner">A DbContext that owns this ObjectContext.</param>
         internal void InitializeMappingViewCacheFactory(DbContext owner = null)
         {
             var itemCollection = (StorageMappingItemCollection)
@@ -4961,9 +5142,7 @@ namespace System.Data.Entity.Core.Objects
 
             _contextTypesWithViewCacheInitialized.GetOrAdd(contextType, (t) =>
             {
-                var attributes = ((IEnumerable<DbMappingViewCacheTypeAttribute>)t.Assembly
-                    .GetCustomAttributes(typeof(DbMappingViewCacheTypeAttribute), inherit: false))
-                    .Where(a => a.ContextType == t);
+                var attributes = t.Assembly().GetCustomAttributes<DbMappingViewCacheTypeAttribute>().Where(a => a.ContextType == t);
 
                 var attributeCount = attributes.Count();
                 if (attributeCount > 1)
@@ -4986,9 +5165,9 @@ namespace System.Data.Entity.Core.Objects
 
         #region Nested types
 
-        /// <summary>
-        /// Supports binding EntityClient parameters to Object Services parameters.
-        /// </summary>
+        // <summary>
+        // Supports binding EntityClient parameters to Object Services parameters.
+        // </summary>
         private class ParameterBinder
         {
             private readonly EntityParameter _entityParameter;
@@ -5005,7 +5184,7 @@ namespace System.Data.Entity.Core.Objects
                 // When the reader is closing, out/inout parameter values are set on the EntityParameter
                 // instance. Pass this value through to the corresponding ObjectParameter.
                 if (_entityParameter.Value != DBNull.Value
-                    && _objectParameter.MappableType.IsEnum)
+                    && _objectParameter.MappableType.IsEnum())
                 {
                     _objectParameter.Value = Enum.ToObject(_objectParameter.MappableType, _entityParameter.Value);
                 }

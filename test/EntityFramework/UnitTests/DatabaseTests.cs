@@ -7,12 +7,14 @@ namespace System.Data.Entity
     using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Resources;
+    using System.Data.Entity.Utilities;
     using System.IO;
-    using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
     using Moq;
     using Xunit;
+    using System.Data.Entity.Core.Objects;
+    using System.Data.Entity.Core.EntityClient;
 
     public class DatabaseTests : TestBase
     {
@@ -84,6 +86,85 @@ namespace System.Data.Entity
             }
         }
 
+        public class CurrentTransaction : TestBase
+        {
+            [Fact]
+            public void Get_caches_created_DbContextTransaction()
+            {
+                var mockInternalContext = new Mock<InternalContext>();
+                var mockObjectContext = new Mock<ObjectContext>(null, null, null, null);
+                var mockEntityConnection = new Mock<EntityConnection>();
+                var mockEntityTransaction = new Mock<EntityTransaction>();
+                mockEntityTransaction.SetupGet(m => m.Connection).Returns(() => mockEntityConnection.Object);
+                mockEntityConnection.SetupGet(m => m.CurrentTransaction).Returns(mockEntityTransaction.Object);
+                mockObjectContext.SetupGet(m => m.Connection).Returns(mockEntityConnection.Object);
+                mockInternalContext.SetupGet(m => m.ObjectContext).Returns(mockObjectContext.Object);
+
+                var database = new Database(mockInternalContext.Object);
+                Assert.Equal(database.CurrentTransaction, database.CurrentTransaction);
+            }
+
+            [Fact]
+            public void Get_invalidates_cached_DbContextTransaction_properly()
+            {
+                var mockInternalContext = new Mock<InternalContext>();
+                var mockObjectContext = new Mock<ObjectContext>(null, null, null, null);
+                var mockEntityConnection = new Mock<EntityConnection>();
+                var mockEntityTransaction = new Mock<EntityTransaction>();
+                var mockEntityTransaction2 = new Mock<EntityTransaction>();
+                
+                var entityTransactionReadCounter = 0;
+                mockEntityConnection.SetupGet(m => m.CurrentTransaction).Returns(() => 
+                    (entityTransactionReadCounter++ >= 2 ? mockEntityTransaction.Object : mockEntityTransaction2.Object));
+
+                mockEntityTransaction.SetupGet(m => m.Connection).Returns(mockEntityConnection.Object);
+                mockEntityTransaction2.SetupGet(m => m.Connection).Returns(mockEntityConnection.Object);
+                mockObjectContext.SetupGet(m => m.Connection).Returns(mockEntityConnection.Object);
+                mockInternalContext.SetupGet(m => m.ObjectContext).Returns(mockObjectContext.Object);
+
+
+                var database = new Database(mockInternalContext.Object);
+                var originalDbContextTransaction = database.CurrentTransaction;
+
+                Assert.Equal(originalDbContextTransaction, database.CurrentTransaction);
+                Assert.NotEqual(originalDbContextTransaction, database.CurrentTransaction);
+            }
+
+            [Fact]
+            public void Get_returns_instance_cached_from_BeginTransaction()
+            {
+                var mockInternalContext = new Mock<InternalContext>();
+                var mockObjectContext = new Mock<ObjectContext>(null, null, null, null);
+                var mockEntityConnection = new Mock<EntityConnection>();
+                var mockEntityTransaction = new Mock<EntityTransaction>();
+                mockEntityConnection.SetupGet(m => m.CurrentTransaction).Returns(mockEntityTransaction.Object);
+                mockObjectContext.SetupGet(m => m.Connection).Returns(mockEntityConnection.Object);
+                mockInternalContext.SetupGet(m => m.ObjectContext).Returns(mockObjectContext.Object);
+
+
+                var database = new Database(mockInternalContext.Object);
+                var originalDbContextTransaction = database.BeginTransaction();
+                Assert.Equal(originalDbContextTransaction, database.CurrentTransaction);
+            }
+
+            [Fact]
+            public void Get_returns_instance_cached_from_BeginTransaction_with_IsolationLevel()
+            {
+                var mockInternalContext = new Mock<InternalContext>();
+                var mockObjectContext = new Mock<ObjectContext>(null, null, null, null);
+                var mockEntityConnection = new Mock<EntityConnection>();
+                var mockEntityTransaction = new Mock<EntityTransaction>();
+                mockEntityConnection.SetupGet(m => m.CurrentTransaction).Returns(mockEntityTransaction.Object);
+                mockObjectContext.SetupGet(m => m.Connection).Returns(mockEntityConnection.Object);
+                mockInternalContext.SetupGet(m => m.ObjectContext).Returns(mockObjectContext.Object);
+
+
+                var database = new Database(mockInternalContext.Object);
+                var originalDbContextTransaction = database.BeginTransaction(IsolationLevel.RepeatableRead);
+                Assert.Equal(originalDbContextTransaction, database.CurrentTransaction);
+            }
+        }
+
         public class ExecuteSqlCommand : TestBase
         {
             [Fact]
@@ -128,6 +209,7 @@ namespace System.Data.Entity
             public void With_valid_arguments_doesnt_throw()
             {
                 var internalContextMock = new Mock<InternalContextForMock>();
+                internalContextMock.Setup(m => m.EnsureTransactionsForFunctionsAndCommands).Returns(true);
                 var database = new Database(internalContextMock.Object);
                 var parameters = new object[1];
 
@@ -192,6 +274,7 @@ namespace System.Data.Entity
                     m =>
                     m.ExecuteSqlCommandAsync(It.IsAny<TransactionalBehavior>(), It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<object[]>()))
                                    .Returns(Task.FromResult(1));
+                internalContextMock.Setup(m => m.EnsureTransactionsForFunctionsAndCommands).Returns(true);
                 var database = new Database(internalContextMock.Object);
                 var cancellationToken = new CancellationTokenSource().Token;
                 var parameters = new object[1];
@@ -211,6 +294,20 @@ namespace System.Data.Entity
                 Assert.NotNull(database.ExecuteSqlCommandAsync(TransactionalBehavior.DoNotEnsureTransaction, "query", cancellationToken, parameters).Result);
                 internalContextMock.Verify(
                     m => m.ExecuteSqlCommandAsync(TransactionalBehavior.EnsureTransaction, "query", cancellationToken, parameters), Times.Once());
+            }
+
+            [Fact]
+            public void ExecuteSqlCommandAsync_throws_OperationCanceledException_if_task_is_cancelled()
+            {
+                Assert.Throws<OperationCanceledException>(
+                    () => new Database(new Mock<InternalContextForMock>().Object)
+                        .ExecuteSqlCommandAsync("SELECT DATA", new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
+
+                Assert.Throws<OperationCanceledException>(
+                    () => new Database(new Mock<InternalContextForMock>().Object)
+                        .ExecuteSqlCommandAsync(TransactionalBehavior.EnsureTransaction, "SELECT DATA", new CancellationToken(canceled: true))
+                        .GetAwaiter().GetResult());
             }
         }
 
@@ -250,8 +347,7 @@ namespace System.Data.Entity
                 }
                 finally
                 {
-                    typeof(Database).GetMethod("ResetDefaultConnectionFactory", BindingFlags.Static | BindingFlags.NonPublic)
-                                    .Invoke(null, null);
+                    typeof(Database).GetOnlyDeclaredMethod("ResetDefaultConnectionFactory").Invoke(null, null);
                     Database.ResetDefaultConnectionFactory();
                 }
             }

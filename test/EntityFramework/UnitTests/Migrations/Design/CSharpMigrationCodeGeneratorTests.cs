@@ -2,17 +2,22 @@
 
 namespace System.Data.Entity.Migrations.Design
 {
+    using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure.Annotations;
     using System.Data.Entity.Migrations.Model;
+    using System.Data.Entity.Migrations.Utilities;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Spatial;
+    using System.Data.Entity.TestHelpers;
     using System.Data.Entity.Utilities;
     using System.Globalization;
     using System.IO;
     using System.Threading;
+    using Moq;
     using Xunit;
 
-    public class CSharpMigrationCodeGeneratorTests
+    public class CSharpMigrationCodeGeneratorTests : TestBase
     {
         [Fact]
         public void Generate_can_output_create_procedure_operations()
@@ -178,7 +183,50 @@ namespace System.Data.Entity.Migrations.Design
 ",
                 generatedMigration.UserCode);
         }
+        
+        [Fact]
+        public void Generate_can_output_rename_index_operation()
+        {
+            var renameIndexOperation
+                = new RenameIndexOperation("Foo", "Bar", "Baz");
 
+            var codeGenerator = new CSharpMigrationCodeGenerator();
+
+            var generatedMigration
+                = codeGenerator.Generate(
+                    "Migration",
+                    new MigrationOperation[]
+                        {
+                            renameIndexOperation
+                        },
+                    "Source",
+                    "Target",
+                    "Foo",
+                    "Bar");
+
+            Assert.Equal(
+                @"namespace Foo
+{
+    using System;
+    using System.Data.Entity.Migrations;
+    
+    public partial class Bar : DbMigration
+    {
+        public override void Up()
+        {
+            RenameIndex(table: ""Foo"", name: ""Bar"", newName: ""Baz"");
+        }
+        
+        public override void Down()
+        {
+            RenameIndex(table: ""Foo"", name: ""Baz"", newName: ""Bar"");
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+        
         [Fact]
         public void Generate_can_output_drop_procedure_operations()
         {
@@ -548,6 +596,54 @@ namespace System.Data.Entity.Migrations.Design
         }
 
         [Fact]
+        public void Generate_can_output_add_primary_key_with_non_clustered_index()
+        {
+            var codeGenerator = new CSharpMigrationCodeGenerator();
+
+            var addPrimaryKeyOperation
+                = new AddPrimaryKeyOperation
+                {
+                    Table = "T",
+                    Name = "PK",
+                    IsClustered = false
+                };
+
+            addPrimaryKeyOperation.Columns.Add("c1");
+            addPrimaryKeyOperation.Columns.Add("c2");
+
+            var generatedMigration
+                = codeGenerator.Generate(
+                    "Migration",
+                    new MigrationOperation[] { addPrimaryKeyOperation },
+                    "Source",
+                    "Target",
+                    "Foo",
+                    "Bar");
+
+            Assert.Equal(
+                @"namespace Foo
+{
+    using System;
+    using System.Data.Entity.Migrations;
+    
+    public partial class Bar : DbMigration
+    {
+        public override void Up()
+        {
+            AddPrimaryKey(""T"", new[] { ""c1"", ""c2"" }, name: ""PK"", clustered: false);
+        }
+        
+        public override void Down()
+        {
+            DropPrimaryKey(""T"", name: ""PK"");
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
         public void Generate_can_output_simple_add_foreign_key()
         {
             var codeGenerator = new CSharpMigrationCodeGenerator();
@@ -824,7 +920,7 @@ namespace Foo
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Resources;
     
-    [GeneratedCode(""EntityFramework.Migrations"", """ + typeof(DbContext).Assembly.GetInformationalVersion() + @""")]
+    [GeneratedCode(""EntityFramework.Migrations"", """ + typeof(DbContext).Assembly().GetInformationalVersion() + @""")]
     public sealed partial class Bar : IMigrationMetadata
     {
         private readonly ResourceManager Resources = new ResourceManager(typeof(Bar));
@@ -852,6 +948,122 @@ namespace Foo
             Assert.Equal(2, generatedMigration.Resources.Count);
             Assert.Equal("Source", generatedMigration.Resources["Source"]);
             Assert.Equal("Target", generatedMigration.Resources["Target"]);
+        }
+
+        [Fact]
+        public void Generate_create_table_operation_with_non_clustered_key_and_fully_configured_index()
+        {
+            var createTableOperation = new CreateTableOperation("Customers");
+            
+            var idColumn = new ColumnModel(PrimitiveTypeKind.Int32) { Name = "I.d" };
+            createTableOperation.Columns.Add(idColumn);
+            
+            createTableOperation.PrimaryKey = new AddPrimaryKeyOperation
+            {
+                Name = "MyPK",
+                IsClustered = false
+            };
+            createTableOperation.PrimaryKey.Columns.Add(idColumn.Name);
+
+            var createIndexOperation = new CreateIndexOperation
+            {
+                Table = createTableOperation.Name, 
+                Name = "MyIndex",
+                IsClustered = true,
+                IsUnique = true
+            };
+            createIndexOperation.Columns.Add(idColumn.Name);
+
+            var generatedMigration
+                = new CSharpMigrationCodeGenerator().Generate(
+                    "Migration",
+                    new MigrationOperation[]
+                        {
+                            createTableOperation,
+                            createIndexOperation
+                        },
+                    "Source",
+                    "Target",
+                    "Foo",
+                    "Bar");
+
+            Assert.Equal(
+                @"namespace Foo
+{
+    using System;
+    using System.Data.Entity.Migrations;
+    
+    public partial class Bar : DbMigration
+    {
+        public override void Up()
+        {
+            CreateTable(
+                ""Customers"",
+                c => new
+                    {
+                        Id = c.Int(name: ""I.d""),
+                    })
+                .PrimaryKey(t => t.Id, name: ""MyPK"", clustered: false)
+                .Index(t => t.Id, unique: true, clustered: true, name: ""MyIndex"");
+            
+        }
+        
+        public override void Down()
+        {
+            DropIndex(""Customers"", ""MyIndex"");
+            DropTable(""Customers"");
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void Generate_create_fully_configured_create_index_operation()
+        {
+            var createIndexOperation = new CreateIndexOperation
+            {
+                Table = "MyTable",
+                Name = "MyIndex",
+                IsClustered = true,
+                IsUnique = true
+            };
+            createIndexOperation.Columns.Add("MyColumn");
+
+            var generatedMigration
+                = new CSharpMigrationCodeGenerator().Generate(
+                    "Migration",
+                    new MigrationOperation[]
+                        {
+                            createIndexOperation
+                        },
+                    "Source",
+                    "Target",
+                    "Foo",
+                    "Bar");
+
+            Assert.Equal(
+                @"namespace Foo
+{
+    using System;
+    using System.Data.Entity.Migrations;
+    
+    public partial class Bar : DbMigration
+    {
+        public override void Up()
+        {
+            CreateIndex(""MyTable"", ""MyColumn"", unique: true, clustered: true, name: ""MyIndex"");
+        }
+        
+        public override void Down()
+        {
+            DropIndex(""MyTable"", ""MyIndex"");
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
         }
 
         [Fact]
@@ -975,7 +1187,7 @@ namespace Foo
     using System.Data.Entity.Migrations.Infrastructure;
     using System.Resources;
     
-    [GeneratedCode(""EntityFramework.Migrations"", """ + typeof(DbContext).Assembly.GetInformationalVersion() + @""")]
+    [GeneratedCode(""EntityFramework.Migrations"", """ + typeof(DbContext).Assembly().GetInformationalVersion() + @""")]
     public sealed partial class Bar : IMigrationMetadata
     {
         private readonly ResourceManager Resources = new ResourceManager(typeof(Bar));
@@ -1115,7 +1327,7 @@ using System.Data.Entity.Migrations;
 using System.Data.Entity.Migrations.Infrastructure;
 using System.Resources;
 
-[GeneratedCode(""EntityFramework.Migrations"", """ + typeof(DbContext).Assembly.GetInformationalVersion() + @""")]
+[GeneratedCode(""EntityFramework.Migrations"", """ + typeof(DbContext).Assembly().GetInformationalVersion() + @""")]
 public sealed partial class Bar : IMigrationMetadata
 {
     private readonly ResourceManager Resources = new ResourceManager(typeof(Bar));
@@ -1157,6 +1369,659 @@ public partial class Bar : DbMigration
 }
 ",
                 generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void Can_generate_AlterColumn_for_added_removed_and_changed_annotations()
+        {
+            var operations = new[]
+            {
+                new AlterColumnOperation(
+                    "MyTable",
+                    new ColumnModel(PrimitiveTypeKind.Int32)
+                    {
+                        Name = "MyColumn",
+                        IsFixedLength = true,
+                        Annotations =
+                            new Dictionary<string, AnnotationValues>
+                            {
+                                { "A2", new AnnotationValues(null, "V2") },
+                                { "A3", new AnnotationValues(null, "V3") },
+                                { "A1", new AnnotationValues(null, "V1") },
+                                { "A8", new AnnotationValues("V8A", "V8B") },
+                                { "A7", new AnnotationValues("V7A", "V7B") },
+                                { "A9", new AnnotationValues("V9A", "V9B") },
+                                { "A5", new AnnotationValues("V5", null) },
+                                { "A4", new AnnotationValues("V4", null) },
+                                { "A6", new AnnotationValues("V6", null) }
+                            }
+                    },
+                    false),
+            };
+
+            var generator = new CSharpMigrationCodeGenerator();
+            var generatedMigration = generator.Generate("Migration", operations, "Source", "Target", "MyNamespace", "MyMigration");
+
+            Assert.Equal(
+                @"namespace MyNamespace
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Migrations;
+    
+    public partial class MyMigration : DbMigration
+    {
+        public override void Up()
+        {
+            AlterColumn(""MyTable"", ""MyColumn"", c => c.Int(fixedLength: true,
+                annotations: new Dictionary<string, AnnotationValues>
+                {
+                    { 
+                        ""A1"",
+                        new AnnotationValues(oldValue: null, newValue: ""V1"")
+                    },
+                    { 
+                        ""A2"",
+                        new AnnotationValues(oldValue: null, newValue: ""V2"")
+                    },
+                    { 
+                        ""A3"",
+                        new AnnotationValues(oldValue: null, newValue: ""V3"")
+                    },
+                    { 
+                        ""A4"",
+                        new AnnotationValues(oldValue: ""V4"", newValue: null)
+                    },
+                    { 
+                        ""A5"",
+                        new AnnotationValues(oldValue: ""V5"", newValue: null)
+                    },
+                    { 
+                        ""A6"",
+                        new AnnotationValues(oldValue: ""V6"", newValue: null)
+                    },
+                    { 
+                        ""A7"",
+                        new AnnotationValues(oldValue: ""V7A"", newValue: ""V7B"")
+                    },
+                    { 
+                        ""A8"",
+                        new AnnotationValues(oldValue: ""V8A"", newValue: ""V8B"")
+                    },
+                    { 
+                        ""A9"",
+                        new AnnotationValues(oldValue: ""V9A"", newValue: ""V9B"")
+                    },
+                }));
+        }
+        
+        public override void Down()
+        {
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void Can_generate_AlterColumn_with_annotation_code_generator()
+        {
+            var operations = new[]
+            {
+                new AlterColumnOperation(
+                    "MyTable",
+                    new ColumnModel(PrimitiveTypeKind.Int32)
+                    {
+                        Name = "MyColumn",
+                        Annotations =
+                            new Dictionary<string, AnnotationValues>
+                            {
+                                {
+                                    CollationAttribute.AnnotationName,
+                                    new AnnotationValues(
+                                        new CollationAttribute("At a reasonable volume..."),
+                                        new CollationAttribute("While I'm collating..."))
+                                }
+                            }
+                    },
+                    false,
+                    new AlterColumnOperation(
+                        "MyTable",
+                        new ColumnModel(PrimitiveTypeKind.Int32)
+                        {
+                            Name = "MyColumn",
+                            Annotations =
+                                new Dictionary<string, AnnotationValues>
+                                {
+                                    {
+                                        CollationAttribute.AnnotationName,
+                                        new AnnotationValues(
+                                            new CollationAttribute("While I'm collating..."),
+                                            new CollationAttribute("At a reasonable volume..."))
+                                    }
+                                }
+                        }, false))
+            };
+
+            var generator = new CSharpMigrationCodeGenerator();
+            generator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+            var generatedMigration = generator.Generate("Migration", operations, "Source", "Target", "MyNamespace", "MyMigration");
+
+            Assert.Equal(
+                @"namespace MyNamespace
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Migrations;
+    using System.Data.Entity.TestHelpers;
+    
+    public partial class MyMigration : DbMigration
+    {
+        public override void Up()
+        {
+            AlterColumn(""MyTable"", ""MyColumn"", c => c.Int(
+                annotations: new Dictionary<string, AnnotationValues>
+                {
+                    { 
+                        ""Collation"",
+                        new AnnotationValues(oldValue: new CollationAttribute(""At a reasonable volume...""), newValue: new CollationAttribute(""While I'm collating...""))
+                    },
+                }));
+        }
+        
+        public override void Down()
+        {
+            AlterColumn(""MyTable"", ""MyColumn"", c => c.Int(
+                annotations: new Dictionary<string, AnnotationValues>
+                {
+                    { 
+                        ""Collation"",
+                        new AnnotationValues(oldValue: new CollationAttribute(""While I'm collating...""), newValue: new CollationAttribute(""At a reasonable volume...""))
+                    },
+                }));
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void Can_generate_AddColumn_with_annotations()
+        {
+            var operations = new[]
+            {
+                new AddColumnOperation(
+                    "MyTable",
+                    new ColumnModel(PrimitiveTypeKind.String)
+                    {
+                        Name = "MyColumn",
+                        IsFixedLength = true,
+                        Annotations =
+                            new Dictionary<string, AnnotationValues>
+                            {
+                                { "A3", new AnnotationValues(null, "V3") },
+                                { "A1", new AnnotationValues(null, "V1") },
+                            }
+                    },
+                    false),
+            };
+
+            var generator = new CSharpMigrationCodeGenerator();
+            var generatedMigration = generator.Generate("Migration", operations, "Source", "Target", "MyNamespace", "MyMigration");
+
+            Assert.Equal(
+                @"namespace MyNamespace
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Migrations;
+    
+    public partial class MyMigration : DbMigration
+    {
+        public override void Up()
+        {
+            AddColumn(""MyTable"", ""MyColumn"", c => c.String(fixedLength: true,
+                annotations: new Dictionary<string, AnnotationValues>
+                {
+                    { 
+                        ""A1"",
+                        new AnnotationValues(oldValue: null, newValue: ""V1"")
+                    },
+                    { 
+                        ""A3"",
+                        new AnnotationValues(oldValue: null, newValue: ""V3"")
+                    },
+                }));
+        }
+        
+        public override void Down()
+        {
+            DropColumn(""MyTable"", ""MyColumn"",
+                removedAnnotations: new Dictionary<string, object>
+                {
+                    { ""A1"", ""V1"" },
+                    { ""A3"", ""V3"" },
+                });
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void Can_generate_AddColumn_with_custom_annotation_code_gen()
+        {
+            var operations = new[]
+            {
+                new AddColumnOperation(
+                    "MyTable",
+                    new ColumnModel(PrimitiveTypeKind.String)
+                    {
+                        Name = "MyColumn",
+                        IsFixedLength = true,
+                        Annotations =
+                            new Dictionary<string, AnnotationValues>
+                            {
+                                {
+                                    CollationAttribute.AnnotationName,
+                                    new AnnotationValues(
+                                        new CollationAttribute("At a reasonable volume..."),
+                                        new CollationAttribute("While I'm collating..."))
+                                }
+                            }
+                    },
+                    false),
+            };
+
+            var generator = new CSharpMigrationCodeGenerator();
+            generator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+            var generatedMigration = generator.Generate("Migration", operations, "Source", "Target", "MyNamespace", "MyMigration");
+
+            Assert.Equal(
+                @"namespace MyNamespace
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Migrations;
+    using System.Data.Entity.TestHelpers;
+    
+    public partial class MyMigration : DbMigration
+    {
+        public override void Up()
+        {
+            AddColumn(""MyTable"", ""MyColumn"", c => c.String(fixedLength: true,
+                annotations: new Dictionary<string, AnnotationValues>
+                {
+                    { 
+                        ""Collation"",
+                        new AnnotationValues(oldValue: new CollationAttribute(""At a reasonable volume...""), newValue: new CollationAttribute(""While I'm collating...""))
+                    },
+                }));
+        }
+        
+        public override void Down()
+        {
+            DropColumn(""MyTable"", ""MyColumn"",
+                removedAnnotations: new Dictionary<string, object>
+                {
+                    { ""Collation"", new CollationAttribute(""While I'm collating..."") },
+                });
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void Can_generate_CreateTable_with_annotations()
+        {
+            var createTableOperation = new CreateTableOperation(
+                "Customers",
+                new Dictionary<string, object>
+                    {
+                        { "AT1", "VT1" },
+                        { "AT2", "VT2" }
+                    });
+            
+            var idColumn = new ColumnModel(PrimitiveTypeKind.Int32)
+            {
+                Name = "I.d",
+                IsNullable = true,
+                IsIdentity = true,
+                Annotations =
+                    new Dictionary<string, AnnotationValues>
+                    {
+                        { "A1", new AnnotationValues(null, "V1") },
+                        { "A2", new AnnotationValues(null, "V2") }
+                    }
+            };
+            createTableOperation.Columns.Add(idColumn);
+
+            createTableOperation.Columns.Add(
+                new ColumnModel(PrimitiveTypeKind.String)
+                {
+                    Name = "Name",
+                    IsNullable = false,
+                    Annotations =
+                        new Dictionary<string, AnnotationValues>
+                        {
+                            {
+                                CollationAttribute.AnnotationName,
+                                new AnnotationValues(
+                                    new CollationAttribute("At a reasonable volume..."),
+                                    new CollationAttribute("While I'm collating..."))
+                            }
+                        }
+                });
+
+            createTableOperation.PrimaryKey = new AddPrimaryKeyOperation
+            {
+                Name = "MyPK"
+            };
+            createTableOperation.PrimaryKey.Columns.Add(idColumn.Name);
+
+            var operations = new[] { createTableOperation };
+
+            var generator = new CSharpMigrationCodeGenerator();
+            generator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+            var generatedMigration = generator.Generate("Migration", operations, "Source", "Target", "MyNamespace", "MyMigration");
+
+            Assert.Equal(
+                @"namespace MyNamespace
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Migrations;
+    using System.Data.Entity.TestHelpers;
+    
+    public partial class MyMigration : DbMigration
+    {
+        public override void Up()
+        {
+            CreateTable(
+                ""Customers"",
+                c => new
+                    {
+                        Id = c.Int(name: ""I.d"", identity: true,
+                            annotations: new Dictionary<string, AnnotationValues>
+                            {
+                                { 
+                                    ""A1"",
+                                    new AnnotationValues(oldValue: null, newValue: ""V1"")
+                                },
+                                { 
+                                    ""A2"",
+                                    new AnnotationValues(oldValue: null, newValue: ""V2"")
+                                },
+                            }),
+                        Name = c.String(nullable: false,
+                            annotations: new Dictionary<string, AnnotationValues>
+                            {
+                                { 
+                                    ""Collation"",
+                                    new AnnotationValues(oldValue: new CollationAttribute(""At a reasonable volume...""), newValue: new CollationAttribute(""While I'm collating...""))
+                                },
+                            }),
+                    },
+                annotations: new Dictionary<string, object>
+                {
+                    { ""AT1"", ""VT1"" },
+                    { ""AT2"", ""VT2"" },
+                })
+                .PrimaryKey(t => t.Id, name: ""MyPK"");
+            
+        }
+        
+        public override void Down()
+        {
+            DropTable(""Customers"",
+                removedAnnotations: new Dictionary<string, object>
+                {
+                    { ""AT1"", ""VT1"" },
+                    { ""AT2"", ""VT2"" },
+                },
+                removedColumnAnnotations: new Dictionary<string, IDictionary<string, object>>
+                {
+                    {
+                        ""I.d"",
+                        new Dictionary<string, object>
+                        {
+                            { ""A1"", ""V1"" },
+                            { ""A2"", ""V2"" },
+                        }
+                    },
+                    {
+                        ""Name"",
+                        new Dictionary<string, object>
+                        {
+                            { ""Collation"", new CollationAttribute(""While I'm collating..."") },
+                        }
+                    },
+                });
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void Can_generate_AlterTableAnnotations_with_annotations()
+        {
+            var operation = new AlterTableOperation(
+                "Customers",
+                new Dictionary<string, AnnotationValues>
+                {
+                    { "AT1", new AnnotationValues(null, "VT1") },
+                    {
+                        CollationAttribute.AnnotationName,
+                        new AnnotationValues(
+                            new CollationAttribute("At a reasonable volume..."),
+                            new CollationAttribute("While I'm collating..."))
+                    },
+                    { "AT2", new AnnotationValues(null, "VT2") }
+
+                });
+
+            var idColumn = new ColumnModel(PrimitiveTypeKind.Int32)
+            {
+                Name = "I.d",
+                IsNullable = true,
+                IsIdentity = true,
+                Annotations =
+                    new Dictionary<string, AnnotationValues>
+                    {
+                        { "A1", new AnnotationValues(null, "V1") },
+                        { "A2", new AnnotationValues(null, "V2") }
+                    }
+            };
+            operation.Columns.Add(idColumn);
+
+            operation.Columns.Add(
+                new ColumnModel(PrimitiveTypeKind.String)
+                {
+                    Name = "Name",
+                    IsNullable = false,
+                    Annotations =
+                        new Dictionary<string, AnnotationValues>
+                        {
+                            {
+                                CollationAttribute.AnnotationName,
+                                new AnnotationValues(
+                                    new CollationAttribute("At a reasonable volume..."),
+                                    new CollationAttribute("While I'm collating..."))
+                            }
+                        }
+                });
+
+            var operations = new[] { operation };
+
+            var generator = new CSharpMigrationCodeGenerator();
+            generator.AnnotationGenerators[CollationAttribute.AnnotationName] = () => new CollationCSharpCodeGenerator();
+            var generatedMigration = generator.Generate("Migration", operations, "Source", "Target", "MyNamespace", "MyMigration");
+
+            Assert.Equal(
+                @"namespace MyNamespace
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Data.Entity.Infrastructure.Annotations;
+    using System.Data.Entity.Migrations;
+    using System.Data.Entity.TestHelpers;
+    
+    public partial class MyMigration : DbMigration
+    {
+        public override void Up()
+        {
+            AlterTableAnnotations(
+                ""Customers"",
+                c => new
+                    {
+                        Id = c.Int(name: ""I.d"", identity: true,
+                            annotations: new Dictionary<string, AnnotationValues>
+                            {
+                                { 
+                                    ""A1"",
+                                    new AnnotationValues(oldValue: null, newValue: ""V1"")
+                                },
+                                { 
+                                    ""A2"",
+                                    new AnnotationValues(oldValue: null, newValue: ""V2"")
+                                },
+                            }),
+                        Name = c.String(nullable: false,
+                            annotations: new Dictionary<string, AnnotationValues>
+                            {
+                                { 
+                                    ""Collation"",
+                                    new AnnotationValues(oldValue: new CollationAttribute(""At a reasonable volume...""), newValue: new CollationAttribute(""While I'm collating...""))
+                                },
+                            }),
+                    },
+                annotations: new Dictionary<string, AnnotationValues>
+                {
+                    { 
+                        ""AT1"",
+                        new AnnotationValues(oldValue: null, newValue: ""VT1"")
+                    },
+                    { 
+                        ""AT2"",
+                        new AnnotationValues(oldValue: null, newValue: ""VT2"")
+                    },
+                    { 
+                        ""Collation"",
+                        new AnnotationValues(oldValue: new CollationAttribute(""At a reasonable volume...""), newValue: new CollationAttribute(""While I'm collating...""))
+                    },
+                });
+            
+        }
+        
+        public override void Down()
+        {
+            AlterTableAnnotations(
+                ""Customers"",
+                c => new
+                    {
+                        Id = c.Int(name: ""I.d"", identity: true,
+                            annotations: new Dictionary<string, AnnotationValues>
+                            {
+                                { 
+                                    ""A1"",
+                                    new AnnotationValues(oldValue: null, newValue: ""V1"")
+                                },
+                                { 
+                                    ""A2"",
+                                    new AnnotationValues(oldValue: null, newValue: ""V2"")
+                                },
+                            }),
+                        Name = c.String(nullable: false,
+                            annotations: new Dictionary<string, AnnotationValues>
+                            {
+                                { 
+                                    ""Collation"",
+                                    new AnnotationValues(oldValue: new CollationAttribute(""At a reasonable volume...""), newValue: new CollationAttribute(""While I'm collating...""))
+                                },
+                            }),
+                    },
+                annotations: new Dictionary<string, AnnotationValues>
+                {
+                    { 
+                        ""AT1"",
+                        new AnnotationValues(oldValue: ""VT1"", newValue: null)
+                    },
+                    { 
+                        ""AT2"",
+                        new AnnotationValues(oldValue: ""VT2"", newValue: null)
+                    },
+                    { 
+                        ""Collation"",
+                        new AnnotationValues(oldValue: new CollationAttribute(""While I'm collating...""), newValue: new CollationAttribute(""At a reasonable volume...""))
+                    },
+                });
+            
+        }
+    }
+}
+",
+                generatedMigration.UserCode);
+        }
+
+        [Fact]
+        public void GenerateAnnotations_for_single_annotations_checks_arguments()
+        {
+            var generator = new CSharpMigrationCodeGenerator();
+
+            Assert.Equal(
+                "annotations",
+                Assert.Throws<ArgumentNullException>(
+                    () =>
+                        generator.GenerateAnnotations(
+                            (IDictionary<string, object>)null, new IndentedTextWriter(new Mock<TextWriter>().Object))).ParamName);
+
+            Assert.Equal(
+                "writer",
+                Assert.Throws<ArgumentNullException>(() => generator.GenerateAnnotations(new Dictionary<string, object>(), null)).ParamName);
+        }
+
+        [Fact]
+        public void GenerateAnnotations_for_annotation_pairs_checks_arguments()
+        {
+            var generator = new CSharpMigrationCodeGenerator();
+
+            Assert.Equal(
+                "annotations",
+                Assert.Throws<ArgumentNullException>(
+                    () =>
+                        generator.GenerateAnnotations(
+                            (IDictionary<string, AnnotationValues>)null, new IndentedTextWriter(new Mock<TextWriter>().Object))).ParamName);
+
+            Assert.Equal(
+                "writer",
+                Assert.Throws<ArgumentNullException>(() => generator.GenerateAnnotations(new Dictionary<string, AnnotationValues>(), null))
+                    .ParamName);
+        }
+
+        [Fact]
+        public void GenerateAnnotation_checks_arguments()
+        {
+            var generator = new CSharpMigrationCodeGenerator();
+
+            Assert.Equal(
+                "alterTableOperation",
+                Assert.Throws<ArgumentNullException>(() => generator.Generate(null, new IndentedTextWriter(new Mock<TextWriter>().Object))).ParamName);
+
+            Assert.Equal(
+                "writer",
+                Assert.Throws<ArgumentNullException>(() => generator.Generate(new AlterTableOperation("N", null), null)).ParamName);
         }
     }
 }

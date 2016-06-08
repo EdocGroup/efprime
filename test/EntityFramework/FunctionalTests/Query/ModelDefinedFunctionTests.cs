@@ -78,7 +78,7 @@ F_G()";
                 query, 
                 workspace, 
                 "CannotResolveNameToTypeOrFunction", 
-                s => s.Replace(" Near simple identifier, line 3, column 7.", ""), 
+                /*isExactMatch*/ false,
                 "F_H");
         }
 
@@ -317,29 +317,27 @@ FROM ( SELECT TOP (5)
                 "SELECT top(5) s FROM ProductModel.F_In_ColST_Ret_ColST(SELECT VALUE c.CustomerID from ProductContainer.Customers as c) as s";
 
             var expectedSql =
-@"SELECT
-    [Limit1].[C2] AS [C1],
+@"SELECT 
+    [Limit1].[C2] AS [C1], 
     [Limit1].[C1] AS [C2]
-    FROM ( SELECT TOP (5)
+    FROM ( SELECT TOP (5) 
         [Intersect1].[CustomerID] AS [C1], 
         1 AS [C2]
-        FROM  (SELECT
+        FROM  (SELECT 
             [Extent1].[CustomerID] AS [CustomerID]
             FROM [dbo].[Customers] AS [Extent1]
         INTERSECT
-            SELECT
+            SELECT 
             [UnionAll2].[C1] AS [C1]
-            FROM  (SELECT
-                [UnionAll1].[C1] AS [C1]
-                FROM  (SELECT
-                    'a' AS [C1]
-                    FROM  ( SELECT 1 AS X ) AS [SingleRowTable1]
-                UNION ALL
-                    SELECT
-                    'b' AS [C1]
-                    FROM  ( SELECT 1 AS X ) AS [SingleRowTable2]) AS [UnionAll1]
+            FROM  (SELECT 
+                'a' AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable1]
             UNION ALL
-                SELECT
+                SELECT 
+                'b' AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable2]
+            UNION ALL
+                SELECT 
                 'c' AS [C1]
                 FROM  ( SELECT 1 AS X ) AS [SingleRowTable3]) AS [UnionAll2]) AS [Intersect1]
     )  AS [Limit1]";
@@ -487,28 +485,28 @@ ORDER BY [Project3].[C2] ASC";
                 query1, 
                 workspace, 
                 "AmbiguousFunctionArguments", 
-                s => s.Replace(" Near function 'ProductModel.F_In_ST_1()', line 1, column 14.", ""));
+                /*isExactMatch*/ false);
 
             var query2 = "ProductModel.F_In_ST_1(CAST(1 as Int16), CAST(1 AS Int16))";
             QueryTestHelpers.VerifyThrows<EntitySqlException>(
                 query2, 
                 workspace, 
                 "AmbiguousFunctionArguments",
-                s => s.Replace(" Near function 'ProductModel.F_In_ST_1()', line 1, column 14.", ""));
+                /*isExactMatch*/ false);
 
             var query3 = "ProductModel.F_In_ST_1(CAST(1 as Int64), CAST(1 AS Int16))";
             QueryTestHelpers.VerifyThrows<EntitySqlException>(
                 query3, 
                 workspace, 
                 "AmbiguousFunctionArguments",
-                s => s.Replace(" Near function 'ProductModel.F_In_ST_1()', line 1, column 14.", ""));
+                /*isExactMatch*/ false);
 
             var query4 = "ProductModel.F_In_ST_1(CAST(1 as Double), CAST(1 AS Double))";
             QueryTestHelpers.VerifyThrows<EntitySqlException>(
                 query4,
                 workspace,
                 "NoFunctionOverloadMatch",
-                s => s.Replace(" Near function 'F_In_ST_1()', line 1, column 14.", ""),
+                /*isExactMatch*/ false,
                 "ProductModel", 
                 "F_In_ST_1", 
                 "F_In_ST_1(Edm.Double, Edm.Double)");
@@ -567,14 +565,14 @@ ORDER BY [Project3].[C2] ASC";
                 query1, 
                 workspace, 
                 "AmbiguousFunctionArguments",
-                s => s.Replace(" Near function 'ProductModel.F_In_ProdNumber2()', line 1, column 14.", ""));
+                /*isExactMatch*/ false);
 
             var query2 = "ProductModel.F_In_ProdNumber2(anyelement(ProductContainer.Products), CAST(1 as Decimal))";
             QueryTestHelpers.VerifyThrows<EntitySqlException>(
                 query2, 
                 workspace, 
                 "NoFunctionOverloadMatch",
-                s => s.Replace(" Near function 'F_In_ProdNumber2()', line 1, column 14.", ""),
+                /*isExactMatch*/ false,
                 "ProductModel", 
                 "F_In_ProdNumber2", 
                 "F_In_ProdNumber2(ProductModel.Product, Edm.Decimal)");
@@ -620,18 +618,17 @@ ORDER BY [Project3].[C2] ASC";
                 query1,
                 workspace,
                 "AmbiguousFunctionArguments",
-                s => s.Replace(" Near function 'ProductModel.F_In_Row()', line 1, column 14.", ""));
+                /*isExactMatch*/ false);
 
             var query2 = "ProductModel.F_In_Row(Row(anyelement(ProductContainer.Products) as x, CAST(1 as Decimal) as y))";
             QueryTestHelpers.VerifyThrows<EntitySqlException>(
                 query2,
                 workspace,
                 "NoFunctionOverloadMatch",
-                s => s.Replace(
-                    " Near function 'F_In_Row()', line 1, column 14.", ""),
-                    "ProductModel",
-                    "F_In_Row",
-                    "F_In_Row(Transient.rowtype[(x,ProductModel.Product(Nullable=True,DefaultValue=)),(y,Edm.Decimal(Nullable=True,DefaultValue=,Precision=,Scale=))])");
+                /*isExactMatch*/ false,
+                "ProductModel",
+                "F_In_Row",
+                "F_In_Row(Transient.rowtype[(x,ProductModel.Product(Nullable=True,DefaultValue=)),(y,Edm.Decimal(Nullable=True,DefaultValue=,Precision=,Scale=))])");
         }
 
         [Fact]
@@ -656,14 +653,14 @@ ORDER BY [Project3].[C2] ASC";
                 query1,
                 workspace,
                 "AmbiguousFunctionArguments",
-                s => s.Replace(" Near function 'ProductModel.F_In_ColRow()', line 1, column 14.", ""));
+                /*isExactMatch*/ false);
 
             var query2 = "ProductModel.F_In_ColRow({Row(anyelement(ProductContainer.Products) as x, CAST(1 as Decimal) as y)})";
             QueryTestHelpers.VerifyThrows<EntitySqlException>(
                 query2,
                 workspace,
                 "NoFunctionOverloadMatch",
-                s => s.Replace(" Near function 'F_In_ColRow()', line 1, column 14.", ""),
+                /*isExactMatch*/ false,
                 "ProductModel",
                 "F_In_ColRow",
                 "F_In_ColRow(Transient.collection[Transient.rowtype[(x,ProductModel.Product(Nullable=True,DefaultValue=)),(y,Edm.Decimal(Nullable=True,DefaultValue=,Precision=,Scale=))](Nullable=True,DefaultValue=)])");
@@ -694,14 +691,14 @@ ORDER BY [Project3].[C2] ASC";
                 query1,
                 workspace,
                 "AmbiguousFunctionArguments",
-                s => s.Replace(" Near function 'ProductModel.F_In_Number()', line 1, column 14.", ""));
+                /*isExactMatch*/ false);
 
             var query2 = "ProductModel.F_In_ColRow2(CAST(1 as Int16), null, CAST(1 as Int64))";
             QueryTestHelpers.VerifyThrows<EntitySqlException>(
                 query2, 
                 workspace, 
                 "NoFunctionOverloadMatch",
-                s => s.Replace(" Near function 'F_In_ColRow2()', line 1, column 14.", ""),
+                /*isExactMatch*/ false,
                 "ProductModel", 
                 "F_In_ColRow2", 
                 "F_In_ColRow2(Edm.Int16, NULL, Edm.Int64)");

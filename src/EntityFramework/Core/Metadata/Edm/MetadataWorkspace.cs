@@ -41,12 +41,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
         private readonly object _schemaVersionLock = new object();
         private readonly Guid _metadataWorkspaceId = Guid.NewGuid();
 
+        internal readonly MetadataOptimization MetadataOptimization;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="T:System.Data.Entity.Core.Metadata.Edm.MetadataWorkspace" /> class.
         /// </summary>
         public MetadataWorkspace()
         {
             _itemsOSpace = new Lazy<ObjectItemCollection>(() => new ObjectItemCollection(), isThreadSafe: true);
+
+            MetadataOptimization = new MetadataOptimization(this);
         }
 
         /// <summary>
@@ -80,6 +84,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _itemsCSSpace = new Lazy<StorageMappingItemCollection>(() => LoadAndCheckItemCollection(csMappingLoader), isThreadSafe: true);
             _itemsOCSpace = new Lazy<DefaultObjectMappingItemCollection>(
                 () => new DefaultObjectMappingItemCollection(_itemsCSpace.Value, _itemsOSpace.Value), isThreadSafe: true);
+
+            MetadataOptimization = new MetadataOptimization(this);
         }
 
         /// <summary>
@@ -109,6 +115,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _itemsCSSpace = new Lazy<StorageMappingItemCollection>(() => LoadAndCheckItemCollection(csMappingLoader), isThreadSafe: true);
             _itemsOCSpace = new Lazy<DefaultObjectMappingItemCollection>(
                 () => new DefaultObjectMappingItemCollection(_itemsCSpace.Value, _itemsOSpace.Value), isThreadSafe: true);
+
+            MetadataOptimization = new MetadataOptimization(this);
         }
 
         /// <summary>
@@ -144,6 +152,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 };
 
             CreateMetadataWorkspaceWithResolver(paths, () => assembliesToConsider, resolveReference);
+
+            MetadataOptimization = new MetadataOptimization(this);
         }
 
         [ResourceExposure(ResourceScope.Machine)] //Exposes the file path names which are a Machine resource
@@ -276,7 +286,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <param name="dataSpace">
         /// The <see cref="T:System.Data.Entity.Core.Metadata.Edm.DataSpace" /> from which to retrieve items.
         /// </param>
-        [CLSCompliant(false)]
         public virtual ItemCollection GetItemCollection(DataSpace dataSpace)
         {
             var collection = GetItemCollection(dataSpace, required: true);
@@ -286,7 +295,6 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// <summary>Registers the item collection with each associated data model.</summary>
         /// <param name="collection">The output parameter collection that needs to be filled up.</param>
         [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
-        [CLSCompliant(false)]
         [Obsolete("Construct MetadataWorkspace using constructor that accepts metadata loading delegates.")]
         public virtual void RegisterItemCollection(ItemCollection collection)
         {
@@ -440,16 +448,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Implicit loading means that we are trying to help the user find the right
-        /// assembly, but they didn't explicitly ask for it. Our Implicit rules require that
-        /// we filter out assemblies with the Ecma or MicrosoftPublic PublicKeyToken on them
-        /// Load metadata from the type's assembly into the OSpace ItemCollection.
-        /// If type comes from known source, has Ecma or Microsoft PublicKeyToken then the type's assembly is not
-        /// loaded, but the callingAssembly and its referenced assemblies are loaded.
-        /// </summary>
-        /// <param name="type"> The type's assembly is loaded into the OSpace ItemCollection </param>
-        /// <param name="callingAssembly"> The assembly and its referenced assemblies to load when type is insuffiecent </param>
+        // <summary>
+        // Implicit loading means that we are trying to help the user find the right
+        // assembly, but they didn't explicitly ask for it. Our Implicit rules require that
+        // we filter out assemblies with the Ecma or MicrosoftPublic PublicKeyToken on them
+        // Load metadata from the type's assembly into the OSpace ItemCollection.
+        // If type comes from known source, has Ecma or Microsoft PublicKeyToken then the type's assembly is not
+        // loaded, but the callingAssembly and its referenced assemblies are loaded.
+        // </summary>
+        // <param name="type"> The type's assembly is loaded into the OSpace ItemCollection </param>
+        // <param name="callingAssembly"> The assembly and its referenced assemblies to load when type is insuffiecent </param>
         internal virtual void ImplicitLoadAssemblyForType(Type type, Assembly callingAssembly)
         {
             // this exists separately from LoadFromAssembly so that we can handle generics, like IEnumerable<Product>
@@ -495,18 +503,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// If OSpace is not loaded for the specified EntityType
-        /// the load metadata from the callingAssembly and its referenced assemblies.
-        /// </summary>
-        /// <param name="type"> The CSPace type to verify its OSpace counterpart is loaded </param>
-        /// <param name="callingAssembly"> The assembly and its referenced assemblies to load when type is insuffiecent </param>
+        // <summary>
+        // If OSpace is not loaded for the specified EntityType
+        // the load metadata from the callingAssembly and its referenced assemblies.
+        // </summary>
+        // <param name="type"> The CSPace type to verify its OSpace counterpart is loaded </param>
+        // <param name="callingAssembly"> The assembly and its referenced assemblies to load when type is insuffiecent </param>
         internal virtual void ImplicitLoadFromEntityType(EntityType type, Assembly callingAssembly)
         {
             // used by ObjectContext.*GetObjectByKey when the clr type is not available
             // so we check the OCMap to find the clr type else attempt to autoload the OSpace from callingAssembly
             DebugCheck.NotNull(type);
-            Map map;
+            MappingBase map;
             if (!TryGetMap(type, DataSpace.OCSpace, out map))
             {
                 // an OCMap is not exist, attempt to load OSpace to retry
@@ -758,19 +766,17 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return collection.GetFunctions(namespaceName + "." + name, ignoreCase);
         }
 
-        /// <summary>
-        /// Gets the function as specified by the function key.
-        /// All parameters are assumed to be <see cref="ParameterMode.In" />.
-        /// </summary>
-        /// <param name="name"> name of the function </param>
-        /// <param name="namespaceName"> namespace of the function </param>
-        /// <param name="parameterTypes"> types of the parameters </param>
-        /// <param name="ignoreCase"> true for case-insensitive lookup </param>
-        /// <param name="dataSpace"> </param>
-        /// <param name="function"> The function that needs to be returned </param>
-        /// <returns> The function as specified in the function key or null </returns>
-        /// <exception cref="System.ArgumentNullException">if name, namespaceName, parameterTypes or space argument is null</exception>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
+        // <summary>
+        // Gets the function as specified by the function key.
+        // All parameters are assumed to be <see cref="ParameterMode.In" />.
+        // </summary>
+        // <param name="name"> name of the function </param>
+        // <param name="namespaceName"> namespace of the function </param>
+        // <param name="parameterTypes"> types of the parameters </param>
+        // <param name="ignoreCase"> true for case-insensitive lookup </param>
+        // <param name="function"> The function that needs to be returned </param>
+        // <returns> The function as specified in the function key or null </returns>
+        // <exception cref="System.ArgumentNullException">if name, namespaceName, parameterTypes or space argument is null</exception>
         internal virtual bool TryGetFunction(
             string name,
             string namespaceName,
@@ -812,73 +818,66 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return collection.GetItems<GlobalItem>();
         }
 
-        /// <summary>
-        /// Given the canonical primitive type, get the mapping primitive type in the given dataspace
-        /// </summary>
-        /// <param name="primitiveTypeKind"> primitive type kind </param>
-        /// <param name="dataSpace"> dataspace in which one needs to the mapping primitive types </param>
-        /// <returns> The mapped scalar type </returns>
-        /// <exception cref="System.ArgumentNullException">if space argument is null</exception>
-        /// <exception cref="System.InvalidOperationException">If ItemCollection has not been registered for the space passed in</exception>
-        /// <exception cref="System.ArgumentException">Thrown if the space is not a valid space. Valid space is either C, O, CS or OCSpace</exception>
+        // <summary>
+        // Given the canonical primitive type, get the mapping primitive type in the given dataspace
+        // </summary>
+        // <param name="primitiveTypeKind"> primitive type kind </param>
+        // <param name="dataSpace"> dataspace in which one needs to the mapping primitive types </param>
+        // <returns> The mapped scalar type </returns>
+        // <exception cref="System.ArgumentNullException">if space argument is null</exception>
+        // <exception cref="System.InvalidOperationException">If ItemCollection has not been registered for the space passed in</exception>
+        // <exception cref="System.ArgumentException">Thrown if the space is not a valid space. Valid space is either C, O, CS or OCSpace</exception>
         internal virtual PrimitiveType GetMappedPrimitiveType(PrimitiveTypeKind primitiveTypeKind, DataSpace dataSpace)
         {
             var collection = GetItemCollection(dataSpace, required: true);
             return collection.GetMappedPrimitiveType(primitiveTypeKind);
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="typeIdentity"> type </param>
-        /// <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
-        /// <param name="ignoreCase"> true for case-insensitive lookup </param>
-        /// <param name="mappingSpace"> space for which you want to get the mapped type </param>
-        /// <param name="map"> </param>
-        /// <returns> Returns false if no match found. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
-        internal virtual bool TryGetMap(string typeIdentity, DataSpace typeSpace, bool ignoreCase, DataSpace mappingSpace, out Map map)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="typeIdentity"> type </param>
+        // <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
+        // <param name="ignoreCase"> true for case-insensitive lookup </param>
+        // <param name="mappingSpace"> space for which you want to get the mapped type </param>
+        // <returns> Returns false if no match found. </returns>
+        internal virtual bool TryGetMap(string typeIdentity, DataSpace typeSpace, bool ignoreCase, DataSpace mappingSpace, out MappingBase map)
         {
             map = null;
             var collection = GetItemCollection(mappingSpace, required: false);
             return (null != collection) && ((MappingItemCollection)collection).TryGetMap(typeIdentity, typeSpace, ignoreCase, out map);
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="identity"> typeIdentity of the type </param>
-        /// <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
-        /// <param name="dataSpace"> space for which you want to get the mapped type </param>
-        /// <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
-        internal virtual Map GetMap(string identity, DataSpace typeSpace, DataSpace dataSpace)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="identity"> typeIdentity of the type </param>
+        // <param name="typeSpace"> The dataspace that the type for which map needs to be returned belongs to </param>
+        // <param name="dataSpace"> space for which you want to get the mapped type </param>
+        // <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
+        internal virtual MappingBase GetMap(string identity, DataSpace typeSpace, DataSpace dataSpace)
         {
             var collection = GetItemCollection(dataSpace, required: true);
             return ((MappingItemCollection)collection).GetMap(identity, typeSpace);
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="item"> </param>
-        /// <param name="dataSpace"> space for which you want to get the mapped type </param>
-        /// <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
-        internal virtual Map GetMap(GlobalItem item, DataSpace dataSpace)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="dataSpace"> space for which you want to get the mapped type </param>
+        // <exception cref="ArgumentException">Thrown if mapping space is not valid</exception>
+        internal virtual MappingBase GetMap(GlobalItem item, DataSpace dataSpace)
         {
             var collection = GetItemCollection(dataSpace, required: true);
             return ((MappingItemCollection)collection).GetMap(item);
         }
 
-        /// <summary>
-        /// Search for a Mapping metadata with the specified type key.
-        /// </summary>
-        /// <param name="item"> </param>
-        /// <param name="dataSpace"> space for which you want to get the mapped type </param>
-        /// <param name="map"> </param>
-        /// <returns> Returns false if no match found. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
-        internal virtual bool TryGetMap(GlobalItem item, DataSpace dataSpace, out Map map)
+        // <summary>
+        // Search for a Mapping metadata with the specified type key.
+        // </summary>
+        // <param name="dataSpace"> space for which you want to get the mapped type </param>
+        // <returns> Returns false if no match found. </returns>
+        internal virtual bool TryGetMap(GlobalItem item, DataSpace dataSpace, out MappingBase map)
         {
             map = null;
             var collection = GetItemCollection(dataSpace, required: false);
@@ -896,20 +895,19 @@ namespace System.Data.Entity.Core.Metadata.Edm
         /// .
         /// </param>
         /// <param name="collection">When this method returns, contains the item collection. This parameter is passed uninitialized.</param>
-        [CLSCompliant(false)]
         public virtual bool TryGetItemCollection(DataSpace dataSpace, out ItemCollection collection)
         {
             collection = GetItemCollection(dataSpace, required: false);
             return (null != collection);
         }
 
-        /// <summary>
-        /// Checks if the space is valid and whether the collection is registered for the given space, and if both are valid,
-        /// then returns the itemcollection for the given space
-        /// </summary>
-        /// <param name="dataSpace"> The dataspace for the item collection that should be returned </param>
-        /// <param name="required"> if true, will throw if the collection isn't registered </param>
-        /// <exception cref="ArgumentException">Thrown if required and mapping space is not valid or registered</exception>
+        // <summary>
+        // Checks if the space is valid and whether the collection is registered for the given space, and if both are valid,
+        // then returns the itemcollection for the given space
+        // </summary>
+        // <param name="dataSpace"> The dataspace for the item collection that should be returned </param>
+        // <param name="required"> if true, will throw if the collection isn't registered </param>
+        // <exception cref="ArgumentException">Thrown if required and mapping space is not valid or registered</exception>
         internal virtual ItemCollection GetItemCollection(DataSpace dataSpace, bool required)
         {
             ItemCollection collection;
@@ -1025,14 +1023,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return TryGetObjectSpaceType<EnumType>(edmSpaceType, out objectSpaceType);
         }
 
-        /// <summary>
-        /// Helper method returning the OSpace enum type mapped to the specified Edm Space Type.
-        /// If the DataSpace of the argument is not CSpace, or the mapped OSpace type
-        /// cannot be determined, an ArgumentException is thrown.
-        /// </summary>
-        /// <param name="edmSpaceType"> The CSpace type to look up </param>
-        /// <returns> The OSpace type mapped to the supplied argument </returns>
-        /// <typeparam name="T"> Must be StructuralType or EnumType. </typeparam>
+        // <summary>
+        // Helper method returning the OSpace enum type mapped to the specified Edm Space Type.
+        // If the DataSpace of the argument is not CSpace, or the mapped OSpace type
+        // cannot be determined, an ArgumentException is thrown.
+        // </summary>
+        // <param name="edmSpaceType"> The CSpace type to look up </param>
+        // <returns> The OSpace type mapped to the supplied argument </returns>
+        // <typeparam name="T"> Must be StructuralType or EnumType. </typeparam>
         private T GetObjectSpaceType<T>(T edmSpaceType)
             where T : EdmType
         {
@@ -1049,16 +1047,16 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return objectSpaceType;
         }
 
-        /// <summary>
-        /// Helper method returning the OSpace structural or enum type mapped to the specified Edm Space Type.
-        /// If the DataSpace of the argument is not CSpace, or if the mapped OSpace type
-        /// cannot be determined, the method returns false and sets the out parameter
-        /// to null.
-        /// </summary>
-        /// <param name="edmSpaceType"> The CSpace type to look up </param>
-        /// <param name="objectSpaceType"> The OSpace type mapped to the supplied argument </param>
-        /// <returns> true on success, false on failure </returns>
-        /// <typeparam name="T"> Must be StructuralType or EnumType. </typeparam>
+        // <summary>
+        // Helper method returning the OSpace structural or enum type mapped to the specified Edm Space Type.
+        // If the DataSpace of the argument is not CSpace, or if the mapped OSpace type
+        // cannot be determined, the method returns false and sets the out parameter
+        // to null.
+        // </summary>
+        // <param name="edmSpaceType"> The CSpace type to look up </param>
+        // <param name="objectSpaceType"> The OSpace type mapped to the supplied argument </param>
+        // <returns> true on success, false on failure </returns>
+        // <typeparam name="T"> Must be StructuralType or EnumType. </typeparam>
         private bool TryGetObjectSpaceType<T>(T edmSpaceType, out T objectSpaceType)
             where T : EdmType
         {
@@ -1075,7 +1073,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             objectSpaceType = null;
 
-            Map map;
+            MappingBase map;
             if (TryGetMap(edmSpaceType, DataSpace.OCSpace, out map))
             {
                 var ocMap = map as ObjectTypeMapping;
@@ -1170,14 +1168,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return TryGetEdmSpaceType<EnumType>(objectSpaceType, out edmSpaceType);
         }
 
-        /// <summary>
-        /// Helper method returning the Edm Space structural or enum type mapped to the OSpace Type parameter. If the
-        /// DataSpace of the supplied type is not OSpace, or the mapped Edm Space type cannot
-        /// be determined, an ArgumentException is thrown.
-        /// </summary>
-        /// <param name="objectSpaceType"> The OSpace type to look up </param>
-        /// <returns> The CSpace type mapped to the OSpace parameter </returns>
-        /// <typeparam name="T"> Must be StructuralType or EnumType </typeparam>
+        // <summary>
+        // Helper method returning the Edm Space structural or enum type mapped to the OSpace Type parameter. If the
+        // DataSpace of the supplied type is not OSpace, or the mapped Edm Space type cannot
+        // be determined, an ArgumentException is thrown.
+        // </summary>
+        // <param name="objectSpaceType"> The OSpace type to look up </param>
+        // <returns> The CSpace type mapped to the OSpace parameter </returns>
+        // <typeparam name="T"> Must be StructuralType or EnumType </typeparam>
         private T GetEdmSpaceType<T>(T objectSpaceType)
             where T : EdmType
         {
@@ -1194,15 +1192,15 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return edmSpaceType;
         }
 
-        /// <summary>
-        /// Helper method returning the Edm Space structural or enum type mapped to the OSpace Type parameter. If the
-        /// DataSpace of the supplied type is not OSpace, or the mapped Edm Space type cannot
-        /// be determined, the method returns false and sets the out parameter to null.
-        /// </summary>
-        /// <param name="objectSpaceType"> The OSpace type to look up </param>
-        /// <param name="edmSpaceType"> The mapped CSpace type </param>
-        /// <returns> true on success, false on failure </returns>
-        /// <typeparam name="T"> Must be StructuralType or EnumType </typeparam>
+        // <summary>
+        // Helper method returning the Edm Space structural or enum type mapped to the OSpace Type parameter. If the
+        // DataSpace of the supplied type is not OSpace, or the mapped Edm Space type cannot
+        // be determined, the method returns false and sets the out parameter to null.
+        // </summary>
+        // <param name="objectSpaceType"> The OSpace type to look up </param>
+        // <param name="edmSpaceType"> The mapped CSpace type </param>
+        // <returns> true on success, false on failure </returns>
+        // <typeparam name="T"> Must be StructuralType or EnumType </typeparam>
         private bool TryGetEdmSpaceType<T>(T objectSpaceType, out T edmSpaceType)
             where T : EdmType
         {
@@ -1219,7 +1217,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             edmSpaceType = null;
 
-            Map map;
+            MappingBase map;
             if (TryGetMap(objectSpaceType, DataSpace.OCSpace, out map))
             {
                 var ocMap = map as ObjectTypeMapping;
@@ -1244,18 +1242,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return GetGeneratedView(extent).GetCommandTree();
         }
 
-        /// <summary>
-        /// Returns generated update or query view for the given extent.
-        /// </summary>
+        // <summary>
+        // Returns generated update or query view for the given extent.
+        // </summary>
         internal virtual GeneratedView GetGeneratedView(EntitySetBase extent)
         {
             var collection = GetItemCollection(DataSpace.CSSpace, required: true);
             return ((StorageMappingItemCollection)collection).GetGeneratedView(extent, this);
         }
 
-        /// <summary>
-        /// Returns a TypeOf/TypeOfOnly Query for a given Extent and Type as a command tree.
-        /// </summary>
+        // <summary>
+        // Returns a TypeOf/TypeOfOnly Query for a given Extent and Type as a command tree.
+        // </summary>
         internal virtual bool TryGetGeneratedViewOfType(
             EntitySetBase extent, EntityTypeBase type, bool includeSubtypes, out GeneratedView generatedView)
         {
@@ -1263,29 +1261,29 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return ((StorageMappingItemCollection)collection).TryGetGeneratedViewOfType(extent, type, includeSubtypes, out generatedView);
         }
 
-        /// <summary>
-        /// Returns generated function definition for the given function.
-        /// Guarantees type match of declaration and generated parameters.
-        /// Guarantees return type match.
-        /// Throws internal error for functions without definition.
-        /// Passes thru exception occured during definition generation.
-        /// </summary>
+        // <summary>
+        // Returns generated function definition for the given function.
+        // Guarantees type match of declaration and generated parameters.
+        // Guarantees return type match.
+        // Throws internal error for functions without definition.
+        // Passes thru exception occured during definition generation.
+        // </summary>
         internal virtual DbLambda GetGeneratedFunctionDefinition(EdmFunction function)
         {
             var collection = GetItemCollection(DataSpace.CSpace, required: true);
             return ((EdmItemCollection)collection).GetGeneratedFunctionDefinition(function);
         }
 
-        /// <summary>
-        /// Determines if a target function exists for the given function import.
-        /// </summary>
-        /// <param name="functionImport"> Function import (function declared in a model entity container) </param>
-        /// <param name="targetFunctionMapping"> Function target mapping (function to which the import is mapped in the target store) </param>
-        /// <returns> true if a mapped target function exists; false otherwise </returns>
+        // <summary>
+        // Determines if a target function exists for the given function import.
+        // </summary>
+        // <param name="functionImport"> Function import (function declared in a model entity container) </param>
+        // <param name="targetFunctionMapping"> Function target mapping (function to which the import is mapped in the target store) </param>
+        // <returns> true if a mapped target function exists; false otherwise </returns>
         internal virtual bool TryGetFunctionImportMapping(EdmFunction functionImport, out FunctionImportMapping targetFunctionMapping)
         {
             DebugCheck.NotNull(functionImport);
-            var entityContainerMaps = GetItems<StorageEntityContainerMapping>(DataSpace.CSSpace);
+            var entityContainerMaps = GetItems<EntityContainerMapping>(DataSpace.CSSpace);
             foreach (var containerMapping in entityContainerMaps)
             {
                 if (containerMapping.TryGetFunctionImportMapping(functionImport, out targetFunctionMapping))
@@ -1297,21 +1295,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return false;
         }
 
-        /// <summary>
-        /// Returns the view loader associated with this workspace,
-        /// creating a loader if non exists. The loader includes
-        /// context information used by the update pipeline when
-        /// processing changes to C-space extents.
-        /// </summary>
+        // <summary>
+        // Returns the view loader associated with this workspace,
+        // creating a loader if non exists. The loader includes
+        // context information used by the update pipeline when
+        // processing changes to C-space extents.
+        // </summary>
         internal virtual ViewLoader GetUpdateViewLoader()
         {
             return (_itemsCSSpace != null && _itemsCSSpace.Value != null) ? _itemsCSSpace.Value.GetUpdateViewLoader() : null;
         }
 
-        /// <summary>
-        /// Takes in a Edm space type usage and converts into an
-        /// equivalent O space type usage
-        /// </summary>
+        // <summary>
+        // Takes in a Edm space type usage and converts into an
+        // equivalent O space type usage
+        // </summary>
         internal virtual TypeUsage GetOSpaceTypeUsage(TypeUsage edmSpaceTypeUsage)
         {
             DebugCheck.NotNull(edmSpaceTypeUsage);
@@ -1346,22 +1344,22 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return result;
         }
 
-        /// <summary>
-        /// Returns true if the item collection for the given space has already been registered else returns false
-        /// </summary>
+        // <summary>
+        // Returns true if the item collection for the given space has already been registered else returns false
+        // </summary>
         internal virtual bool IsItemCollectionAlreadyRegistered(DataSpace dataSpace)
         {
             ItemCollection itemCollection;
             return TryGetItemCollection(dataSpace, out itemCollection);
         }
 
-        /// <summary>
-        /// Requires: C, S and CS are registered in this and other
-        /// Determines whether C, S and CS are equivalent. Useful in determining whether a DbCommandTree
-        /// is usable within a particular entity connection.
-        /// </summary>
-        /// <param name="other"> Other workspace. </param>
-        /// <returns> true is C, S and CS collections are equivalent </returns>
+        // <summary>
+        // Requires: C, S and CS are registered in this and other
+        // Determines whether C, S and CS are equivalent. Useful in determining whether a DbCommandTree
+        // is usable within a particular entity connection.
+        // </summary>
+        // <param name="other"> Other workspace. </param>
+        // <returns> true is C, S and CS collections are equivalent </returns>
         internal virtual bool IsMetadataWorkspaceCSCompatible(MetadataWorkspace other)
         {
             Debug.Assert(
@@ -1394,21 +1392,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
         }
 
-        /// <summary>
-        /// Returns the canonical Model TypeUsage for a given PrimitiveTypeKind
-        /// </summary>
-        /// <param name="primitiveTypeKind"> PrimitiveTypeKind for which a canonical TypeUsage is expected </param>
-        /// <returns> a canonical model TypeUsage </returns>
+        // <summary>
+        // Returns the canonical Model TypeUsage for a given PrimitiveTypeKind
+        // </summary>
+        // <param name="primitiveTypeKind"> PrimitiveTypeKind for which a canonical TypeUsage is expected </param>
+        // <returns> a canonical model TypeUsage </returns>
         internal static TypeUsage GetCanonicalModelTypeUsage(PrimitiveTypeKind primitiveTypeKind)
         {
             return EdmProviderManifest.Instance.GetCanonicalModelTypeUsage(primitiveTypeKind);
         }
 
-        /// <summary>
-        /// Returns the Model PrimitiveType for a given primitiveTypeKind
-        /// </summary>
-        /// <param name="primitiveTypeKind"> a PrimitiveTypeKind for which a Model PrimitiveType is expected </param>
-        /// <returns> Model PrimitiveType </returns>
+        // <summary>
+        // Returns the Model PrimitiveType for a given primitiveTypeKind
+        // </summary>
+        // <param name="primitiveTypeKind"> a PrimitiveTypeKind for which a Model PrimitiveType is expected </param>
+        // <returns> Model PrimitiveType </returns>
         internal static PrimitiveType GetModelPrimitiveType(PrimitiveTypeKind primitiveTypeKind)
         {
             return EdmProviderManifest.Instance.GetPrimitiveType(primitiveTypeKind);
@@ -1467,18 +1465,18 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     : StorageMappingItemCollection.InterestingMembersKind.FullUpdate);
         }
 
-        /// <summary>
-        /// Return members for <see cref="GetRequiredOriginalValueMembers" /> and <see cref="GetRelevantMembersForUpdate" /> methods.
-        /// </summary>
-        /// <param name="entitySet"> An EntitySet belonging to the C-Space </param>
-        /// <param name="entityType"> An EntityType that participates in the given EntitySet </param>
-        /// <param name="interestingMembersKind"> Scenario the members should be returned for. </param>
-        /// <returns>
-        /// ReadOnlyCollection of interesting members for the requested scenario (
-        /// <paramref
-        ///     name="interestingMembersKind" />
-        /// ).
-        /// </returns>
+        // <summary>
+        // Return members for <see cref="GetRequiredOriginalValueMembers" /> and <see cref="GetRelevantMembersForUpdate" /> methods.
+        // </summary>
+        // <param name="entitySet"> An EntitySet belonging to the C-Space </param>
+        // <param name="entityType"> An EntityType that participates in the given EntitySet </param>
+        // <param name="interestingMembersKind"> Scenario the members should be returned for. </param>
+        // <returns>
+        // ReadOnlyCollection of interesting members for the requested scenario (
+        // <paramref
+        //     name="interestingMembersKind" />
+        // ).
+        // </returns>
         private ReadOnlyCollection<EdmMember> GetInterestingMembers(
             EntitySetBase entitySet, EntityTypeBase entityType, StorageMappingItemCollection.InterestingMembersKind interestingMembersKind)
         {
@@ -1521,9 +1519,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return mappingCollection.GetInterestingMembers(entitySet, entityType, interestingMembersKind);
         }
 
-        /// <summary>
-        /// Returns the QueryCacheManager hosted by this metadata workspace instance
-        /// </summary>
+        // <summary>
+        // Returns the QueryCacheManager hosted by this metadata workspace instance
+        // </summary>
         internal virtual QueryCacheManager GetQueryCacheManager()
         {
             Debug.Assert(_itemsSSpace != null && _itemsSSpace.Value != null);
@@ -1545,7 +1543,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             EdmType objectEdmType;
             if (objectItemCollection.TryGetItem(nonNullableType.FullNameWithNesting(), out objectEdmType))
             {
-                Map map;
+                MappingBase map;
                 if (TryGetMap(objectEdmType, DataSpace.OCSpace, out map))
                 {
                     var objectMapping = (ObjectTypeMapping)map;

@@ -3,7 +3,10 @@
 namespace System.Data.Entity.Core.Metadata.Edm
 {
     using System.Collections.Generic;
+    using System.Collections.ObjectModel;
     using System.Data.Entity.Core.Metadata.Edm.Provider;
+    using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.ModelConfiguration.Edm;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
@@ -15,7 +18,10 @@ namespace System.Data.Entity.Core.Metadata.Edm
     internal class EdmXmlSchemaWriter : XmlSchemaWriter
     {
         private readonly bool _serializeDefaultNullability;
+        private readonly IDbDependencyResolver _resolver;
+
         private const string AnnotationNamespacePrefix = "annotation";
+        private const string CustomAnnotationNamespacePrefix = "customannotation";
         private const string StoreSchemaGenNamespacePrefix = "store";
         private const string DataServicesPrefix = "m";
         private const string DataServicesNamespace = "http://schemas.microsoft.com/ado/2007/08/dataservices/metadata";
@@ -27,119 +33,119 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         internal static class SyndicationXmlConstants
         {
-            /// <summary>
-            /// author/email
-            /// </summary>
+            // <summary>
+            // author/email
+            // </summary>
             internal const string SyndAuthorEmail = "SyndicationAuthorEmail";
 
-            /// <summary>
-            /// author/name
-            /// </summary>
+            // <summary>
+            // author/name
+            // </summary>
             internal const string SyndAuthorName = "SyndicationAuthorName";
 
-            /// <summary>
-            /// author/uri
-            /// </summary>
+            // <summary>
+            // author/uri
+            // </summary>
             internal const string SyndAuthorUri = "SyndicationAuthorUri";
 
-            /// <summary>
-            /// published
-            /// </summary>
+            // <summary>
+            // published
+            // </summary>
             internal const string SyndPublished = "SyndicationPublished";
 
-            /// <summary>
-            /// rights
-            /// </summary>
+            // <summary>
+            // rights
+            // </summary>
             internal const string SyndRights = "SyndicationRights";
 
-            /// <summary>
-            /// summary
-            /// </summary>
+            // <summary>
+            // summary
+            // </summary>
             internal const string SyndSummary = "SyndicationSummary";
 
-            /// <summary>
-            /// title
-            /// </summary>
+            // <summary>
+            // title
+            // </summary>
             internal const string SyndTitle = "SyndicationTitle";
 
-            /// <summary>
-            /// contributor/email
-            /// </summary>
+            // <summary>
+            // contributor/email
+            // </summary>
             internal const string SyndContributorEmail = "SyndicationContributorEmail";
 
-            /// <summary>
-            /// contributor/name
-            /// </summary>
+            // <summary>
+            // contributor/name
+            // </summary>
             internal const string SyndContributorName = "SyndicationContributorName";
 
-            /// <summary>
-            /// contributor/uri
-            /// </summary>
+            // <summary>
+            // contributor/uri
+            // </summary>
             internal const string SyndContributorUri = "SyndicationContributorUri";
 
-            /// <summary>
-            /// category/@label
-            /// </summary>
+            // <summary>
+            // category/@label
+            // </summary>
             internal const string SyndCategoryLabel = "SyndicationCategoryLabel";
 
-            /// <summary>
-            /// Plaintext
-            /// </summary>
+            // <summary>
+            // Plaintext
+            // </summary>
             internal const string SyndContentKindPlaintext = "text";
 
-            /// <summary>
-            /// HTML
-            /// </summary>
+            // <summary>
+            // HTML
+            // </summary>
             internal const string SyndContentKindHtml = "html";
 
-            /// <summary>
-            /// XHTML
-            /// </summary>
+            // <summary>
+            // XHTML
+            // </summary>
             internal const string SyndContentKindXHtml = "xhtml";
 
-            /// <summary>
-            /// updated
-            /// </summary>
+            // <summary>
+            // updated
+            // </summary>
             internal const string SyndUpdated = "SyndicationUpdated";
 
-            /// <summary>
-            /// link/@href
-            /// </summary>
+            // <summary>
+            // link/@href
+            // </summary>
             internal const string SyndLinkHref = "SyndicationLinkHref";
 
-            /// <summary>
-            /// link/@rel
-            /// </summary>
+            // <summary>
+            // link/@rel
+            // </summary>
             internal const string SyndLinkRel = "SyndicationLinkRel";
 
-            /// <summary>
-            /// link/@type
-            /// </summary>
+            // <summary>
+            // link/@type
+            // </summary>
             internal const string SyndLinkType = "SyndicationLinkType";
 
-            /// <summary>
-            /// link/@hreflang
-            /// </summary>
+            // <summary>
+            // link/@hreflang
+            // </summary>
             internal const string SyndLinkHrefLang = "SyndicationLinkHrefLang";
 
-            /// <summary>
-            /// link/@title
-            /// </summary>
+            // <summary>
+            // link/@title
+            // </summary>
             internal const string SyndLinkTitle = "SyndicationLinkTitle";
 
-            /// <summary>
-            /// link/@length
-            /// </summary>
+            // <summary>
+            // link/@length
+            // </summary>
             internal const string SyndLinkLength = "SyndicationLinkLength";
 
-            /// <summary>
-            /// category/@term
-            /// </summary>
+            // <summary>
+            // category/@term
+            // </summary>
             internal const string SyndCategoryTerm = "SyndicationCategoryTerm";
 
-            /// <summary>
-            /// category/@scheme
-            /// </summary>
+            // <summary>
+            // category/@scheme
+            // </summary>
             internal const string SyndCategoryScheme = "SyndicationCategoryScheme";
         }
 
@@ -191,13 +197,14 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
         public EdmXmlSchemaWriter()
         {
-            // testing
+            _resolver = DbConfiguration.DependencyResolver;
         }
 
-        internal EdmXmlSchemaWriter(XmlWriter xmlWriter, double edmVersion, bool serializeDefaultNullability)
+        internal EdmXmlSchemaWriter(XmlWriter xmlWriter, double edmVersion, bool serializeDefaultNullability, IDbDependencyResolver resolver = null)
         {
             DebugCheck.NotNull(xmlWriter);
 
+            _resolver = resolver ?? DbConfiguration.DependencyResolver;
             _serializeDefaultNullability = serializeDefaultNullability;
             _xmlWriter = xmlWriter;
             _version = edmVersion;
@@ -224,6 +231,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
             }
 
             _xmlWriter.WriteAttributeString("xmlns", AnnotationNamespacePrefix, null, XmlConstants.AnnotationNamespace);
+            _xmlWriter.WriteAttributeString("xmlns", CustomAnnotationNamespacePrefix, null, XmlConstants.CustomAnnotationNamespace);
         }
 
         // virtual for testing
@@ -244,6 +252,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             {
                 _xmlWriter.WriteAttributeString("xmlns", StoreSchemaGenNamespacePrefix, null, XmlConstants.EntityStoreSchemaGeneratorNamespace);
             }
+
+            _xmlWriter.WriteAttributeString("xmlns", CustomAnnotationNamespacePrefix, null, XmlConstants.CustomAnnotationNamespace);
         }
 
         private void WritePolymorphicTypeAttributes(EdmType edmType)
@@ -344,6 +354,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _xmlWriter.WriteStartElement(XmlConstants.EntityType);
             _xmlWriter.WriteAttributeString(XmlConstants.Name, entityType.Name);
 
+            WriteExtendedProperties(entityType);
+
             if (entityType.Annotations.GetClrAttributes() != null)
             {
                 foreach (var a in entityType.Annotations.GetClrAttributes())
@@ -355,7 +367,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                     else if (a.GetType().FullName.Equals(DataServicesMimeTypeAttribute, StringComparison.Ordinal))
                     {
                         // Move down to the appropriate property
-                        var propertyName = a.GetType().GetProperty("MemberName").GetValue(a, null) as string;
+                        var propertyName = a.GetType().GetDeclaredProperty("MemberName").GetValue(a, null) as string;
                         var property =
                             entityType.Properties.SingleOrDefault(
                                 p => p.Name.Equals(propertyName, StringComparison.Ordinal));
@@ -365,7 +377,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                         DataServicesEntityPropertyMappingAttribute, StringComparison.Ordinal))
                     {
                         // Move down to the appropriate property
-                        var sourcePath = a.GetType().GetProperty("SourcePath").GetValue(a, null) as string;
+                        var sourcePath = a.GetType().GetDeclaredProperty("SourcePath").GetValue(a, null) as string;
                         var slashIndex = sourcePath.IndexOf("/", StringComparison.Ordinal);
                         string propertyName;
                         if (slashIndex == -1)
@@ -395,6 +407,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
             _xmlWriter.WriteAttributeString(XmlConstants.Name, enumType.Name);
             _xmlWriter.WriteAttributeString(
                 XmlConstants.IsFlags, GetLowerCaseStringFromBoolValue(enumType.IsFlags));
+
+            WriteExtendedProperties(enumType);
 
             if (enumType.UnderlyingType != null)
             {
@@ -427,7 +441,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 }
                 else
                 {
-                    property.Annotations.SetClrAttributes(
+                    property.GetMetadataProperties().SetClrAttributes(
                         new List<Attribute>
                             {
                                 a
@@ -442,6 +456,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             _xmlWriter.WriteStartElement(XmlConstants.ComplexType);
             _xmlWriter.WriteAttributeString(XmlConstants.Name, complexType.Name);
+
+            WriteExtendedProperties(complexType);
+
             WritePolymorphicTypeAttributes(complexType);
         }
 
@@ -525,6 +542,8 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 _xmlWriter.WriteAttributeString(EdmProviderManifest.ConcurrencyModeFacetName, XmlConstants.Fixed);
             }
 
+            WriteExtendedProperties(property);
+
             if (property.Annotations.GetClrAttributes() != null)
             {
                 var epmCount = 0;
@@ -532,7 +551,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                 {
                     if (a.GetType().FullName.Equals(DataServicesMimeTypeAttribute, StringComparison.Ordinal))
                     {
-                        var mimeType = a.GetType().GetProperty("MimeType").GetValue(a, null) as string;
+                        var mimeType = a.GetType().GetDeclaredProperty("MimeType").GetValue(a, null) as string;
                         _xmlWriter.WriteAttributeString(DataServicesPrefix, "MimeType", DataServicesNamespace, mimeType);
                     }
                     else if (a.GetType().FullName.Equals(
@@ -542,7 +561,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                                          ? String.Empty
                                          : string.Format(CultureInfo.InvariantCulture, "_{0}", epmCount);
 
-                        var sourcePath = a.GetType().GetProperty("SourcePath").GetValue(a, null) as string;
+                        var sourcePath = a.GetType().GetDeclaredProperty("SourcePath").GetValue(a, null) as string;
                         var slashIndex = sourcePath.IndexOf("/", StringComparison.Ordinal);
                         if (slashIndex != -1
                             && slashIndex + 1 < sourcePath.Length)
@@ -553,9 +572,9 @@ namespace System.Data.Entity.Core.Metadata.Edm
                         }
 
                         // There are three ways to write out this attribute
-                        var syndicationItem = a.GetType().GetProperty("TargetSyndicationItem").GetValue(a, null);
-                        var keepInContext = a.GetType().GetProperty("KeepInContent").GetValue(a, null).ToString();
-                        var criteriaValueProperty = a.GetType().GetProperty("CriteriaValue");
+                        var syndicationItem = a.GetType().GetDeclaredProperty("TargetSyndicationItem").GetValue(a, null);
+                        var keepInContext = a.GetType().GetDeclaredProperty("KeepInContent").GetValue(a, null).ToString();
+                        var criteriaValueProperty = a.GetType().GetDeclaredProperty("CriteriaValue");
                         string criteriaValue = null;
                         if (criteriaValueProperty != null)
                         {
@@ -579,11 +598,11 @@ namespace System.Data.Entity.Core.Metadata.Edm
                         else if (string.Equals(
                             syndicationItem.ToString(), "CustomProperty", StringComparison.Ordinal))
                         {
-                            var targetPath = a.GetType().GetProperty("TargetPath").GetValue(a, null).ToString();
+                            var targetPath = a.GetType().GetDeclaredProperty("TargetPath").GetValue(a, null).ToString();
                             var targetNamespacePrefix =
-                                a.GetType().GetProperty("TargetNamespacePrefix").GetValue(a, null).ToString();
+                                a.GetType().GetDeclaredProperty("TargetNamespacePrefix").GetValue(a, null).ToString();
                             var targetNamespaceUri =
-                                a.GetType().GetProperty("TargetNamespaceUri").GetValue(a, null).ToString();
+                                a.GetType().GetDeclaredProperty("TargetNamespaceUri").GetValue(a, null).ToString();
 
                             _xmlWriter.WriteAttributeString(
                                 DataServicesPrefix, "FC_TargetPath" + suffix, DataServicesNamespace, targetPath);
@@ -599,7 +618,7 @@ namespace System.Data.Entity.Core.Metadata.Edm
                         }
                         else
                         {
-                            var contextKind = a.GetType().GetProperty("TargetTextContentKind").GetValue(a, null);
+                            var contextKind = a.GetType().GetDeclaredProperty("TargetTextContentKind").GetValue(a, null);
 
                             _xmlWriter.WriteAttributeString(
                                 DataServicesPrefix,
@@ -796,12 +815,21 @@ namespace System.Data.Entity.Core.Metadata.Edm
 
             _xmlWriter.WriteStartElement(XmlConstants.FunctionImport);
             _xmlWriter.WriteAttributeString(XmlConstants.Name, functionImport.Name);
-            _xmlWriter.WriteAttributeString(
-                XmlConstants.ReturnType, GetTypeName(functionImport.ReturnParameter.TypeUsage.EdmType));
 
             if (functionImport.IsComposableAttribute)
             {
                 _xmlWriter.WriteAttributeString(XmlConstants.IsComposable, XmlConstants.True);
+            }
+        }
+
+        internal virtual void WriteFunctionImportReturnTypeAttributes(FunctionParameter returnParameter, EntitySet entitySet, bool inline)
+        {
+            _xmlWriter.WriteAttributeString(
+                inline ? XmlConstants.ReturnType : XmlConstants.TypeAttribute, GetTypeName(returnParameter.TypeUsage.EdmType));
+
+            if (entitySet != null)
+            {
+                _xmlWriter.WriteAttributeString(XmlConstants.EntitySet, entitySet.Name);
             }
         }
 
@@ -830,18 +858,28 @@ namespace System.Data.Entity.Core.Metadata.Edm
             return new EdmXmlSchemaWriter(xmlWriter, _version, _serializeDefaultNullability);
         }
 
-        private void WriteExtendedProperties(MetadataItem item)
+        internal void WriteExtendedProperties(MetadataItem item)
         {
             DebugCheck.NotNull(item);
 
             foreach (var extendedProperty in item.MetadataProperties.Where(p => p.PropertyKind == PropertyKind.Extended))
             {
+                // We have to special case StoreGeneratedPattern because even though it is an "extended" property we have
+                // special handling for it elsewhere, which means if we try to serialize it like a normal extended property
+                // we might end up with duplicate attributes in the XML.
                 string xmlNamespaceUri, attributeName;
-                if (TrySplitExtendedMetadataPropertyName(extendedProperty.Name, out xmlNamespaceUri, out attributeName))
+                if (TrySplitExtendedMetadataPropertyName(extendedProperty.Name, out xmlNamespaceUri, out attributeName)
+                    && extendedProperty.Name != XmlConstants.StoreGeneratedPatternAnnotation)
                 {
                     DebugCheck.NotNull(extendedProperty.Value);
 
-                    _xmlWriter.WriteAttributeString(attributeName, xmlNamespaceUri, extendedProperty.Value.ToString());
+                    var serializer = _resolver.GetService<Func<IMetadataAnnotationSerializer>>(attributeName);
+
+                    var value = serializer == null 
+                        ? extendedProperty.Value.ToString()
+                        : serializer().Serialize(attributeName, extendedProperty.Value);
+
+                    _xmlWriter.WriteAttributeString(attributeName, xmlNamespaceUri, value);
                 }
             }
         }

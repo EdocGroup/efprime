@@ -12,21 +12,21 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
     using System.Linq;
     using System.Text;
 
-    /// <summary>
-    /// A class that handles creation of cells from the meta data information.
-    /// </summary>
+    // <summary>
+    // A class that handles creation of cells from the meta data information.
+    // </summary>
     internal class CellCreator : InternalBase
     {
         // effects: Creates a cell creator object for an entity container's
         // mappings (specified in "maps")
-        internal CellCreator(StorageEntityContainerMapping containerMapping)
+        internal CellCreator(EntityContainerMapping containerMapping)
         {
             m_containerMapping = containerMapping;
             m_identifiers = new CqlIdentifiers();
         }
 
         // The mappings from the metadata for different containers
-        private readonly StorageEntityContainerMapping m_containerMapping;
+        private readonly EntityContainerMapping m_containerMapping;
         private int m_currentCellNumber;
         private readonly CqlIdentifiers m_identifiers;
         // Keep track of all the identifiers to prevent clashes with _from0,
@@ -67,16 +67,16 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             return cells;
         }
 
-        /// <summary>
-        /// Boolean members have a closed domain and are enumerated when domains are established i.e. (T, F) instead of (notNull).
-        /// Query Rewriting is exercised over every domain of the condition member. If the member contains not_null condition
-        /// for example, it cannot generate a view for partitions (member=T), (Member=F). For this reason we need to expand the cells
-        /// in a predefined situation (below) to include sub-fragments mapping individual elements of the closed domain.
-        /// Enums (a planned feature) need to be handled in a similar fashion.
-        /// Find booleans that are projected with a not_null condition
-        /// Expand ALL cells where they are projected. Why? See Unit Test case NullabilityConditionOnBoolean5.es
-        /// Validation will fail because it will not be able to validate rewritings for partitions on the 'other' cells.
-        /// </summary>
+        // <summary>
+        // Boolean members have a closed domain and are enumerated when domains are established i.e. (T, F) instead of (notNull).
+        // Query Rewriting is exercised over every domain of the condition member. If the member contains not_null condition
+        // for example, it cannot generate a view for partitions (member=T), (Member=F). For this reason we need to expand the cells
+        // in a predefined situation (below) to include sub-fragments mapping individual elements of the closed domain.
+        // Enums (a planned feature) need to be handled in a similar fashion.
+        // Find booleans that are projected with a not_null condition
+        // Expand ALL cells where they are projected. Why? See Unit Test case NullabilityConditionOnBoolean5.es
+        // Validation will fail because it will not be able to validate rewritings for partitions on the 'other' cells.
+        // </summary>
         [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
         private void ExpandCells(List<Cell> cells)
         {
@@ -176,13 +176,13 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             }
         }
 
-        /// <summary>
-        /// Given a cell, a member and a boolean condition on that member, creates additional cell
-        /// which with the specified restriction on the member in addition to original condition.
-        /// e.i conjunction of original condition AND member in newCondition
-        /// Creation fails when the original condition contradicts new boolean condition
-        /// ViewTarget tells whether MemberPath is in Cquery or SQuery
-        /// </summary>
+        // <summary>
+        // Given a cell, a member and a boolean condition on that member, creates additional cell
+        // which with the specified restriction on the member in addition to original condition.
+        // e.i conjunction of original condition AND member in newCondition
+        // Creation fails when the original condition contradicts new boolean condition
+        // ViewTarget tells whether MemberPath is in Cquery or SQuery
+        // </summary>
         private bool TryCreateAdditionalCellWithCondition(
             Cell originalCell, MemberPath memberToExpand, bool conditionValue, ViewTarget viewTarget, out Cell result)
         {
@@ -274,10 +274,10 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
                 // CPerson, CCustomer, etc in CPerson1
                 foreach (var typeMap in extentMap.TypeMappings)
                 {
-                    var entityTypeMap = typeMap as StorageEntityTypeMapping;
+                    var entityTypeMap = typeMap as EntityTypeMapping;
                     Debug.Assert(
                         entityTypeMap != null ||
-                        typeMap is StorageAssociationTypeMapping, "Invalid typemap");
+                        typeMap is AssociationTypeMapping, "Invalid typemap");
 
                     // A set for all the types in this type mapping
                     var allTypes = new Set<EdmType>();
@@ -317,7 +317,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
         // represents -- this parameter has something useful only if extent
         // is an entity set
         private void ExtractCellsFromTableFragment(
-            EntitySetBase extent, StorageMappingFragment fragmentMap,
+            EntitySetBase extent, MappingFragment fragmentMap,
             Set<EdmType> allTypes, List<Cell> cells)
         {
             // create C-query components
@@ -364,7 +364,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
         // properties. Also updates the C-side whereclause corresponding to
         // discriminator properties on the C-side, e.g, isHighPriority
         private void ExtractProperties(
-            IEnumerable<StoragePropertyMapping> properties,
+            IEnumerable<PropertyMapping> properties,
             MemberPath cNode, List<ProjectedSlot> cSlots,
             ref BoolExpression cQueryWhereClause,
             MemberPath sRootExtent,
@@ -374,10 +374,10 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             // For each property mapping, we add an entry to the C and S cell queries
             foreach (var propMap in properties)
             {
-                var scalarPropMap = propMap as StorageScalarPropertyMapping;
-                var complexPropMap = propMap as StorageComplexPropertyMapping;
-                var associationEndPropertypMap = propMap as StorageEndPropertyMapping;
-                var conditionMap = propMap as StorageConditionPropertyMapping;
+                var scalarPropMap = propMap as ScalarPropertyMapping;
+                var complexPropMap = propMap as ComplexPropertyMapping;
+                var associationEndPropertypMap = propMap as EndPropertyMapping;
+                var conditionMap = propMap as ConditionPropertyMapping;
 
                 Debug.Assert(
                     scalarPropMap != null ||
@@ -387,14 +387,14 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
 
                 if (scalarPropMap != null)
                 {
-                    Debug.Assert(scalarPropMap.ColumnProperty != null, "ColumnMember for a Scalar Property can not be null");
+                    Debug.Assert(scalarPropMap.Column != null, "ColumnMember for a Scalar Property can not be null");
                     // Add an attribute node to node
 
-                    var cAttributeNode = new MemberPath(cNode, scalarPropMap.EdmProperty);
+                    var cAttributeNode = new MemberPath(cNode, scalarPropMap.Property);
                     // Add a column (attribute) node the sQuery
                     // unlike the C side, there is no nesting. Hence we
                     // did not need an internal node
-                    var sAttributeNode = new MemberPath(sRootExtent, scalarPropMap.ColumnProperty);
+                    var sAttributeNode = new MemberPath(sRootExtent, scalarPropMap.Column);
                     cSlots.Add(new MemberProjectedSlot(cAttributeNode));
                     sSlots.Add(new MemberProjectedSlot(sAttributeNode));
                 }
@@ -410,7 +410,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
                     foreach (var complexTypeMap in complexPropMap.TypeMappings)
                     {
                         // Create a node for the complex type property and call recursively
-                        var complexMemberNode = new MemberPath(cNode, complexPropMap.EdmProperty);
+                        var complexMemberNode = new MemberPath(cNode, complexPropMap.Property);
                         //Get the list of types that this type map represents
                         var allTypes = new Set<EdmType>();
                         // Gather a set of all explicit types for an entity
@@ -437,17 +437,17 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
                 if (associationEndPropertypMap != null)
                 {
                     // create join tree node representing this relation end
-                    var associationEndNode = new MemberPath(cNode, associationEndPropertypMap.EndMember);
+                    var associationEndNode = new MemberPath(cNode, associationEndPropertypMap.AssociationEnd);
                     // call recursively
                     ExtractProperties(
-                        associationEndPropertypMap.Properties, associationEndNode, cSlots,
+                        associationEndPropertypMap.PropertyMappings, associationEndNode, cSlots,
                         ref cQueryWhereClause, sRootExtent, sSlots, ref sQueryWhereClause);
                 }
 
                 //Check if the this is a condition and add it to the Where clause
                 if (conditionMap != null)
                 {
-                    if (conditionMap.ColumnProperty != null)
+                    if (conditionMap.Column != null)
                     {
                         //Produce a Condition Expression for the Condition Map.
                         var conditionExpression = GetConditionExpression(sRootExtent, conditionMap);
@@ -456,7 +456,7 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
                     }
                     else
                     {
-                        Debug.Assert(conditionMap.EdmProperty != null);
+                        Debug.Assert(conditionMap.Property != null);
                         //Produce a Condition Expression for the Condition Map.
                         var conditionExpression = GetConditionExpression(cNode, conditionMap);
                         //Add the condition expression to the exisiting C side Where clause using an "And"
@@ -466,14 +466,14 @@ namespace System.Data.Entity.Core.Mapping.ViewGeneration
             }
         }
 
-        /// <summary>
-        /// Takes in a JoinTreeNode and a Contition Property Map and creates an BoolExpression
-        /// for the Condition Map.
-        /// </summary>
-        private static BoolExpression GetConditionExpression(MemberPath member, StorageConditionPropertyMapping conditionMap)
+        // <summary>
+        // Takes in a JoinTreeNode and a Contition Property Map and creates an BoolExpression
+        // for the Condition Map.
+        // </summary>
+        private static BoolExpression GetConditionExpression(MemberPath member, ConditionPropertyMapping conditionMap)
         {
             //Get the member for which the condition is being specified
-            EdmMember conditionMember = (conditionMap.ColumnProperty != null) ? conditionMap.ColumnProperty : conditionMap.EdmProperty;
+            EdmMember conditionMember = (conditionMap.Column != null) ? conditionMap.Column : conditionMap.Property;
 
             var conditionMemberNode = new MemberPath(member, conditionMember);
             //Check if this is a IsNull condition

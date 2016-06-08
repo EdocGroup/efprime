@@ -5,9 +5,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
     using System.Collections.Generic;
     using System.Data.Entity.Core.Query.InternalTrees;
 
-    /// <summary>
-    /// Transformation Rules for GroupByOps
-    /// </summary>
+    // <summary>
+    // Transformation Rules for GroupByOps
+    // </summary>
     internal static class GroupByOpRules
     {
         #region GroupByOpWithSimpleVarRedefinitions
@@ -15,18 +15,18 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
         internal static readonly SimpleRule Rule_GroupByOpWithSimpleVarRedefinitions = new SimpleRule(
             OpType.GroupBy, ProcessGroupByWithSimpleVarRedefinitions);
 
-        /// <summary>
-        /// If the GroupByOp defines some computedVars as part of its keys, but those computedVars are simply
-        /// redefinitions of other Vars, then eliminate the computedVars.
-        /// GroupBy(X, VarDefList(VarDef(cv1, VarRef(v1)), ...), VarDefList(...))
-        /// can be transformed into
-        /// GroupBy(X, VarDefList(...))
-        /// where cv1 has now been replaced by v1
-        /// </summary>
-        /// <param name="context"> Rule processing context </param>
-        /// <param name="n"> current subtree </param>
-        /// <param name="newNode"> transformed subtree </param>
-        /// <returns> transformation status </returns>
+        // <summary>
+        // If the GroupByOp defines some computedVars as part of its keys, but those computedVars are simply
+        // redefinitions of other Vars, then eliminate the computedVars.
+        // GroupBy(X, VarDefList(VarDef(cv1, VarRef(v1)), ...), VarDefList(...))
+        // can be transformed into
+        // GroupBy(X, VarDefList(...))
+        // where cv1 has now been replaced by v1
+        // </summary>
+        // <param name="context"> Rule processing context </param>
+        // <param name="n"> current subtree </param>
+        // <param name="newNode"> transformed subtree </param>
+        // <returns> transformation status </returns>
         private static bool ProcessGroupByWithSimpleVarRedefinitions(RuleProcessingContext context, Node n, out Node newNode)
         {
             newNode = n;
@@ -103,6 +103,128 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
 
         #endregion
 
+        #region GroupByOpOnAllInputColumnsWithAggregateOperation
+
+        internal static readonly SimpleRule Rule_GroupByOpOnAllInputColumnsWithAggregateOperation = new SimpleRule(
+            OpType.GroupBy, ProcessGroupByOpOnAllInputColumnsWithAggregateOperation);
+
+        // <summary>
+        // Converts a GroupBy(X, Y, Z) => OuterApply(X', GroupBy(Filter(X, key(X') == key(X)), Y, Z))
+        // if and only if X is a ScanTableOp, and Z is the upper node of an aggregate function and
+        // the group by operation uses all the columns of X as the key.
+        // Additionally, the top-level physical projection must only expose one variable. If it exposes
+        // more than one (more than just the aggregate itself), then this rule must not apply.
+        // This is a fix for codeplex workitem 1959. Since now we're supporting NewRecordOp nodes as
+        // part of the GroupBy aggregate variable computations, we are also respecting the fact that
+        // group by (e => e) means that we're grouping by all columns of entity e. This was not a
+        // problem when the NewRecordOp node was not being processed since this caused the GroupBy
+        // statement to be simplified to a form with no keys and no output columns. The generated SQL
+        // is correct, but it is different from what it used to be and may be incompatible if the
+        // entity contains fields with datatypes that do not support being grouped by, such as blobs
+        // and images.
+        // This rule simplifies the tree so that we remain compatible with the way we were generating
+        // queries that contain group by (e => e).
+        // What this does is enabling the tree to take a shape that further optimization can convert
+        // into an expression that groups by the key of the table and calls the aggregate function
+        // as expected.
+        // </summary>
+        // <param name="context"> Rule processing context </param>
+        // <param name="n"> Current ProjectOp node </param>
+        // <param name="newNode"> modified subtree </param>
+        // <returns> Transformation status </returns>
+        private static bool ProcessGroupByOpOnAllInputColumnsWithAggregateOperation(RuleProcessingContext context, Node n, out Node newNode)
+        {
+            newNode = n;
+
+            var rootOp = context.Command.Root.Op as PhysicalProjectOp;
+            if (rootOp == null ||
+                rootOp.Outputs.Count > 1)
+            {
+                return false;
+            }
+
+            if (n.Child0.Op.OpType != OpType.ScanTable)
+            {
+                return false;
+            }
+
+            if (n.Child2 == null
+                || n.Child2.Child0 == null
+                || n.Child2.Child0.Child0 == null
+                || n.Child2.Child0.Child0.Op.OpType != OpType.Aggregate)
+            {
+                return false;
+            }
+
+            var groupByOp = (GroupByOp)n.Op;
+
+            var sourceTable = ((ScanTableOp)n.Child0.Op).Table;
+            var allInputColumns = sourceTable.Columns;
+
+            // Exit if the group's keys do not contain all the columns defined by Child0
+            foreach (var column in allInputColumns)
+            {
+                if (!groupByOp.Keys.IsSet(column))
+                {
+                    return false;
+                }
+            }
+
+            // All the columns of Child0 are used, so remove them from the outputs and the keys
+            foreach (var column in allInputColumns)
+            {
+                groupByOp.Outputs.Clear(column);
+                groupByOp.Keys.Clear(column);
+            }
+
+            // Build the OuterApply and also set the filter around the GroupBy's scan table.
+            var command = context.Command;
+
+            var scanTableOp = command.CreateScanTableOp(sourceTable.TableMetadata);
+            var scanTable = command.CreateNode(scanTableOp);
+            var outerApplyNode = command.CreateNode(command.CreateOuterApplyOp(), scanTable, n);
+
+            Var newVar;
+            var varDefListNode = command.CreateVarDefListNode(command.CreateNode(command.CreateVarRefOp(groupByOp.Outputs.First)), out newVar);
+
+            newNode = command.CreateNode(
+                    command.CreateProjectOp(newVar),
+                    outerApplyNode,
+                    varDefListNode);
+
+            Node equality = null;
+            var leftKeys = scanTableOp.Table.Keys.GetEnumerator();
+            var rightKeys = sourceTable.Keys.GetEnumerator();
+            for (int i = 0; i < sourceTable.Keys.Count; ++i)
+            {
+                leftKeys.MoveNext();
+                rightKeys.MoveNext();
+                var comparison = command.CreateNode(
+                                    command.CreateComparisonOp(OpType.EQ),
+                                    command.CreateNode(command.CreateVarRefOp(leftKeys.Current)),
+                                    command.CreateNode(command.CreateVarRefOp(rightKeys.Current)));
+                if (equality != null)
+                {
+                    equality = command.CreateNode(
+                                    command.CreateConditionalOp(OpType.And),
+                                    equality, comparison);
+                }
+                else
+                {
+                    equality = comparison;
+                }
+            }
+
+            var filter = command.CreateNode(command.CreateFilterOp(),
+                         n.Child0,
+                         equality);
+            n.Child0 = filter;
+
+            return true; // subtree modified
+        }
+
+        #endregion
+
         #region GroupByOverProject
 
         internal static readonly PatternMatchRule Rule_GroupByOverProject =
@@ -117,18 +239,18 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     new Node(LeafOp.Pattern)),
                 ProcessGroupByOverProject);
 
-        /// <summary>
-        /// Converts a GroupBy(Project(X, c1,..ck), agg1, agg2, .. aggm) =>
-        /// GroupBy(X, agg1', agg2', .. aggm')
-        /// where agg1', agg2', .. aggm'  are the "mapped" versions
-        /// of agg1, agg2, .. aggm, such that the references to c1, ... ck are
-        /// replaced by their definitions.
-        /// We only do this if each c1, ..ck is refereneced (in aggregates) at most once or it is a constant.
-        /// </summary>
-        /// <param name="context"> Rule processing context </param>
-        /// <param name="n"> Current ProjectOp node </param>
-        /// <param name="newNode"> modified subtree </param>
-        /// <returns> Transformation status </returns>
+        // <summary>
+        // Converts a GroupBy(Project(X, c1,..ck), agg1, agg2, .. aggm) =>
+        // GroupBy(X, agg1', agg2', .. aggm')
+        // where agg1', agg2', .. aggm'  are the "mapped" versions
+        // of agg1, agg2, .. aggm, such that the references to c1, ... ck are
+        // replaced by their definitions.
+        // We only do this if each c1, ..ck is refereneced (in aggregates) at most once or it is a constant.
+        // </summary>
+        // <param name="context"> Rule processing context </param>
+        // <param name="n"> Current ProjectOp node </param>
+        // <param name="newNode"> modified subtree </param>
+        // <returns> Transformation status </returns>
         private static bool ProcessGroupByOverProject(RuleProcessingContext context, Node n, out Node newNode)
         {
             newNode = n;
@@ -198,9 +320,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             return true;
         }
 
-        /// <summary>
-        /// Replaces each occurance of the given vars with their definitions.
-        /// </summary>
+        // <summary>
+        // Replaces each occurance of the given vars with their definitions.
+        // </summary>
         internal class VarRefReplacer : BasicOpVisitorOfNode
         {
             private readonly Dictionary<Var, Node> m_varReplacementTable;
@@ -212,11 +334,11 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                 m_command = command;
             }
 
-            /// <summary>
-            /// "Public" entry point. In the subtree rooted at the given root,
-            /// replace each occurance of the given vars with their definitions,
-            /// where each key-value pair in the dictionary is a var-definition pair.
-            /// </summary>
+            // <summary>
+            // "Public" entry point. In the subtree rooted at the given root,
+            // replace each occurance of the given vars with their definitions,
+            // where each key-value pair in the dictionary is a var-definition pair.
+            // </summary>
             internal static Node Replace(Dictionary<Var, Node> varReplacementTable, Node root, Command command)
             {
                 var replacer = new VarRefReplacer(varReplacementTable, command);
@@ -236,9 +358,9 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                 }
             }
 
-            /// <summary>
-            /// Recomputes node info post regular processing.
-            /// </summary>
+            // <summary>
+            // Recomputes node info post regular processing.
+            // </summary>
             protected override Node VisitDefault(Node n)
             {
                 var result = base.VisitDefault(n);
@@ -247,10 +369,10 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
             }
         }
 
-        /// <summary>
-        /// Used to determine whether any of the given vars occurs more than once
-        /// in a given subtree.
-        /// </summary>
+        // <summary>
+        // Used to determine whether any of the given vars occurs more than once
+        // in a given subtree.
+        // </summary>
         internal class VarRefUsageFinder : BasicOpVisitor
         {
             private bool m_anyUsedMoreThenOnce;
@@ -263,10 +385,10 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                 m_usedVars = command.CreateVarVec();
             }
 
-            /// <summary>
-            /// Public entry point. Returns true if at least one of the given vars occurs more than
-            /// once in the subree rooted at the given root.
-            /// </summary>
+            // <summary>
+            // Public entry point. Returns true if at least one of the given vars occurs more than
+            // once in the subree rooted at the given root.
+            // </summary>
             internal static bool AnyVarUsedMoreThanOnce(VarVec varVec, Node root, Command command)
             {
                 var usageFinder = new VarRefUsageFinder(varVec, command);
@@ -314,17 +436,17 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                     new Node(VarDefListOp.Pattern)),
                 ProcessGroupByOpWithNoAggregates);
 
-        /// <summary>
-        /// If the GroupByOp has no aggregates:
-        /// (1) and if it includes all all the keys of the input, than it is unnecessary
-        /// GroupBy (X, keys) -> Project(X, keys) where keys includes all keys of X.
-        /// (2) else it can be turned into a Distinct:
-        /// GroupBy (X, keys) -> Distinct(X, keys)
-        /// </summary>
-        /// <param name="context"> Rule processing context </param>
-        /// <param name="n"> current subtree </param>
-        /// <param name="newNode"> transformed subtree </param>
-        /// <returns> transformation status </returns>
+        // <summary>
+        // If the GroupByOp has no aggregates:
+        // (1) and if it includes all all the keys of the input, than it is unnecessary
+        // GroupBy (X, keys) -> Project(X, keys) where keys includes all keys of X.
+        // (2) else it can be turned into a Distinct:
+        // GroupBy (X, keys) -> Distinct(X, keys)
+        // </summary>
+        // <param name="context"> Rule processing context </param>
+        // <param name="n"> current subtree </param>
+        // <param name="newNode"> transformed subtree </param>
+        // <returns> transformation status </returns>
         private static bool ProcessGroupByOpWithNoAggregates(RuleProcessingContext context, Node n, out Node newNode)
         {
             var command = context.Command;
@@ -357,6 +479,7 @@ namespace System.Data.Entity.Core.Query.PlanCompiler
                 Rule_GroupByOpWithSimpleVarRedefinitions,
                 Rule_GroupByOverProject,
                 Rule_GroupByOpWithNoAggregates,
+                Rule_GroupByOpOnAllInputColumnsWithAggregateOperation,
             };
 
         #endregion

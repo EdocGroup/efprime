@@ -542,7 +542,7 @@ namespace System.Data.Entity.Migrations.Design
             {
                 base.OverrideConfiguration(configuration);
 
-                // If the user hasn't set their own generator and their using a VB project then switch in the default VB one
+                // If the user hasn't set their own generator and he/she is using a VB project then switch in the default VB one
                 if (Language == "vb"
                     && configuration.CodeGenerator is CSharpMigrationCodeGenerator)
                 {
@@ -569,7 +569,8 @@ namespace System.Data.Entity.Migrations.Design
                 var assembly = LoadContextAssembly();
 
                 var contextTypes = assembly.GetAccessibleTypes()
-                                           .Where(t => typeof(DbContext).IsAssignableFrom(t)).Select(t => t.FullName)
+                                           .Where(t => !t.IsAbstract && !t.IsGenericType && typeof(DbContext).IsAssignableFrom(t))
+                                           .Select(t => t.FullName)
                                            .ToList();
 
                 AppDomain.CurrentDomain.SetData("result", contextTypes);
@@ -587,7 +588,7 @@ namespace System.Data.Entity.Migrations.Design
                 var contextType = new TypeFinder(LoadContextAssembly()).FindType(
                     typeof(DbContext),
                     ContextTypeName,
-                    types => types.Where(t => !typeof(HistoryContext).IsAssignableFrom(t)),
+                    types => types.Where(t => !typeof(HistoryContext).IsAssignableFrom(t) && !t.IsAbstract && !t.IsGenericType),
                     Error.EnableMigrations_NoContext,
                     (assembly, types) =>
                         {

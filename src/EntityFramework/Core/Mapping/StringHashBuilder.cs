@@ -1,16 +1,17 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.Core.Mapping
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Utilities;
     using System.Diagnostics;
     using System.Globalization;
     using System.Security.Cryptography;
     using System.Text;
 
-    /// <summary>
-    /// this class collects several strings together, and allows you to (
-    /// </summary>
+    // <summary>
+    // this class collects several strings together, and allows you to (
+    // </summary>
     internal class StringHashBuilder
     {
         private readonly HashAlgorithm _hashAlgorithm;
@@ -98,7 +99,7 @@ namespace System.Data.Entity.Core.Mapping
         public override string ToString()
         {
             var builder = new StringBuilder();
-            _strings.ForEach(s => builder.Append(s));
+            _strings.Each(s => builder.Append(s));
             return builder.ToString();
         }
 

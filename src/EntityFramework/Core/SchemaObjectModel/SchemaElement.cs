@@ -5,6 +5,8 @@ namespace System.Data.Entity.Core.SchemaObjectModel
     using System.Collections.Generic;
     using System.Data.Entity.Core.Metadata.Edm;
     using System.Data.Entity.Core.Metadata.Edm.Provider;
+    using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
     using System.Diagnostics;
@@ -15,9 +17,9 @@ namespace System.Data.Entity.Core.SchemaObjectModel
     using System.Xml.Linq;
     using System.Xml.Schema;
 
-    /// <summary>
-    /// Summary description for SchemaElement.
-    /// </summary>
+    // <summary>
+    // Summary description for SchemaElement.
+    // </summary>
     [DebuggerDisplay("Name={Name}")]
     internal abstract class SchemaElement
     {
@@ -32,6 +34,8 @@ namespace System.Data.Entity.Core.SchemaObjectModel
         private string _name;
 
         private List<MetadataProperty> _otherContent;
+
+        private readonly IDbDependencyResolver _resolver;
 
         #endregion
 
@@ -96,9 +100,9 @@ namespace System.Data.Entity.Core.SchemaObjectModel
 
         #region Internal Methods
 
-        /// <summary>
-        /// Validates this element and its children
-        /// </summary>
+        // <summary>
+        // Validates this element and its children
+        // </summary>
         internal virtual void Validate()
         {
         }
@@ -215,21 +219,21 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             }
         }
 
-        /// <summary>
-        /// Set the current line number and position for an XmlReader
-        /// </summary>
-        /// <param name="reader"> the reader whose position is desired </param>
+        // <summary>
+        // Set the current line number and position for an XmlReader
+        // </summary>
+        // <param name="reader"> the reader whose position is desired </param>
         internal void GetPositionInfo(XmlReader reader)
         {
             GetPositionInfo(reader, out _lineNumber, out _linePosition);
         }
 
-        /// <summary>
-        /// Get the current line number and position for an XmlReader
-        /// </summary>
-        /// <param name="reader"> the reader whose position is desired </param>
-        /// <param name="lineNumber"> the line number </param>
-        /// <param name="linePosition"> the line position </param>
+        // <summary>
+        // Get the current line number and position for an XmlReader
+        // </summary>
+        // <param name="reader"> the reader whose position is desired </param>
+        // <param name="lineNumber"> the line number </param>
+        // <param name="linePosition"> the line position </param>
         internal static void GetPositionInfo(XmlReader reader, out int lineNumber, out int linePosition)
         {
             var xmlLineInfo = reader as IXmlLineInfo;
@@ -258,8 +262,10 @@ namespace System.Data.Entity.Core.SchemaObjectModel
 
         #region Protected Methods
 
-        internal SchemaElement(SchemaElement parentElement)
+        internal SchemaElement(SchemaElement parentElement, IDbDependencyResolver resolver = null)
         {
+            _resolver = resolver ?? DbConfiguration.DependencyResolver;
+
             if (parentElement != null)
             {
                 ParentElement = parentElement;
@@ -280,8 +286,8 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             }
         }
 
-        internal SchemaElement(SchemaElement parentElement, string name)
-            : this(parentElement)
+        internal SchemaElement(SchemaElement parentElement, string name, IDbDependencyResolver resolver = null)
+            : this(parentElement, resolver)
         {
             _name = name;
         }
@@ -324,12 +330,12 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return returnValue;
         }
 
-        /// <summary>
-        /// Use to handle an attribute with an int data type
-        /// </summary>
-        /// <param name="reader"> the reader positioned at the int attribute </param>
-        /// <param name="field"> The int field to be given the value found </param>
-        /// <returns> true if an int value was successfuly extracted from the attribute, false otherwise. </returns>
+        // <summary>
+        // Use to handle an attribute with an int data type
+        // </summary>
+        // <param name="reader"> the reader positioned at the int attribute </param>
+        // <param name="field"> The int field to be given the value found </param>
+        // <returns> true if an int value was successfuly extracted from the attribute, false otherwise. </returns>
         internal bool HandleIntAttribute(XmlReader reader, ref int field)
         {
             int value;
@@ -342,12 +348,12 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return true;
         }
 
-        /// <summary>
-        /// Use to handle an attribute with an int data type
-        /// </summary>
-        /// <param name="reader"> the reader positioned at the int attribute </param>
-        /// <param name="field"> The int field to be given the value found </param>
-        /// <returns> true if an int value was successfuly extracted from the attribute, false otherwise. </returns>
+        // <summary>
+        // Use to handle an attribute with an int data type
+        // </summary>
+        // <param name="reader"> the reader positioned at the int attribute </param>
+        // <param name="field"> The int field to be given the value found </param>
+        // <returns> true if an int value was successfuly extracted from the attribute, false otherwise. </returns>
         internal bool HandleByteAttribute(XmlReader reader, ref byte field)
         {
             byte value;
@@ -372,10 +378,10 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return true;
         }
 
-        /// <summary>
-        /// Use this to jump through an element that doesn't need any processing
-        /// </summary>
-        /// <param name="reader"> xml reader currently positioned at an element </param>
+        // <summary>
+        // Use this to jump through an element that doesn't need any processing
+        // </summary>
+        // <param name="reader"> xml reader currently positioned at an element </param>
         protected virtual void SkipThroughElement(XmlReader reader)
         {
             DebugCheck.NotNull(reader);
@@ -458,10 +464,10 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             Schema.AddError(error);
         }
 
-        /// <summary>
-        /// Call handler for the current attribute
-        /// </summary>
-        /// <param name="reader"> XmlReader positioned at the attribute </param>
+        // <summary>
+        // Call handler for the current attribute
+        // </summary>
+        // <param name="reader"> XmlReader positioned at the attribute </param>
         private void ParseAttribute(XmlReader reader)
         {
 #if false
@@ -506,9 +512,9 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return false;
         }
 
-        /// <summary>
-        /// This overload assumes the default namespace
-        /// </summary>
+        // <summary>
+        // This overload assumes the default namespace
+        // </summary>
         internal static bool CanHandleAttribute(XmlReader reader, string localName)
         {
             Debug.Assert(reader.NamespaceURI != null);
@@ -576,7 +582,7 @@ namespace System.Data.Entity.Core.SchemaObjectModel
                     {
                         var element = XElement.Load(stringReader);
 
-                        property = CreateMetadataPropertyFromOtherNamespaceXmlArtifact(
+                        property = CreateMetadataPropertyFromXmlElement(
                             element.Name.NamespaceName, element.Name.LocalName, element);
                     }
                 }
@@ -590,7 +596,7 @@ namespace System.Data.Entity.Core.SchemaObjectModel
                 }
 
                 Debug.Assert(reader.NodeType == XmlNodeType.Attribute, "called an attribute function when not on an attribute");
-                property = CreateMetadataPropertyFromOtherNamespaceXmlArtifact(reader.NamespaceURI, reader.LocalName, reader.Value);
+                property = CreateMetadataPropertyFromXmlAttribute(reader.NamespaceURI, reader.LocalName, reader.Value);
             }
 
             if (!OtherContent.Exists(mp => mp.Identity == property.Identity))
@@ -606,22 +612,26 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return false;
         }
 
-        internal static MetadataProperty CreateMetadataPropertyFromOtherNamespaceXmlArtifact(
-            string xmlNamespaceUri, string artifactName, object value)
+        internal static MetadataProperty CreateMetadataPropertyFromXmlElement(
+            string xmlNamespaceUri, string elementName, XElement value)
         {
-            MetadataProperty property;
-            property = new MetadataProperty(
-                xmlNamespaceUri + ":" + artifactName,
-                TypeUsage.Create(EdmProviderManifest.Instance.GetPrimitiveType(PrimitiveTypeKind.String)),
-                value);
-            return property;
+            return MetadataProperty.CreateAnnotation(xmlNamespaceUri + ":" + elementName, value);
         }
 
-        /// <summary>
-        /// Call handler for the current element
-        /// </summary>
-        /// <param name="reader"> XmlReader positioned at the element </param>
-        /// <returns> true if element content should be skipped </returns>
+        internal MetadataProperty CreateMetadataPropertyFromXmlAttribute(
+            string xmlNamespaceUri, string attributeName, string value)
+        {
+            var serializer = _resolver.GetService<Func<IMetadataAnnotationSerializer>>(attributeName);
+            var parsedValue = serializer == null ? value : serializer().Deserialize(attributeName, value);
+
+            return MetadataProperty.CreateAnnotation(xmlNamespaceUri + ":" + attributeName, parsedValue);
+        }
+
+        // <summary>
+        // Call handler for the current element
+        // </summary>
+        // <param name="reader"> XmlReader positioned at the element </param>
+        // <returns> true if element content should be skipped </returns>
         private bool ParseElement(XmlReader reader)
         {
             var elementNamespace = reader.NamespaceURI;
@@ -666,10 +676,10 @@ namespace System.Data.Entity.Core.SchemaObjectModel
             return false;
         }
 
-        /// <summary>
-        /// Handle text data.
-        /// </summary>
-        /// <param name="reader"> XmlReader positioned at Text, CData, or SignificantWhitespace </param>
+        // <summary>
+        // Handle text data.
+        // </summary>
+        // <param name="reader"> XmlReader positioned at Text, CData, or SignificantWhitespace </param>
         private void ParseText(XmlReader reader)
         {
             if (HandleText(reader))

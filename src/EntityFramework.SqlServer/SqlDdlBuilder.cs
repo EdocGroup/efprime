@@ -107,14 +107,24 @@ namespace System.Data.Entity.SqlServer
             return builder.unencodedStringBuilder.ToString();
         }
 
+        [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "dbid")]
         [SuppressMessage("Microsoft.Globalization", "CA1303:Do not pass literals as localized parameters",
             MessageId = "System.Data.Entity.SqlServer.SqlDdlBuilder.AppendSql(System.String)")]
-        internal static string CreateDatabaseExistsScript(string databaseName, bool useDeprecatedSystemTable)
+        internal static string CreateDatabaseExistsScript(string databaseName)
         {
+            // This handles non-SQL Azure servers by using db_id() which will return a non null value for
+            // a database on the server even if the login doesn't have "view any database" permission.
+            // On SQL Azure db_id() only works for the current database, which means it will never work here
+            // because the current database is master. In this case we fall back to the query from sys.databases.
+            // This doesn't work for non-SQL Azure if the login does not have 'view any database'
+            // permission, but that case was covered by db_id(). On SQL Azure there are no server class
+            // securables, which means it is not possible to deny the login 'view any database' so in theory
+            // if the user can connect to master then the sys.databases query will work.
+
             var builder = new SqlDdlBuilder();
-            builder.AppendSql("SELECT Count(*) FROM ");
-            AppendSysDatabases(builder, useDeprecatedSystemTable);
-            builder.AppendSql(" WHERE [name]=");
+            builder.AppendSql("IF db_id(");
+            builder.AppendStringLiteral(databaseName);
+            builder.AppendSql(") IS NOT NULL SELECT 1 ELSE SELECT Count(*) FROM sys.databases WHERE [name]=");
             builder.AppendStringLiteral(databaseName);
             return builder.unencodedStringBuilder.ToString();
         }
@@ -392,9 +402,10 @@ namespace System.Data.Entity.SqlServer
             }
         }
 
-        [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "newid")]
         [SuppressMessage("Microsoft.Globalization", "CA1303:Do not pass literals as localized parameters",
             MessageId = "System.Data.Entity.SqlServer.SqlDdlBuilder.AppendSql(System.String)")]
+        [SuppressMessage("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
+        [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "newid")]
         private void AppendType(EdmProperty column)
         {
             var type = column.TypeUsage;
@@ -482,28 +493,28 @@ namespace System.Data.Entity.SqlServer
 
         #region Access to underlying string builder
 
-        /// <summary>
-        /// Appends raw SQL into the string builder.
-        /// </summary>
-        /// <param name="text"> Raw SQL string to append into the string builder. </param>
+        // <summary>
+        // Appends raw SQL into the string builder.
+        // </summary>
+        // <param name="text"> Raw SQL string to append into the string builder. </param>
         private void AppendSql(string text)
         {
             unencodedStringBuilder.Append(text);
         }
 
-        /// <summary>
-        /// Appends new line for visual formatting or for ending a comment.
-        /// </summary>
+        // <summary>
+        // Appends new line for visual formatting or for ending a comment.
+        // </summary>
         private void AppendNewLine()
         {
             unencodedStringBuilder.Append("\r\n");
         }
 
-        /// <summary>
-        /// Append raw SQL into the string builder with formatting options and invariant culture formatting.
-        /// </summary>
-        /// <param name="format"> A composite format string. </param>
-        /// <param name="args"> An array of objects to format. </param>
+        // <summary>
+        // Append raw SQL into the string builder with formatting options and invariant culture formatting.
+        // </summary>
+        // <param name="format"> A composite format string. </param>
+        // <param name="args"> An array of objects to format. </param>
         private void AppendSqlInvariantFormat(string format, params object[] args)
         {
             unencodedStringBuilder.AppendFormat(CultureInfo.InvariantCulture, format, args);

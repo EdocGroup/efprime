@@ -3,9 +3,12 @@
 namespace System.Data.Entity.Query
 {
     using System.Collections.Generic;
+    using System.Data.Entity.Core.Common;
     using System.Data.Entity.Core.Common.CommandTrees;
     using System.Data.Entity.Core.Common.CommandTrees.ExpressionBuilder;
+    using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.SqlClient;
     using System.Linq;
     using Xunit;
 
@@ -603,105 +606,82 @@ ORDER BY [Project1].[ReorderLevel] ASC, [Project1].[C3] ASC";
 
             var expectedSql =
                 @"SELECT 
-[Project30].[C2] AS [C1], 
-[Project30].[C1] AS [C2], 
-[Project30].[C4] AS [C3], 
-[Project30].[C3] AS [C4]
-FROM ( SELECT 
-	[Distinct1].[C1] AS [C1], 
-	1 AS [C2], 
-	CASE WHEN ([UnionAll14].[C1] IS NULL) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll14].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll14].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 6) THEN cast(1 as tinyint) END AS [C3], 
-	CASE WHEN ([UnionAll14].[C1] IS NULL) THEN CAST(NULL AS int) ELSE 1 END AS [C4]
-	FROM   (SELECT DISTINCT 
-		CASE WHEN ([UnionAll7].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll7].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll7].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll7].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll7].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll7].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll7].[C1] = 6) THEN cast(1 as tinyint) END AS [C1]
-		FROM  (SELECT 
-			[UnionAll6].[C1] AS [C1]
-			FROM  (SELECT 
-				[UnionAll5].[C1] AS [C1]
-				FROM  (SELECT 
-					[UnionAll4].[C1] AS [C1]
-					FROM  (SELECT 
-						[UnionAll3].[C1] AS [C1]
-						FROM  (SELECT 
-							[UnionAll2].[C1] AS [C1]
-							FROM  (SELECT 
-								[UnionAll1].[C1] AS [C1]
-								FROM  (SELECT 
-									0 AS [C1]
-									FROM  ( SELECT 1 AS X ) AS [SingleRowTable1]
-								UNION ALL
-									SELECT 
-									1 AS [C1]
-									FROM  ( SELECT 1 AS X ) AS [SingleRowTable2]) AS [UnionAll1]
-							UNION ALL
-								SELECT 
-								2 AS [C1]
-								FROM  ( SELECT 1 AS X ) AS [SingleRowTable3]) AS [UnionAll2]
-						UNION ALL
-							SELECT 
-							3 AS [C1]
-							FROM  ( SELECT 1 AS X ) AS [SingleRowTable4]) AS [UnionAll3]
-					UNION ALL
-						SELECT 
-						4 AS [C1]
-						FROM  ( SELECT 1 AS X ) AS [SingleRowTable5]) AS [UnionAll4]
-				UNION ALL
-					SELECT 
-					5 AS [C1]
-					FROM  ( SELECT 1 AS X ) AS [SingleRowTable6]) AS [UnionAll5]
-			UNION ALL
-				SELECT 
-				6 AS [C1]
-				FROM  ( SELECT 1 AS X ) AS [SingleRowTable7]) AS [UnionAll6]
-		UNION ALL
-			SELECT 
-			7 AS [C1]
-			FROM  ( SELECT 1 AS X ) AS [SingleRowTable8]) AS [UnionAll7] ) AS [Distinct1]
-	LEFT OUTER JOIN  (SELECT 
-		[UnionAll13].[C1] AS [C1]
-		FROM  (SELECT 
-			[UnionAll12].[C1] AS [C1]
-			FROM  (SELECT 
-				[UnionAll11].[C1] AS [C1]
-				FROM  (SELECT 
-					[UnionAll10].[C1] AS [C1]
-					FROM  (SELECT 
-						[UnionAll9].[C1] AS [C1]
-						FROM  (SELECT 
-							[UnionAll8].[C1] AS [C1]
-							FROM  (SELECT 
-								0 AS [C1]
-								FROM  ( SELECT 1 AS X ) AS [SingleRowTable9]
-							UNION ALL
-								SELECT 
-								1 AS [C1]
-								FROM  ( SELECT 1 AS X ) AS [SingleRowTable10]) AS [UnionAll8]
-						UNION ALL
-							SELECT 
-							2 AS [C1]
-							FROM  ( SELECT 1 AS X ) AS [SingleRowTable11]) AS [UnionAll9]
-					UNION ALL
-						SELECT 
-						3 AS [C1]
-						FROM  ( SELECT 1 AS X ) AS [SingleRowTable12]) AS [UnionAll10]
-				UNION ALL
-					SELECT 
-					4 AS [C1]
-					FROM  ( SELECT 1 AS X ) AS [SingleRowTable13]) AS [UnionAll11]
-			UNION ALL
-				SELECT 
-				5 AS [C1]
-				FROM  ( SELECT 1 AS X ) AS [SingleRowTable14]) AS [UnionAll12]
-		UNION ALL
-			SELECT 
-			6 AS [C1]
-			FROM  ( SELECT 1 AS X ) AS [SingleRowTable15]) AS [UnionAll13]
-	UNION ALL
-		SELECT 
-		7 AS [C1]
-		FROM  ( SELECT 1 AS X ) AS [SingleRowTable16]) AS [UnionAll14] ON ([Distinct1].[C1] = (CASE WHEN ([UnionAll14].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll14].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll14].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 6) THEN cast(1 as tinyint) END)) OR (([Distinct1].[C1] IS NULL) AND (CASE WHEN ([UnionAll14].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll14].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll14].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 6) THEN cast(1 as tinyint) END IS NULL))
-)  AS [Project30]
-ORDER BY [Project30].[C1] ASC, [Project30].[C4] ASC";
+    [Project18].[C2] AS [C1], 
+    [Project18].[C1] AS [C2], 
+    [Project18].[C4] AS [C3], 
+    [Project18].[C3] AS [C4]
+    FROM ( SELECT 
+        [Distinct1].[C1] AS [C1], 
+        1 AS [C2], 
+        CASE WHEN ([UnionAll14].[C1] IS NULL) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll14].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll14].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 6) THEN cast(1 as tinyint) END AS [C3], 
+        CASE WHEN ([UnionAll14].[C1] IS NULL) THEN CAST(NULL AS int) ELSE 1 END AS [C4]
+        FROM   (SELECT DISTINCT 
+            CASE WHEN ([UnionAll7].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll7].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll7].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll7].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll7].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll7].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll7].[C1] = 6) THEN cast(1 as tinyint) END AS [C1]
+            FROM  (SELECT 
+                0 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable1]
+            UNION ALL
+                SELECT 
+                1 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable2]
+            UNION ALL
+                SELECT 
+                2 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable3]
+            UNION ALL
+                SELECT 
+                3 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable4]
+            UNION ALL
+                SELECT 
+                4 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable5]
+            UNION ALL
+                SELECT 
+                5 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable6]
+            UNION ALL
+                SELECT 
+                6 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable7]
+            UNION ALL
+                SELECT 
+                7 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable8]) AS [UnionAll7] ) AS [Distinct1]
+        LEFT OUTER JOIN  (SELECT 
+            0 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable9]
+        UNION ALL
+            SELECT 
+            1 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable10]
+        UNION ALL
+            SELECT 
+            2 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable11]
+        UNION ALL
+            SELECT 
+            3 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable12]
+        UNION ALL
+            SELECT 
+            4 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable13]
+        UNION ALL
+            SELECT 
+            5 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable14]
+        UNION ALL
+            SELECT 
+            6 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable15]
+        UNION ALL
+            SELECT 
+            7 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable16]) AS [UnionAll14] ON ([Distinct1].[C1] = (CASE WHEN ([UnionAll14].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll14].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll14].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 6) THEN cast(1 as tinyint) END)) OR (([Distinct1].[C1] IS NULL) AND (CASE WHEN ([UnionAll14].[C1] = 0) THEN cast(1 as tinyint) WHEN ([UnionAll14].[C1] = 1) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 2) THEN cast(3 as tinyint) WHEN ([UnionAll14].[C1] = 3) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 4) THEN CAST(NULL AS int) WHEN ([UnionAll14].[C1] = 5) THEN cast(2 as tinyint) WHEN ([UnionAll14].[C1] = 6) THEN cast(1 as tinyint) END IS NULL))
+    )  AS [Project18]
+    ORDER BY [Project18].[C1] ASC, [Project18].[C4] ASC
+";
 
             QueryTestHelpers.VerifyQuery(query, workspace, expectedSql);
         }
@@ -751,6 +731,58 @@ ORDER BY [Project1].[Discontinued] ASC, [Project1].[ProductID] ASC, [Project1].[
         }
 
         [Fact]
+        public void GroupBy_on_entity_with_UseDatabaseNullSemantics_false()
+        {
+            var groupBinding = CreateBasicGroupBinding();
+            var keys = new List<KeyValuePair<string, DbExpression>>
+                           {
+                               new KeyValuePair<string, DbExpression>("groupKey", groupBinding.Variable)
+                           };
+            var aggregates = new List<KeyValuePair<string, DbAggregate>>
+                                 {
+                                     new KeyValuePair<string, DbAggregate>("groupPartition", groupBinding.GroupAggregate)
+                                 };
+
+            var query = groupBinding.GroupBy(keys, aggregates);
+            var expectedSql =
+                @"SELECT 
+[Project1].[ProductID] AS [ProductID], 
+[Project1].[Discontinued] AS [Discontinued], 
+[Project1].[ProductName] AS [ProductName], 
+[Project1].[ReorderLevel] AS [ReorderLevel], 
+[Project1].[C1] AS [C1], 
+[Project1].[Discontinued1] AS [Discontinued1], 
+[Project1].[ProductID1] AS [ProductID1], 
+[Project1].[ProductName1] AS [ProductName1], 
+[Project1].[ReorderLevel1] AS [ReorderLevel1]
+FROM ( SELECT 
+	[Extent1].[ProductID] AS [ProductID], 
+	[Extent1].[ProductName] AS [ProductName], 
+	[Extent1].[ReorderLevel] AS [ReorderLevel], 
+	[Extent1].[Discontinued] AS [Discontinued], 
+	[Extent2].[ProductID] AS [ProductID1], 
+	[Extent2].[ProductName] AS [ProductName1], 
+	[Extent2].[ReorderLevel] AS [ReorderLevel1], 
+	[Extent2].[Discontinued] AS [Discontinued1], 
+	CASE WHEN ([Extent2].[ProductID] IS NULL) THEN CAST(NULL AS int) ELSE 1 END AS [C1]
+	FROM  [dbo].[Products] AS [Extent1]
+	LEFT OUTER JOIN [dbo].[Products] AS [Extent2] ON ([Extent2].[Discontinued] IN (0,1)) AND ([Extent1].[ProductID] = [Extent2].[ProductID])
+	WHERE [Extent1].[Discontinued] IN (0,1)
+)  AS [Project1]
+ORDER BY [Project1].[Discontinued] ASC, [Project1].[ProductID] ASC, [Project1].[ProductName] ASC, [Project1].[ReorderLevel] ASC, [Project1].[C1] ASC";
+
+            var providerServices =
+                (DbProviderServices)((IServiceProvider)EntityProviderFactory.Instance).GetService(typeof(DbProviderServices));
+            var connection = new EntityConnection(workspace, new SqlConnection());
+            var commandTree = new DbQueryCommandTree(workspace, DataSpace.CSpace, query, validate: true, useDatabaseNullSemantics: false);
+
+            var entityCommand = (EntityCommand)providerServices.CreateCommandDefinition(commandTree).CreateCommand();
+            entityCommand.Connection = connection;
+
+            Assert.Equal(QueryTestHelpers.StripFormatting(expectedSql), QueryTestHelpers.StripFormatting(entityCommand.ToTraceString()));
+        }
+
+        [Fact]
         public void GroupBy_row()
         {
             DbExpression one = DbExpressionBuilder.Constant(1);
@@ -793,53 +825,49 @@ ORDER BY [Project1].[Discontinued] ASC, [Project1].[ProductID] ASC, [Project1].[
             var query = groupBinding.GroupBy(keys, aggregates);
             var expectedSql =
                 @"SELECT 
-[Project10].[C1] AS [C1], 
-[Project10].[C2] AS [C2], 
-[Project10].[C3] AS [C3], 
-[Project10].[C7] AS [C4], 
-[Project10].[C4] AS [C5], 
-[Project10].[C5] AS [C6], 
-[Project10].[C6] AS [C7]
-FROM ( SELECT 
-	[Distinct1].[C1] AS [C1], 
-	[Distinct1].[C2] AS [C2], 
-	[Distinct1].[C3] AS [C3], 
-	[UnionAll4].[C1] AS [C4], 
-	CASE WHEN ([UnionAll4].[C1] IS NULL) THEN CAST(NULL AS int) WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN 1 END AS [C5], 
-	CASE WHEN ([UnionAll4].[C1] IS NULL) THEN CAST(NULL AS int) WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN CAST(NULL AS int) END AS [C6], 
-	CASE WHEN ([UnionAll4].[C1] IS NULL) THEN CAST(NULL AS int) ELSE 1 END AS [C7]
-	FROM   (SELECT DISTINCT 
-		1 AS [C1], 
-		CASE WHEN ([UnionAll2].[C1] = 0) THEN 1 WHEN ([UnionAll2].[C1] = 1) THEN 1 END AS [C2], 
-		CASE WHEN ([UnionAll2].[C1] = 0) THEN 1 WHEN ([UnionAll2].[C1] = 1) THEN CAST(NULL AS int) END AS [C3]
-		FROM  (SELECT 
-			[UnionAll1].[C1] AS [C1]
-			FROM  (SELECT 
-				0 AS [C1]
-				FROM  ( SELECT 1 AS X ) AS [SingleRowTable1]
-			UNION ALL
-				SELECT 
-				1 AS [C1]
-				FROM  ( SELECT 1 AS X ) AS [SingleRowTable2]) AS [UnionAll1]
-		UNION ALL
-			SELECT 
-			2 AS [C1]
-			FROM  ( SELECT 1 AS X ) AS [SingleRowTable3]) AS [UnionAll2] ) AS [Distinct1]
-	LEFT OUTER JOIN  (SELECT 
-		[UnionAll3].[C1] AS [C1]
-		FROM  (SELECT 
-			0 AS [C1]
-			FROM  ( SELECT 1 AS X ) AS [SingleRowTable4]
-		UNION ALL
-			SELECT 
-			1 AS [C1]
-			FROM  ( SELECT 1 AS X ) AS [SingleRowTable5]) AS [UnionAll3]
-	UNION ALL
-		SELECT 
-		2 AS [C1]
-		FROM  ( SELECT 1 AS X ) AS [SingleRowTable6]) AS [UnionAll4] ON (([Distinct1].[C2] = (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN 1 END)) OR (([Distinct1].[C2] IS NULL) AND (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN 1 END IS NULL))) AND (([Distinct1].[C3] = (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN CAST(NULL AS int) END)) OR (([Distinct1].[C3] IS NULL) AND (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN CAST(NULL AS int) END IS NULL)))
-)  AS [Project10]
-ORDER BY [Project10].[C1] ASC, [Project10].[C2] ASC, [Project10].[C3] ASC, [Project10].[C7] ASC";
+    [Project8].[C1] AS [C1], 
+    [Project8].[C2] AS [C2], 
+    [Project8].[C3] AS [C3], 
+    [Project8].[C7] AS [C4], 
+    [Project8].[C4] AS [C5], 
+    [Project8].[C5] AS [C6], 
+    [Project8].[C6] AS [C7]
+    FROM ( SELECT 
+        [Distinct1].[C1] AS [C1], 
+        [Distinct1].[C2] AS [C2], 
+        [Distinct1].[C3] AS [C3], 
+        [UnionAll4].[C1] AS [C4], 
+        CASE WHEN ([UnionAll4].[C1] IS NULL) THEN CAST(NULL AS int) WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN 1 END AS [C5], 
+        CASE WHEN ([UnionAll4].[C1] IS NULL) THEN CAST(NULL AS int) WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN CAST(NULL AS int) END AS [C6], 
+        CASE WHEN ([UnionAll4].[C1] IS NULL) THEN CAST(NULL AS int) ELSE 1 END AS [C7]
+        FROM   (SELECT DISTINCT 
+            1 AS [C1], 
+            CASE WHEN ([UnionAll2].[C1] = 0) THEN 1 WHEN ([UnionAll2].[C1] = 1) THEN 1 END AS [C2], 
+            CASE WHEN ([UnionAll2].[C1] = 0) THEN 1 WHEN ([UnionAll2].[C1] = 1) THEN CAST(NULL AS int) END AS [C3]
+            FROM  (SELECT 
+                0 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable1]
+            UNION ALL
+                SELECT 
+                1 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable2]
+            UNION ALL
+                SELECT 
+                2 AS [C1]
+                FROM  ( SELECT 1 AS X ) AS [SingleRowTable3]) AS [UnionAll2] ) AS [Distinct1]
+        LEFT OUTER JOIN  (SELECT 
+            0 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable4]
+        UNION ALL
+            SELECT 
+            1 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable5]
+        UNION ALL
+            SELECT 
+            2 AS [C1]
+            FROM  ( SELECT 1 AS X ) AS [SingleRowTable6]) AS [UnionAll4] ON (([Distinct1].[C2] = (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN 1 END)) OR (([Distinct1].[C2] IS NULL) AND (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN 1 END IS NULL))) AND (([Distinct1].[C3] = (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN CAST(NULL AS int) END)) OR (([Distinct1].[C3] IS NULL) AND (CASE WHEN ([UnionAll4].[C1] = 0) THEN 1 WHEN ([UnionAll4].[C1] = 1) THEN CAST(NULL AS int) END IS NULL)))
+    )  AS [Project8]
+    ORDER BY [Project8].[C1] ASC, [Project8].[C2] ASC, [Project8].[C3] ASC, [Project8].[C7] ASC";
 
             QueryTestHelpers.VerifyQuery(query, workspace, expectedSql);
         }
@@ -1264,6 +1292,82 @@ FROM ( SELECT
 )  AS [GroupBy1]";
 
             QueryTestHelpers.VerifyQuery(query, workspace, expectedSql);
+        }
+
+        public class CodePlex2160 : FunctionalTestBase
+        {
+            public class Foo
+            {
+                public string S { get; set; }
+                public Bar Bar { get; set; }
+            }
+
+            public class Bar
+            {
+                public int Id { get; set; }
+                public string Q { get; set; }
+            }
+
+            public class Context : DbContext
+            {
+                public DbSet<Foo> Foos { get; set; }
+
+                static Context()
+                {
+                    Database.SetInitializer(new ContextInitializer());
+                }
+
+                public Context()
+                {
+                    Configuration.UseDatabaseNullSemantics = false;
+                }
+
+                protected override void OnModelCreating(DbModelBuilder modelBuilder)
+                {
+                    modelBuilder.Entity<Foo>().HasKey(e => e.S).HasOptional(e => e.Bar);
+                }
+            }
+
+            public class ContextInitializer : DropCreateDatabaseIfModelChanges<Context>
+            {
+                protected override void Seed(Context context)
+                {
+                    context.Foos.Add(new Foo { S = "a" });
+                    context.Foos.Add(new Foo { S = "b" });
+                    context.Foos.Add(new Foo { S = "c" });
+                }
+            }
+
+            [Fact]
+            public void Group_by_nullable_reference_does_not_result_in_empty_group()
+            {
+                var expectedSql =
+@"SELECT 
+    1 AS [C1], 
+    [Join2].[S] AS [S], 
+    [Join2].[Bar_Id] AS [Bar_Id]
+    FROM   (SELECT DISTINCT 
+        [Extent2].[Q] AS [Q]
+        FROM  [dbo].[Foos] AS [Extent1]
+        LEFT OUTER JOIN [dbo].[Bars] AS [Extent2] ON [Extent1].[Bar_Id] = [Extent2].[Id] ) AS [Distinct1]
+    INNER JOIN  (SELECT [Extent3].[S] AS [S], [Extent3].[Bar_Id] AS [Bar_Id], [Extent4].[Q] AS [Q]
+        FROM  [dbo].[Foos] AS [Extent3]
+        LEFT OUTER JOIN [dbo].[Bars] AS [Extent4] ON [Extent3].[Bar_Id] = [Extent4].[Id] ) AS [Join2] ON ([Distinct1].[Q] = [Join2].[Q]) OR (([Distinct1].[Q] IS NULL) AND ([Join2].[Q] IS NULL))";
+
+                using (var context = new Context())
+                {
+                    context.Configuration.UseDatabaseNullSemantics = false;
+
+                    var query = context.Foos.GroupBy(x => x.Bar.Q).SelectMany(x => x);
+
+                    QueryTestHelpers.VerifyDbQuery(query, expectedSql);
+
+                    var items = query.ToArray();
+
+                    Assert.Equal(3, items.Length);
+                    Assert.Equal(new[] { "a", "b", "c" }, items.Select(it => it.S));
+                }
+            }
         }
     }
 }

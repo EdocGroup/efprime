@@ -5,10 +5,13 @@ namespace System.Data.Entity.WrappingProvider
     using System.Collections.Generic;
     using System.Data.Common;
     using System.Data.Entity.Core.Common;
+    using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Functionals.Utilities;
     using System.Data.Entity.Infrastructure;
     using System.Data.Entity.Infrastructure.DependencyResolution;
     using System.Data.Entity.Migrations.Sql;
     using System.Data.Entity.SqlServer;
+    using System.Data.Entity.TestHelpers;
     using System.Data.SqlClient;
     using System.Linq;
     using System.Reflection;
@@ -19,7 +22,7 @@ namespace System.Data.Entity.WrappingProvider
         private const string SqlClientInvariantName = "System.Data.SqlClient";
 
         private static readonly DataTable _providerTable =
-            (DataTable)typeof(DbProviderFactories).GetMethod("GetProviderTable", BindingFlags.NonPublic | BindingFlags.Static)
+            (DataTable)typeof(DbProviderFactories).GetDeclaredMethod("GetProviderTable")
                                                   .Invoke(null, BindingFlags.NonPublic | BindingFlags.Static, null, null, null);
 
         public WrappingProviderTests()
@@ -39,7 +42,7 @@ namespace System.Data.Entity.WrappingProvider
             MutableResolver.AddResolver<IDbProviderFactoryResolver>(
                 new SingletonDependencyResolver<IDbProviderFactoryResolver>(
                     (IDbProviderFactoryResolver)Activator.CreateInstance(
-                        typeof(DbContext).Assembly.GetTypes().Single(t => t.Name == "Net40DefaultDbProviderFactoryResolver"), nonPublic: true)));
+                        typeof(DbContext).Assembly().GetTypes().Single(t => t.Name == "Net40DefaultDbProviderFactoryResolver"), nonPublic: true)));
 
             Assert.Same(
                 SqlClientFactory.Instance,
@@ -109,6 +112,7 @@ namespace System.Data.Entity.WrappingProvider
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Simple_query_and_update_works_with_wrapping_provider_setup_by_replacing_ADO_NET_provider()
         {
             RegisterAdoNetProvider(typeof(WrappingAdoNetProvider<SqlClientFactory>));
@@ -118,25 +122,29 @@ namespace System.Data.Entity.WrappingProvider
             var log = WrappingAdoNetProvider<SqlClientFactory>.Instance.Log;
             log.Clear();
 
-            using (var context = new AdoLevelBlogContext())
-            {
-                var blog = context.Blogs.Single();
-                Assert.Equal("Half a Unicorn", blog.Title);
-                Assert.Equal("Wrap it up...", blog.Posts.Single().Title);
-
-                using (context.Database.BeginTransaction())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    blog.Posts.Add(
-                        new Post
-                            {
-                                Title = "Throw it away..."
-                            });
-                    Assert.Equal(1, context.SaveChanges());
-                    Assert.Equal(
-                        new[] { "Throw it away...", "Wrap it up..." },
-                        context.Posts.AsNoTracking().Select(p => p.Title).OrderBy(t => t));
-                }
-            }
+                    using (var context = new AdoLevelBlogContext())
+                    {
+                        var blog = context.Blogs.Single();
+                        Assert.Equal("Half a Unicorn", blog.Title);
+                        Assert.Equal("Wrap it up...", blog.Posts.Single().Title);
+
+                        using (context.Database.BeginTransaction())
+                        {
+                            blog.Posts.Add(
+                                new Post
+                                {
+                                    Title = "Throw it away..."
+                                });
+                            Assert.Equal(1, context.SaveChanges());
+                            Assert.Equal(
+                                new[] { "Throw it away...", "Wrap it up..." },
+                                context.Posts.AsNoTracking().Select(p => p.Title).OrderBy(t => t));
+                        }
+                    }
+                });
 
             // Sanity check that the wrapping provider really did get used
             var methods = log.Select(i => i.Method).ToList();
@@ -149,6 +157,7 @@ namespace System.Data.Entity.WrappingProvider
         }
 
         [Fact]
+        [UseDefaultExecutionStrategy]
         public void Simple_query_and_update_works_with_wrapping_provider_setup_at_EF_level_only()
         {
             WrappingAdoNetProvider<SqlClientFactory>.WrapProviders();
@@ -156,26 +165,30 @@ namespace System.Data.Entity.WrappingProvider
             var log = WrappingAdoNetProvider<SqlClientFactory>.Instance.Log;
             log.Clear();
 
-            using (var context = new EfLevelBlogContext())
-            {
-                var blog = context.Blogs.Single();
-                Assert.Equal("Half a Unicorn", blog.Title);
-                Assert.Equal("Wrap it up...", blog.Posts.Single().Title);
-
-                using (context.Database.BeginTransaction())
+            ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                () =>
                 {
-                    blog.Posts.Add(
-                        new Post
-                            {
-                                Title = "Throw it away..."
-                            });
-                    Assert.Equal(1, context.SaveChanges());
+                    using (var context = new EfLevelBlogContext())
+                    {
+                        var blog = context.Blogs.Single();
+                        Assert.Equal("Half a Unicorn", blog.Title);
+                        Assert.Equal("Wrap it up...", blog.Posts.Single().Title);
 
-                    Assert.Equal(
-                        new[] { "Throw it away...", "Wrap it up..." },
-                        context.Posts.AsNoTracking().Select(p => p.Title).OrderBy(t => t));
-                }
-            }
+                        using (context.Database.BeginTransaction())
+                        {
+                            blog.Posts.Add(
+                                new Post
+                                {
+                                    Title = "Throw it away..."
+                                });
+                            Assert.Equal(1, context.SaveChanges());
+
+                            Assert.Equal(
+                                new[] { "Throw it away...", "Wrap it up..." },
+                                context.Posts.AsNoTracking().Select(p => p.Title).OrderBy(t => t));
+                        }
+                    }
+                });
 
             // Sanity check that the wrapping provider really did get used
             var methods = log.Select(i => i.Method).ToList();
@@ -185,6 +198,27 @@ namespace System.Data.Entity.WrappingProvider
             Assert.Contains("Close", methods);
             Assert.Contains("Commit", methods);
             Assert.Contains("Generate", methods);
+        }
+
+        [Fact] // CodePlex 2320
+        public void Model_is_available_in_DatabaseExists()
+        {
+            WrappingAdoNetProvider<SqlClientFactory>.WrapProviders();
+
+            var log = WrappingAdoNetProvider<SqlClientFactory>.Instance.Log;
+            log.Clear();
+
+            using (var context = new EfLevelBlogContext())
+            {
+                context.Database.Exists();
+            }
+
+            var rawDetails = (object[])log.Where(i => i.Method == "DbDatabaseExists").Select(i => i.RawDetails).Single();
+            var itemCollection = (StoreItemCollection)rawDetails[1];
+            
+            Assert.Equal(
+                new[] { "Blog", "Post" },
+                itemCollection.OfType<EntityType>().Select(e => e.Name).OrderBy(n => n).ToArray());
         }
 
         public class Blog
@@ -261,15 +295,15 @@ namespace System.Data.Entity.WrappingProvider
 
             MutableResolver.AddResolver<DbProviderServices>(
                 (IDbDependencyResolver)Activator.CreateInstance(
-                    typeof(DbContext).Assembly.GetTypes().Single(t => t.Name == "DefaultProviderServicesResolver"), nonPublic: true));
+                    typeof(DbContext).Assembly().GetTypes().Single(t => t.Name == "DefaultProviderServicesResolver"), nonPublic: true));
 
             MutableResolver.AddResolver<DbProviderFactory>(
                 (IDbDependencyResolver)Activator.CreateInstance(
-                    typeof(DbContext).Assembly.GetTypes().Single(t => t.Name == "DefaultProviderFactoryResolver"), nonPublic: true));
+                    typeof(DbContext).Assembly().GetTypes().Single(t => t.Name == "DefaultProviderFactoryResolver"), nonPublic: true));
 
             MutableResolver.AddResolver<IProviderInvariantName>(
                 (IDbDependencyResolver)Activator.CreateInstance(
-                    typeof(DbContext).Assembly.GetTypes().Single(t => t.Name == "DefaultInvariantNameResolver"), nonPublic: true));
+                    typeof(DbContext).Assembly().GetTypes().Single(t => t.Name == "DefaultInvariantNameResolver"), nonPublic: true));
         }
     }
 }

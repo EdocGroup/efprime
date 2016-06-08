@@ -2,10 +2,10 @@
 
 namespace System.Data.Entity.Infrastructure
 {
-    using System.Collections.Concurrent;
     using System.Configuration;
     using System.Data.Common;
     using System.Data.Entity.Infrastructure.DependencyResolution;
+    using System.Data.Entity.Infrastructure.Interception;
     using System.Data.Entity.Internal;
     using System.Data.Entity.Resources;
     using System.Data.Entity.Utilities;
@@ -22,8 +22,8 @@ namespace System.Data.Entity.Infrastructure
     /// </summary>
     public class DbContextInfo
     {
-        private static readonly ConcurrentDictionary<Type, DbContextInfo> _infoMapping
-            = new ConcurrentDictionary<Type, DbContextInfo>();
+        [ThreadStatic]
+        private static DbContextInfo _currentInfo;
 
         private readonly Type _contextType;
         private readonly DbProviderInfo _modelProviderInfo;
@@ -35,6 +35,7 @@ namespace System.Data.Entity.Infrastructure
         private readonly bool _isConstructible;
         private readonly DbConnectionStringOrigin _connectionStringOrigin;
         private readonly string _connectionStringName;
+        private readonly Func<IDbDependencyResolver> _resolver = () => DbConfiguration.DependencyResolver;
 
         private Action<DbModelBuilder> _onModelCreating;
 
@@ -45,7 +46,12 @@ namespace System.Data.Entity.Infrastructure
         /// The type deriving from <see cref="DbContext" />.
         /// </param>
         public DbContextInfo(Type contextType)
-            : this(Check.NotNull(contextType, "contextType"), null, AppConfig.DefaultInstance, null)
+            : this(contextType, (Func<IDbDependencyResolver>)null)
+        {
+        }
+
+        internal DbContextInfo(Type contextType, Func<IDbDependencyResolver> resolver)
+            : this(Check.NotNull(contextType, "contextType"), null, AppConfig.DefaultInstance, null, resolver)
         {
         }
 
@@ -157,13 +163,15 @@ namespace System.Data.Entity.Infrastructure
         {
         }
 
-        /// <summary>
-        /// Called internally when a context info is needed for an existing context, which may not be constructable.
-        /// </summary>
-        /// <param name="context"> The context instance to get info from. </param>
-        internal DbContextInfo(DbContext context)
+        // <summary>
+        // Called internally when a context info is needed for an existing context, which may not be constructable.
+        // </summary>
+        // <param name="context"> The context instance to get info from. </param>
+        internal DbContextInfo(DbContext context, Func<IDbDependencyResolver> resolver = null)
         {
             Check.NotNull(context, "context");
+
+            _resolver = resolver ?? (() => DbConfiguration.DependencyResolver);
 
             _contextType = context.GetType();
             _appConfig = AppConfig.DefaultInstance;
@@ -183,12 +191,15 @@ namespace System.Data.Entity.Infrastructure
             Type contextType,
             DbProviderInfo modelProviderInfo,
             AppConfig config,
-            DbConnectionInfo connectionInfo)
+            DbConnectionInfo connectionInfo,
+            Func<IDbDependencyResolver> resolver = null)
         {
             if (!typeof(DbContext).IsAssignableFrom(contextType))
             {
                 throw new ArgumentOutOfRangeException("contextType");
             }
+
+            _resolver = resolver ?? (() => DbConfiguration.DependencyResolver);
 
             _contextType = contextType;
             _modelProviderInfo = modelProviderInfo;
@@ -207,7 +218,10 @@ namespace System.Data.Entity.Infrastructure
 
                     using (context)
                     {
-                        _connectionString = context.InternalContext.Connection.ConnectionString;
+                        _connectionString = 
+                            DbInterception.Dispatch.Connection.GetConnectionString(
+                            context.InternalContext.Connection,
+                            new DbInterceptionContext().WithDbContext(context));
                         _connectionStringName = context.InternalContext.ConnectionStringName;
                         _connectionProviderName = context.InternalContext.ProviderName;
                         _connectionStringOrigin = context.InternalContext.ConnectionStringOrigin;
@@ -283,7 +297,7 @@ namespace System.Data.Entity.Infrastructure
         public virtual DbContext CreateInstance()
         {
             var configPushed = DbConfigurationManager.Instance.PushConfiguration(_appConfig, _contextType);
-            MapContextToInfo(_contextType, this);
+            CurrentInfo = this;
 
             DbContext context = null;
             try
@@ -306,7 +320,7 @@ namespace System.Data.Entity.Infrastructure
                     return null;
                 }
 
-                context.InternalContext.OnDisposing += (_, __) => ClearInfoForContext(_contextType);
+                context.InternalContext.OnDisposing += (_, __) => CurrentInfo = null;
 
                 if (configPushed)
                 {
@@ -331,7 +345,7 @@ namespace System.Data.Entity.Infrastructure
             {
                 if (context == null)
                 {
-                    ClearInfoForContext(_contextType);
+                    CurrentInfo = null;
 
                     if (configPushed)
                     {
@@ -355,14 +369,15 @@ namespace System.Data.Entity.Infrastructure
 
             if (_connectionInfo != null)
             {
-                context.InternalContext.OverrideConnection(new LazyInternalConnection(_connectionInfo));
+                context.InternalContext.OverrideConnection(new LazyInternalConnection(context, _connectionInfo));
             }
             else if (_modelProviderInfo != null
                      && _appConfig == AppConfig.DefaultInstance)
             {
                 context.InternalContext.OverrideConnection(
                     new EagerInternalConnection(
-                        DbConfiguration.DependencyResolver.GetService<DbProviderFactory>(
+                        context,
+                        _resolver().GetService<DbProviderFactory>(
                             _modelProviderInfo.ProviderInvariantName).CreateConnection(), connectionOwned: true));
             }
 
@@ -374,16 +389,23 @@ namespace System.Data.Entity.Infrastructure
 
         private Func<DbContext> CreateActivator()
         {
-            var constructor = _contextType.GetConstructor(Type.EmptyTypes);
+            var constructor = _contextType.GetPublicConstructor();
 
             if (constructor != null)
             {
                 return () => (DbContext)Activator.CreateInstance(_contextType);
             }
 
+            var resolvedFactory = _resolver().GetService<Func<DbContext>>(_contextType);
+
+            if (resolvedFactory != null)
+            {
+                return resolvedFactory;
+            }
+
             var factoryType
-                = (from t in _contextType.Assembly.GetAccessibleTypes()
-                   where t.IsClass && typeof(IDbContextFactory<>).MakeGenericType(_contextType).IsAssignableFrom(t)
+                = (from t in _contextType.Assembly().GetAccessibleTypes()
+                   where t.IsClass() && typeof(IDbContextFactory<>).MakeGenericType(_contextType).IsAssignableFrom(t)
                    select t).FirstOrDefault();
 
             if (factoryType == null)
@@ -391,38 +413,18 @@ namespace System.Data.Entity.Infrastructure
                 return null;
             }
 
-            if (factoryType.GetConstructor(Type.EmptyTypes) == null)
+            if (factoryType.GetPublicConstructor() == null)
             {
                 throw Error.DbContextServices_MissingDefaultCtor(factoryType);
             }
 
-            var factory = (IDbContextFactory<DbContext>)Activator.CreateInstance(factoryType);
-
-            return factory.Create;
+            return ((IDbContextFactory<DbContext>)Activator.CreateInstance(factoryType)).Create;
         }
 
-        internal static void MapContextToInfo(Type contextType, DbContextInfo info)
+        internal static DbContextInfo CurrentInfo
         {
-            DebugCheck.NotNull(contextType);
-            DebugCheck.NotNull(info);
-
-            _infoMapping.AddOrUpdate(contextType, info, (t, i) => info);
-        }
-
-        internal static void ClearInfoForContext(Type contextType)
-        {
-            DebugCheck.NotNull(contextType);
-
-            DbContextInfo _;
-            _infoMapping.TryRemove(contextType, out _);
-        }
-
-        internal static DbContextInfo TryGetInfoForContext(Type contextType)
-        {
-            DebugCheck.NotNull(contextType);
-
-            DbContextInfo info;
-            return _infoMapping.TryGetValue(contextType, out info) ? info : null;
+            get { return _currentInfo; }
+            set { _currentInfo = value; }
         }
     }
 }

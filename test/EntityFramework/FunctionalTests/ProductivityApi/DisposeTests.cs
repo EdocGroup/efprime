@@ -9,7 +9,9 @@ namespace ProductivityApiTests
     using System.Data.Entity.Core.EntityClient;
     using System.Data.Entity.Core.Objects;
     using System.Data.Entity.Infrastructure;
+    using System.Data.Entity.TestHelpers;
     using System.Linq;
+    using System.Transactions;
     using SimpleModel;
     using Xunit;
     using Xunit.Extensions;
@@ -203,7 +205,7 @@ namespace ProductivityApiTests
         }
 
         [Fact]
-        [AutoRollback]
+        [UseDefaultExecutionStrategy]
         public void Dispose_does_not_dispose_underlying_ObjectContext_if_DbContext_does_not_own_it()
         {
             using (var outerContext = new SimpleModelContext())
@@ -213,8 +215,16 @@ namespace ProductivityApiTests
                 {
                     var product = context.Products.Find(1);
                 }
-                // Should not throw since objectContext should not be disposed
-                objectContext.SaveChanges();
+
+                ExtendedSqlAzureExecutionStrategy.ExecuteNew(
+                    () =>
+                    {
+                        using (new TransactionScope())
+                        {
+                            // Should not throw since objectContext should not be disposed
+                            objectContext.SaveChanges();
+                        }
+                    });
             }
         }
 

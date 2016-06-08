@@ -30,9 +30,8 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
-        /// <param name="outParameter"> </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
-        [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1614:ElementParameterDocumentationMustHaveText")]
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
         public ParameterModel Binary(
@@ -66,6 +65,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -96,6 +96,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -127,6 +128,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -161,6 +163,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -195,6 +198,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -225,6 +229,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -255,6 +260,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -285,6 +291,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -315,6 +322,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -345,6 +353,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -378,6 +387,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -415,6 +425,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -448,6 +459,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -480,6 +492,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]
@@ -510,6 +523,7 @@ namespace System.Data.Entity.Migrations.Builders
         /// <param name="defaultValueSql"> SQL expression used as the default value for this parameter. </param>
         /// <param name="name"> The name of the parameter. </param>
         /// <param name="storeType"> Provider specific data type to use for this parameter. </param>
+        /// <param name="outParameter">A value indicating whether the parameter is an output parameter.</param>
         /// <returns> The newly constructed parameter definition. </returns>
         [SuppressMessage("Microsoft.Design", "CA1026:DefaultParametersShouldNotBeUsed")]
         [SuppressMessage("Microsoft.Performance", "CA1822:MarkMembersAsStatic")]

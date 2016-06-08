@@ -2,7 +2,9 @@
 
 namespace System.Data.Entity.ModelConfiguration.Configuration
 {
+    using System.CodeDom.Compiler;
     using System.Data.Entity.Core.Metadata.Edm;
+    using System.Data.Entity.Infrastructure;
     using System.Data.Entity.ModelConfiguration.Configuration.Properties;
     using System.Data.Entity.ModelConfiguration.Configuration.Properties.Navigation;
     using System.Data.Entity.ModelConfiguration.Configuration.Types;
@@ -14,7 +16,6 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
     using System.Reflection;
     using Moq;
     using Xunit;
-    using System.Data.Entity.Infrastructure;
 
     public sealed class ConventionsConfigurationTests
     {
@@ -29,7 +30,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                     Enumerable.Empty<IConvention>(),
                     Enumerable.Empty<IConvention>(),
                     Enumerable.Empty<IConvention>()));
-            
+
             conventionsConfiguration.Add(mockConvention1.Object);
             conventionsConfiguration.Add(mockConvention2.Object);
 
@@ -122,7 +123,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                     Enumerable.Empty<IConvention>(),
                     Enumerable.Empty<IConvention>(),
                     Enumerable.Empty<IConvention>()));
-            
+
             conventionsConfiguration.Add(mockConvention1.Object);
             conventionsConfiguration.Add<ConventionFixture>();
 
@@ -279,19 +280,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConceptualModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<ConceptualModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<ConceptualModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(StoreModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<StoreModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<StoreModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(MappingConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<MappingConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<MappingConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -305,19 +306,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<ConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<ConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(StoreModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<StoreModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<StoreModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(MappingConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<MappingConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<MappingConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -331,19 +332,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<ConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<ConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConceptualModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<ConceptualModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<ConceptualModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(MappingConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<MappingConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<MappingConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -357,19 +358,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<ConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<ConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConceptualModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<ConceptualModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<ConceptualModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(StoreModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddAfter<StoreModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddAfter<StoreModelConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -502,19 +503,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConceptualModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<ConceptualModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<ConceptualModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(StoreModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<StoreModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<StoreModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(MappingConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<MappingConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<MappingConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -528,19 +529,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<ConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<ConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(StoreModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<StoreModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<StoreModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(MappingConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<MappingConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<MappingConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -554,19 +555,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<ConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<ConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConceptualModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<ConceptualModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<ConceptualModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(MappingConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<MappingConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<MappingConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -580,19 +581,19 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<ConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<ConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(ConceptualModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<ConceptualModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<ConceptualModelConventionFixture>(mockConvention)).Message);
 
             Assert.Equal(
                 Strings.ConventionsConfiguration_ConventionTypeMissmatch(mockConvention, typeof(StoreModelConventionFixture)),
                 Assert.Throws<InvalidOperationException>(
                     () =>
-                    conventionsConfiguration.AddBefore<StoreModelConventionFixture>(mockConvention)).Message);
+                        conventionsConfiguration.AddBefore<StoreModelConventionFixture>(mockConvention)).Message);
         }
 
         [Fact]
@@ -646,6 +647,30 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                     Message);
         }
 
+        [Fact]
+        public void AddFromAssembly_should_add_all_contained_conventions()
+        {
+            var assembly = CreateDynamicAssemblyWithConventions();
+
+            var conventionsConfiguration = new ConventionsConfiguration();
+            conventionsConfiguration.AddFromAssembly(assembly);
+
+            Assert.NotNull(
+                conventionsConfiguration.ConfigurationConventions
+                    .Where(c => c.GetType().Name == "RegularConvention")
+                    .Single());
+
+            Assert.NotNull(
+                conventionsConfiguration.StoreModelConventions
+                    .Where(c => c.GetType().Name == "StoreModelConvention")
+                    .Single());
+
+            Assert.NotNull(
+                conventionsConfiguration.ConceptualModelConventions
+                    .Where(c => c.GetType().Name == "ConceptualStoreModelConvention")
+                    .Single());
+        }
+
         private class ConventionFixture : Convention
         {
         }
@@ -672,6 +697,41 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             {
                 throw new NotImplementedException();
             }
+        }
+
+        private Assembly CreateDynamicAssemblyWithConventions()
+        {
+            var parameters = new CompilerParameters
+            {
+                GenerateExecutable = false,
+                OutputAssembly = "DynamicAssemblyWithConventionsForTests.dll"
+            };
+            parameters.ReferencedAssemblies.Add("EntityFramework.dll");
+
+            return CodeDomProvider
+                .CreateProvider("C#")
+                .CompileAssemblyFromSource(
+                    parameters,
+                    @"using System.Data.Entity.ModelConfiguration;
+                      using System.Data.Entity.Core.Metadata.Edm;
+                      using System.Data.Entity.ModelConfiguration.Conventions;
+                      using System.Data.Entity.Infrastructure;
+                      namespace Tests
+                      {
+                        public class RegularConvention : Convention 
+                        {
+                            public RegularConvention(){ }
+                        }
+                        public class StoreModelConvention : IStoreModelConvention<EdmProperty>
+                        {
+                            public void Apply(EdmProperty item, DbModel model) { }
+                        }
+                        public class ConceptualStoreModelConvention : IConceptualModelConvention<EdmProperty>
+                        {
+                            public void Apply(EdmProperty item, DbModel model) { }
+                        }
+                      }")
+                .CompiledAssembly;
         }
 
         [Fact]
@@ -808,9 +868,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var model = CreateDbModel();
             var mockConvention1 = new Mock<IConceptualModelConvention<EdmModel>>();
             var mockConvention2 = new Mock<IConceptualModelConvention<EdmModel>>();
-            mockConvention1.Setup(c => c.Apply(model.GetConceptualModel(), model))
+            mockConvention1.Setup(c => c.Apply(model.ConceptualModel, model))
                 .Callback(
-                    () => mockConvention2.Verify(c => c.Apply(model.GetConceptualModel(), model), Times.Never()));
+                    () => mockConvention2.Verify(c => c.Apply(model.ConceptualModel, model), Times.Never()));
 
             var conventionsConfiguration = new ConventionsConfiguration(
                 new ConventionSet(
@@ -821,8 +881,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
             conventionsConfiguration.ApplyConceptualModel(model);
 
-            mockConvention1.Verify(c => c.Apply(model.GetConceptualModel(), model), Times.Once());
-            mockConvention2.Verify(c => c.Apply(model.GetConceptualModel(), model), Times.Once());
+            mockConvention1.Verify(c => c.Apply(model.ConceptualModel, model), Times.Once());
+            mockConvention2.Verify(c => c.Apply(model.ConceptualModel, model), Times.Once());
         }
 
         [Fact]
@@ -854,9 +914,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var model = CreateDbModel();
             var mockConvention1 = new Mock<IStoreModelConvention<EdmModel>>();
             var mockConvention2 = new Mock<IStoreModelConvention<EdmModel>>();
-            mockConvention1.Setup(c => c.Apply(model.GetStoreModel(), model))
+            mockConvention1.Setup(c => c.Apply(model.StoreModel, model))
                 .Callback(
-                    () => mockConvention2.Verify(c => c.Apply(model.GetStoreModel(), model), Times.Never()));
+                    () => mockConvention2.Verify(c => c.Apply(model.StoreModel, model), Times.Never()));
 
             var conventionsConfiguration = new ConventionsConfiguration(
                 new ConventionSet(
@@ -867,23 +927,23 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
             conventionsConfiguration.ApplyStoreModel(model);
 
-            mockConvention1.Verify(c => c.Apply(model.GetStoreModel(), model), Times.Once());
-            mockConvention2.Verify(c => c.Apply(model.GetStoreModel(), model), Times.Once());
+            mockConvention1.Verify(c => c.Apply(model.StoreModel, model), Times.Once());
+            mockConvention2.Verify(c => c.Apply(model.StoreModel, model), Times.Once());
         }
 
         [Fact]
         public void ApplyConceptualModel_should_run_targeted_model_conventions()
         {
             var model = CreateDbModel();
-            var entityType = model.GetConceptualModel().AddEntityType("E");
+            var entityType = model.ConceptualModel.AddEntityType("E");
             var mockConvention = new Mock<IConceptualModelConvention<EntityType>>();
             var conventionsConfiguration = new ConventionsConfiguration(
                 new ConventionSet(
                     Enumerable.Empty<IConvention>(),
                     new IConvention[]
-                        {
-                            mockConvention.Object
-                        },
+                    {
+                        mockConvention.Object
+                    },
                     Enumerable.Empty<IConvention>(),
                     Enumerable.Empty<IConvention>()));
 
@@ -896,7 +956,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         public void ApplyStoreModel_should_run_targeted_model_conventions()
         {
             var model = CreateDbModel();
-            var table = model.GetStoreModel().AddTable("T");
+            var table = model.StoreModel.AddTable("T");
             var mockConvention = new Mock<IStoreModelConvention<EntityType>>();
             var conventionsConfiguration = new ConventionsConfiguration(
                 new ConventionSet(
@@ -904,9 +964,9 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
                     Enumerable.Empty<IConvention>(),
                     Enumerable.Empty<IConvention>(),
                     new IConvention[]
-                        {
-                            mockConvention.Object
-                        }));
+                    {
+                        mockConvention.Object
+                    }));
 
             conventionsConfiguration.ApplyStoreModel(model);
 
@@ -998,9 +1058,10 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var mockConvention1 = new Mock<IConfigurationConvention<Type, EntityTypeConfiguration>>();
             var mockConvention2 = new Mock<IConfigurationConvention<Type, StructuralTypeConfiguration>>();
             mockConvention2.Setup(c => c.Apply(typeof(object), entityTypeConfiguration, It.IsAny<ModelConfiguration>()))
-                .Callback(() =>
-                    mockConvention1.Verify(
-                        c => c.Apply(typeof(object), entityTypeConfiguration, It.IsAny<ModelConfiguration>()), Times.Never()));
+                .Callback(
+                    () =>
+                        mockConvention1.Verify(
+                            c => c.Apply(typeof(object), entityTypeConfiguration, It.IsAny<ModelConfiguration>()), Times.Never()));
 
             var conventionsConfiguration = new ConventionsConfiguration(
                 new ConventionSet(
@@ -1037,7 +1098,7 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
         public void ApplyPluralizingTableNameConvention_should_run_PluralizingTableName_conventions_in_order()
         {
             var model = CreateDbModel();
-            model.GetStoreModel().AddItem(new EntityType("foo", "bar", DataSpace.SSpace));
+            model.StoreModel.AddItem(new EntityType("foo", "bar", DataSpace.SSpace));
             var mockConvention1 = new Mock<PluralizingTableNameConvention>();
             var mockConvention2 = new Mock<PluralizingTableNameConvention>();
             mockConvention1.Setup(c => c.Apply(It.IsAny<EntityType>(), model))
@@ -1064,15 +1125,15 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             var mockConvention2 = new Mock<IConfigurationConvention<PropertyInfo, Properties.Primitive.StringPropertyConfiguration>>();
             mockConvention2.Setup(
                 c =>
-                c.Apply(
-                    mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()))
+                    c.Apply(
+                        mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()))
                 .Callback(
                     () =>
-                    mockConvention1.Verify(
-                        c =>
-                        c.Apply(
-                            mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(),
-                            It.IsAny<ModelConfiguration>()), Times.Never()));
+                        mockConvention1.Verify(
+                            c =>
+                                c.Apply(
+                                    mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(),
+                                    It.IsAny<ModelConfiguration>()), Times.Never()));
 
             var conventionsConfiguration = new ConventionsConfiguration(
                 new ConventionSet(
@@ -1086,13 +1147,13 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
             mockConvention1.Verify(
                 c =>
-                c.Apply(
-                    mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()),
+                    c.Apply(
+                        mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()),
                 Times.Once());
             mockConvention2.Verify(
                 c =>
-                c.Apply(
-                    mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()),
+                    c.Apply(
+                        mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()),
                 Times.Once());
         }
 
@@ -1205,8 +1266,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
 
             mockConvention1.Verify(
                 c =>
-                c.Apply(
-                    mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()),
+                    c.Apply(
+                        mockPropertyInfo, It.IsAny<Func<Properties.Primitive.StringPropertyConfiguration>>(), It.IsAny<ModelConfiguration>()),
                 Times.Once());
             mockConvention2.Verify(
                 c => c.Apply(mockPropertyInfo, It.IsAny<Func<PropertyConfiguration>>(), It.IsAny<ModelConfiguration>()), Times.Once());
@@ -1225,8 +1286,8 @@ namespace System.Data.Entity.ModelConfiguration.Configuration
             mockConvention2.Setup(c => c.Apply(mockPropertyInfo, complexTypeConfiguration, It.IsAny<ModelConfiguration>()))
                 .Callback(
                     () =>
-                    mockConvention1.Verify(
-                        c => c.Apply(mockPropertyInfo, complexTypeConfiguration, It.IsAny<ModelConfiguration>()), Times.Never()));
+                        mockConvention1.Verify(
+                            c => c.Apply(mockPropertyInfo, complexTypeConfiguration, It.IsAny<ModelConfiguration>()), Times.Never()));
 
             var conventionsConfiguration = new ConventionsConfiguration(
                 new ConventionSet(

@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
+// Copyright (c) Microsoft Open Technologies, Inc. All rights reserved. See License.txt in the project root for license information.
 
 namespace System.Data.Entity.SqlServer
 {
@@ -9,9 +9,9 @@ namespace System.Data.Entity.SqlServer
     using System.Threading;
     using System.Threading.Tasks;
 
-    /// <summary>
-    /// An <see cref="IDbExecutionStrategy"/> that doesn't affect the execution but will throw a more helpful exception if a transient failure is detected.
-    /// </summary>
+    // <summary>
+    // An <see cref="IDbExecutionStrategy"/> that doesn't affect the execution but will throw a more helpful exception if a transient failure is detected.
+    // </summary>
     internal sealed class DefaultSqlExecutionStrategy : IDbExecutionStrategy
     {
         public bool RetriesOnFailure
@@ -59,6 +59,8 @@ namespace System.Data.Entity.SqlServer
         {
             Check.NotNull(operation, "operation");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             return ExecuteAsyncImplementation(
                 async () =>
                           {
@@ -71,10 +73,12 @@ namespace System.Data.Entity.SqlServer
         {
             Check.NotNull(operation, "operation");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             return ExecuteAsyncImplementation(operation);
         }
 
-        private async Task<TResult> ExecuteAsyncImplementation<TResult>(Func<Task<TResult>> func)
+        private static async Task<TResult> ExecuteAsyncImplementation<TResult>(Func<Task<TResult>> func)
         {
             try
             {
